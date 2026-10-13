@@ -1,0 +1,709 @@
+CREATE TYPE "company_status" AS ENUM (
+  'active',
+  'inactive'
+);
+
+CREATE TYPE "user_role" AS ENUM (
+  'platform_admin',
+  'company_admin',
+  'supervisor',
+  'driver'
+);
+
+CREATE TYPE "driver_status" AS ENUM (
+  'available',
+  'on_route',
+  'unavailable'
+);
+
+CREATE TYPE "service_modality" AS ENUM (
+  'subscription',
+  'pay_per_use'
+);
+
+CREATE TYPE "subscription_status" AS ENUM (
+  'active',
+  'inactive',
+  'expired'
+);
+
+CREATE TYPE "billing_cycle" AS ENUM (
+  'monthly',
+  'annual'
+);
+
+CREATE TYPE "credit_transaction_type" AS ENUM (
+  'renewal',
+  'consumption',
+  'purchase'
+);
+
+CREATE TYPE "order_type" AS ENUM (
+  'delivery',
+  'pickup'
+);
+
+CREATE TYPE "order_channel" AS ENUM (
+  'whatsapp',
+  'phone_call',
+  'in_person'
+);
+
+CREATE TYPE "order_status" AS ENUM (
+  'pending',
+  'assigned',
+  'completed',
+  'cancelled'
+);
+
+CREATE TYPE "order_priority" AS ENUM (
+  'normal',
+  'urgent'
+);
+
+CREATE TYPE "route_status" AS ENUM (
+  'created',
+  'optimized',
+  'in_progress',
+  'completed',
+  'cancelled'
+);
+
+CREATE TYPE "stop_status" AS ENUM (
+  'pending',
+  'arrived',
+  'completed'
+);
+
+CREATE TYPE "incident_category" AS ENUM (
+  'incident',
+  'question'
+);
+
+CREATE TYPE "incident_status" AS ENUM (
+  'open',
+  'in_progress',
+  'resolved'
+);
+
+CREATE TYPE "support_status" AS ENUM (
+  'open',
+  'answered',
+  'closed'
+);
+
+CREATE TYPE "alert_severity" AS ENUM (
+  'info',
+  'warning',
+  'critical'
+);
+
+CREATE TYPE "payment_purpose" AS ENUM (
+  'subscription',
+  'credit_package',
+  'module',
+  'usage'
+);
+
+CREATE TYPE "usage_charge_status" AS ENUM (
+  'open',
+  'charged',
+  'rejected'
+);
+
+CREATE TYPE "payment_status" AS ENUM (
+  'pending',
+  'approved',
+  'rejected'
+);
+
+CREATE TABLE "companies" (
+  "id" uuid PRIMARY KEY,
+  "legal_name" varchar(200) NOT NULL,
+  "tax_id" varchar(20) UNIQUE NOT NULL,
+  "email" varchar(150) NOT NULL,
+  "phone" varchar(30),
+  "address" varchar(255),
+  "status" company_status NOT NULL DEFAULT 'active',
+  "has_own_fleet" boolean NOT NULL,
+  "settings" jsonb,
+  "card_reference" varchar(100),
+  "monthly_spending_limit" decimal(12,2),
+  "created_at" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "branches" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "address" varchar(255)
+);
+
+CREATE TABLE "users" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid,
+  "role" user_role NOT NULL,
+  "full_name" varchar(150) NOT NULL,
+  "email" varchar(150) UNIQUE NOT NULL,
+  "password_hash" varchar(255) NOT NULL,
+  "phone" varchar(30),
+  "is_active" boolean NOT NULL DEFAULT true,
+  "created_at" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "drivers" (
+  "user_id" uuid PRIMARY KEY,
+  "status" driver_status NOT NULL DEFAULT 'unavailable'
+);
+
+CREATE TABLE "plans" (
+  "id" uuid PRIMARY KEY,
+  "name" varchar(50) UNIQUE NOT NULL,
+  "modality" service_modality NOT NULL DEFAULT 'subscription',
+  "max_drivers" int,
+  "max_branches" int,
+  "support_type" varchar(50),
+  "trial_days" int,
+  "monthly_credits" int,
+  "monthly_price" decimal(12,2),
+  "annual_price" decimal(12,2),
+  "included_drivers" int,
+  "price_per_optimization" decimal(12,2),
+  "price_per_additional_driver" decimal(12,2),
+  "early_charge_threshold" decimal(12,2),
+  "is_active" boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE "subscriptions" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "plan_id" uuid NOT NULL,
+  "status" subscription_status NOT NULL DEFAULT 'active',
+  "billing_cycle" billing_cycle,
+  "payment_id" uuid,
+  "start_date" date NOT NULL,
+  "renewal_date" date,
+  "end_date" date
+);
+
+CREATE TABLE "modules" (
+  "id" uuid PRIMARY KEY,
+  "code" varchar(50) UNIQUE NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "price" decimal(12,2),
+  "is_active" boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE "plan_modules" (
+  "plan_id" uuid,
+  "module_id" uuid,
+  PRIMARY KEY ("plan_id", "module_id")
+);
+
+CREATE TABLE "company_modules" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "module_id" uuid NOT NULL,
+  "payment_id" uuid NOT NULL,
+  "price" decimal(12,2),
+  "start_date" date NOT NULL DEFAULT (current_date),
+  "end_date" date
+);
+
+CREATE TABLE "credit_balances" (
+  "company_id" uuid PRIMARY KEY,
+  "plan_credits" int NOT NULL DEFAULT 0,
+  "extra_credits" int NOT NULL DEFAULT 0
+);
+
+CREATE TABLE "credit_packages" (
+  "id" uuid PRIMARY KEY,
+  "name" varchar(100) NOT NULL,
+  "credits" int NOT NULL,
+  "price" decimal(12,2) NOT NULL,
+  "is_active" boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE "credit_purchases" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "package_id" uuid NOT NULL,
+  "payment_id" uuid NOT NULL,
+  "credits" int NOT NULL,
+  "price" decimal(12,2) NOT NULL,
+  "purchase_date" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "credit_transactions" (
+  "id" BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "type" credit_transaction_type NOT NULL,
+  "quantity" int NOT NULL,
+  "resulting_balance" int NOT NULL,
+  "purchase_id" uuid,
+  "optimization_id" uuid,
+  "transaction_date" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "orders" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "branch_id" uuid,
+  "type" order_type NOT NULL,
+  "address" varchar(255) NOT NULL,
+  "latitude" decimal(9,6),
+  "longitude" decimal(9,6),
+  "priority" order_priority NOT NULL DEFAULT 'normal',
+  "customer_name" varchar(150),
+  "customer_phone" varchar(30),
+  "description" text,
+  "channel" order_channel,
+  "status" order_status NOT NULL DEFAULT 'pending',
+  "created_at" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "routes" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "driver_id" uuid NOT NULL,
+  "route_date" date NOT NULL,
+  "status" route_status NOT NULL DEFAULT 'created',
+  "start_latitude" decimal(9,6),
+  "start_longitude" decimal(9,6),
+  "started_at" timestamp,
+  "ended_at" timestamp
+);
+
+CREATE TABLE "route_stops" (
+  "id" uuid PRIMARY KEY,
+  "route_id" uuid NOT NULL,
+  "order_id" uuid,
+  "student_id" uuid,
+  "sequence" int NOT NULL,
+  "status" stop_status NOT NULL DEFAULT 'pending',
+  "arrived_at" timestamp,
+  "is_geofence_verified" boolean NOT NULL DEFAULT false,
+  "confirmed_at" timestamp,
+  "synced_at" timestamp,
+  "notes" text,
+  "recipient_name" varchar(150)
+);
+
+CREATE TABLE "route_optimizations" (
+  "id" uuid PRIMARY KEY,
+  "route_id" uuid NOT NULL,
+  "total_distance_m" int,
+  "estimated_duration_s" int,
+  "processing_time_ms" int,
+  "is_successful" boolean NOT NULL,
+  "usage_charge_id" uuid,
+  "optimization_date" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "route_locations" (
+  "id" BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  "route_id" uuid NOT NULL,
+  "latitude" decimal(9,6) NOT NULL,
+  "longitude" decimal(9,6) NOT NULL,
+  "captured_at" timestamp NOT NULL,
+  "synced_at" timestamp NOT NULL DEFAULT (now()),
+  "is_offline" boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE "evidence_photos" (
+  "id" uuid PRIMARY KEY,
+  "stop_id" uuid NOT NULL,
+  "photo_url" varchar(500) NOT NULL,
+  "captured_at" timestamp
+);
+
+CREATE TABLE "incidents" (
+  "id" uuid PRIMARY KEY,
+  "route_id" uuid NOT NULL,
+  "stop_id" uuid,
+  "category" incident_category NOT NULL,
+  "description" text NOT NULL,
+  "status" incident_status NOT NULL DEFAULT 'open',
+  "resolution_notes" text,
+  "reported_at" timestamp NOT NULL DEFAULT (now()),
+  "synced_at" timestamp,
+  "resolved_at" timestamp
+);
+
+CREATE TABLE "incident_messages" (
+  "id" BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  "incident_id" uuid NOT NULL,
+  "sender_id" uuid NOT NULL,
+  "message" text NOT NULL,
+  "sent_at" timestamp NOT NULL DEFAULT (now()),
+  "read_at" timestamp
+);
+
+CREATE TABLE "support_requests" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "subject" varchar(200) NOT NULL,
+  "description" text NOT NULL,
+  "status" support_status NOT NULL DEFAULT 'open',
+  "response" text,
+  "sent_date" date NOT NULL DEFAULT (current_date),
+  "response_date" date
+);
+
+CREATE TABLE "system_alerts" (
+  "id" BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  "company_id" uuid,
+  "severity" alert_severity NOT NULL,
+  "source" varchar(100),
+  "message" text NOT NULL,
+  "created_at" timestamp NOT NULL DEFAULT (now()),
+  "resolved_at" timestamp
+);
+
+CREATE TABLE "system_settings" (
+  "key" varchar(100) PRIMARY KEY,
+  "value" jsonb NOT NULL,
+  "updated_at" timestamp NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "notifications" (
+  "id" BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+  "user_id" uuid NOT NULL,
+  "type" varchar(50) NOT NULL,
+  "message" text NOT NULL,
+  "is_read" boolean NOT NULL DEFAULT false,
+  "created_at" timestamp NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "students" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "full_name" varchar(150) NOT NULL,
+  "pickup_address" varchar(255) NOT NULL,
+  "latitude" decimal(9,6),
+  "longitude" decimal(9,6),
+  "is_active" boolean NOT NULL DEFAULT true,
+  "created_at" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "payments" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "purpose" payment_purpose NOT NULL,
+  "amount" decimal(12,2) NOT NULL,
+  "payment_method" varchar(30),
+  "status" payment_status NOT NULL DEFAULT 'pending',
+  "gateway_reference" varchar(100) UNIQUE,
+  "created_at" timestamp NOT NULL DEFAULT (now()),
+  "approved_at" timestamp
+);
+
+CREATE TABLE "usage_charges" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "period_start_date" date NOT NULL,
+  "period_end_date" date,
+  "optimization_count" int NOT NULL DEFAULT 0,
+  "additional_drivers" int NOT NULL DEFAULT 0,
+  "amount" decimal(12,2) NOT NULL DEFAULT 0,
+  "status" usage_charge_status NOT NULL DEFAULT 'open',
+  "payment_id" uuid
+);
+
+CREATE UNIQUE INDEX ON "route_stops" ("route_id", "sequence");
+
+CREATE INDEX ON "route_locations" ("route_id", "captured_at");
+
+COMMENT ON COLUMN "companies"."tax_id" IS 'Colombian NIT';
+
+COMMENT ON COLUMN "companies"."email" IS 'HU-01: confirmation email';
+
+COMMENT ON COLUMN "companies"."has_own_fleet" IS 'HU-01: only companies with their own drivers';
+
+COMMENT ON COLUMN "companies"."settings" IS 'HU-24: general company settings';
+
+COMMENT ON COLUMN "companies"."card_reference" IS 'HU-37: reference (token) of the card registered in Wompi. No card data is stored (RNF11)';
+
+COMMENT ON COLUMN "companies"."monthly_spending_limit" IS 'HU-39: optional pay-per-use spending limit. NULL = no limit';
+
+COMMENT ON COLUMN "users"."company_id" IS 'NULL for the platform admin';
+
+COMMENT ON COLUMN "drivers"."status" IS 'RF05: availability';
+
+COMMENT ON TABLE "plans" IS 'HU-22. In pay-per-use, monthly_price is the base membership. All modalities include advanced reports';
+
+COMMENT ON COLUMN "plans"."name" IS 'Free Trial | Basic | Pro | Premium | Pay-per-use';
+
+COMMENT ON COLUMN "plans"."max_drivers" IS 'Free Trial: 3, Basic: 3, Pro: 10, Premium: NULL (unlimited)';
+
+COMMENT ON COLUMN "plans"."max_branches" IS 'Free Trial: 1, Basic: 1, Pro: 5, Premium: NULL (unlimited)';
+
+COMMENT ON COLUMN "plans"."support_type" IS 'Free Trial, Basic and Pro: email or chat. Premium: dedicated';
+
+COMMENT ON COLUMN "plans"."trial_days" IS 'Free Trial only: 7';
+
+COMMENT ON COLUMN "plans"."monthly_credits" IS 'HU-16: credits included per month. In Free Trial: total for the 7 days. To be defined';
+
+COMMENT ON COLUMN "plans"."monthly_price" IS 'Monthly plan price in COP. To be defined';
+
+COMMENT ON COLUMN "plans"."annual_price" IS 'Annual plan price in COP, discounted. To be defined';
+
+COMMENT ON COLUMN "plans"."included_drivers" IS 'Pay-per-use only: drivers included in the membership. To be defined';
+
+COMMENT ON COLUMN "plans"."price_per_optimization" IS 'Pay-per-use only: price per successful optimization. To be defined';
+
+COMMENT ON COLUMN "plans"."price_per_additional_driver" IS 'Pay-per-use only: monthly price per additional driver. To be defined';
+
+COMMENT ON COLUMN "plans"."early_charge_threshold" IS 'Pay-per-use only: amount that triggers the charge before the end of the month. To be defined';
+
+COMMENT ON TABLE "subscriptions" IS 'Plan history per company. Only one active per company: CREATE UNIQUE INDEX ON subscriptions (company_id) WHERE status = ''active''';
+
+COMMENT ON COLUMN "subscriptions"."status" IS 'active: current. expired: Free Trial ended without a chosen modality, plan not renewed or charge rejected (subscription or pay-per-use). inactive: replaced by another plan or modality (history)';
+
+COMMENT ON COLUMN "subscriptions"."billing_cycle" IS 'Monthly or annual. NULL in Free Trial and in pay-per-use (always monthly)';
+
+COMMENT ON COLUMN "subscriptions"."payment_id" IS 'Payment that enabled it. NULL in Free Trial';
+
+COMMENT ON COLUMN "subscriptions"."renewal_date" IS 'End of the paid period (monthly or annual). In Free Trial: expiration date';
+
+COMMENT ON COLUMN "subscriptions"."end_date" IS 'Date the subscription ended (history)';
+
+COMMENT ON TABLE "modules" IS 'Sector modules (RF12: school transport)';
+
+COMMENT ON COLUMN "modules"."code" IS 'e.g. school. New sectors can be added without changing the structure';
+
+COMMENT ON COLUMN "modules"."name" IS 'e.g. School transport';
+
+COMMENT ON COLUMN "modules"."price" IS 'Monthly price as an add-on. To be defined';
+
+COMMENT ON COLUMN "modules"."is_active" IS 'HU-22 CA04: stop offering it without affecting companies that already have it';
+
+COMMENT ON TABLE "plan_modules" IS 'Modules included in each plan. Premium includes the school module; Free Trial includes it for testing';
+
+COMMENT ON TABLE "company_modules" IS 'Modules purchased separately (Pro plan and pay-per-use only, validated by the system; RF22, HU-19). Module access = the plan includes it OR the company purchased it';
+
+COMMENT ON COLUMN "company_modules"."payment_id" IS 'HU-19: created when the gateway approves the payment';
+
+COMMENT ON COLUMN "company_modules"."price" IS 'Price paid when purchased';
+
+COMMENT ON COLUMN "company_modules"."end_date" IS 'NULL = current';
+
+COMMENT ON TABLE "credit_balances" IS 'HU-16 / HU-17: current balance, subscription modality only. Each optimization consumes plan_credits first, then extra_credits';
+
+COMMENT ON COLUMN "credit_balances"."plan_credits" IS 'Reset every month to the plan value, also on annual plans. CHECK >= 0';
+
+COMMENT ON COLUMN "credit_balances"."extra_credits" IS 'Purchased. Not reset. CHECK >= 0';
+
+COMMENT ON TABLE "credit_packages" IS 'HU-17 R02: defined by the platform admin';
+
+COMMENT ON COLUMN "credit_packages"."credits" IS 'HU-17: number of credits';
+
+COMMENT ON COLUMN "credit_packages"."price" IS 'HU-17: price';
+
+COMMENT ON TABLE "credit_purchases" IS 'HU-18 R02: only with an active subscription and outside the Free Trial (validated by the system)';
+
+COMMENT ON COLUMN "credit_purchases"."payment_id" IS 'HU-18: created when the gateway approves the payment';
+
+COMMENT ON COLUMN "credit_purchases"."credits" IS 'HU-18: purchased amount';
+
+COMMENT ON COLUMN "credit_purchases"."price" IS 'Price paid at the time of purchase';
+
+COMMENT ON COLUMN "credit_purchases"."purchase_date" IS 'HU-18: date';
+
+COMMENT ON TABLE "credit_transactions" IS 'HU-16 CA05: transaction history';
+
+COMMENT ON COLUMN "credit_transactions"."quantity" IS 'Positive: renewal or purchase. Negative: consumption';
+
+COMMENT ON COLUMN "credit_transactions"."resulting_balance" IS 'HU-18 CA03: total resulting balance (plan + extra)';
+
+COMMENT ON COLUMN "credit_transactions"."purchase_id" IS 'Only if type = purchase';
+
+COMMENT ON COLUMN "credit_transactions"."optimization_id" IS 'Only if type = consumption';
+
+COMMENT ON COLUMN "orders"."address" IS 'RF04';
+
+COMMENT ON COLUMN "orders"."latitude" IS 'RF15';
+
+COMMENT ON COLUMN "orders"."longitude" IS 'RF15';
+
+COMMENT ON COLUMN "orders"."priority" IS 'RF04';
+
+COMMENT ON COLUMN "routes"."driver_id" IS 'RF01 / HU-06 CA04: the route is created with its driver. RF09';
+
+COMMENT ON COLUMN "routes"."start_latitude" IS 'RF06: driver starting point';
+
+COMMENT ON COLUMN "routes"."started_at" IS 'Moment the driver starts the route';
+
+COMMENT ON COLUMN "routes"."ended_at" IS 'Moment the driver ends the route';
+
+COMMENT ON TABLE "route_stops" IS 'Each stop has either order_id or student_id (one of the two)';
+
+COMMENT ON COLUMN "route_stops"."order_id" IS 'NULL if it is a school stop';
+
+COMMENT ON COLUMN "route_stops"."student_id" IS 'NULL if it is an order';
+
+COMMENT ON COLUMN "route_stops"."sequence" IS 'RF06 / RF09: visit order';
+
+COMMENT ON COLUMN "route_stops"."arrived_at" IS 'RF14: arrival at the stop';
+
+COMMENT ON COLUMN "route_stops"."is_geofence_verified" IS 'RF14: true if the arrival was detected by GPS';
+
+COMMENT ON COLUMN "route_stops"."confirmed_at" IS 'RF10 / HU-15: actual confirmation time on the device';
+
+COMMENT ON COLUMN "route_stops"."synced_at" IS 'RF17: time it reached the server (offline mode)';
+
+COMMENT ON COLUMN "route_stops"."notes" IS 'Driver notes';
+
+COMMENT ON COLUMN "route_optimizations"."total_distance_m" IS 'HU-07 / HU-08';
+
+COMMENT ON COLUMN "route_optimizations"."estimated_duration_s" IS 'HU-07 / HU-08';
+
+COMMENT ON COLUMN "route_optimizations"."processing_time_ms" IS 'RNF01: max. 10 s';
+
+COMMENT ON COLUMN "route_optimizations"."is_successful" IS 'A failed optimization does not consume credits and is not charged';
+
+COMMENT ON COLUMN "route_optimizations"."usage_charge_id" IS 'Pay-per-use only: charge that includes this optimization';
+
+COMMENT ON TABLE "route_locations" IS 'RF13 / HU-36: complete GPS trail of each route in progress (one point every 30 s approx.). The live location every 5 s is stored in Redis';
+
+COMMENT ON COLUMN "route_locations"."captured_at" IS 'Actual time the point was taken on the device';
+
+COMMENT ON COLUMN "route_locations"."synced_at" IS 'Time it reached the server';
+
+COMMENT ON COLUMN "route_locations"."is_offline" IS 'true if it was taken without connection';
+
+COMMENT ON COLUMN "evidence_photos"."photo_url" IS 'RF16: file address, not the image';
+
+COMMENT ON COLUMN "incidents"."route_id" IS 'The reporting driver is the route driver';
+
+COMMENT ON COLUMN "incidents"."stop_id" IS 'Affected stop, if any';
+
+COMMENT ON COLUMN "incidents"."category" IS 'HU-11: incident or question';
+
+COMMENT ON COLUMN "incidents"."reported_at" IS 'Actual report time on the device';
+
+COMMENT ON COLUMN "incidents"."synced_at" IS 'RF17 / HU-36 CA07: time it reached the server (offline mode)';
+
+COMMENT ON TABLE "incident_messages" IS 'HU-11: driver-supervisor communication';
+
+COMMENT ON COLUMN "incident_messages"."sender_id" IS 'Driver or supervisor';
+
+COMMENT ON TABLE "support_requests" IS 'HU-03 / HU-34: technical support';
+
+COMMENT ON COLUMN "support_requests"."response" IS 'HU-03: platform admin response';
+
+COMMENT ON TABLE "system_alerts" IS 'HU-02: history of system failures and alerts';
+
+COMMENT ON COLUMN "system_alerts"."company_id" IS 'NULL if it affects the whole platform';
+
+COMMENT ON COLUMN "system_alerts"."source" IS 'Component that generated the alert';
+
+COMMENT ON TABLE "system_settings" IS 'HU-23: general platform parameters';
+
+COMMENT ON COLUMN "system_settings"."key" IS 'Parameter name';
+
+COMMENT ON COLUMN "system_settings"."value" IS 'Parameter value';
+
+COMMENT ON TABLE "notifications" IS 'HU-03, HU-11, HU-16 CA03 and CA07, HU-18, HU-31, HU-33, HU-37 and HU-39: in-platform notifications';
+
+COMMENT ON TABLE "students" IS 'RF12 / HU-32: requires the school module (included in Premium, purchased in Pro or pay-per-use, or for testing in Free Trial)';
+
+COMMENT ON COLUMN "students"."pickup_address" IS 'RF12: pickup point';
+
+COMMENT ON TABLE "payments" IS 'HU-18, HU-19, HU-33, HU-37: online payments through Wompi. The purchase is enabled only when status = approved. No card data is stored (RNF11)';
+
+COMMENT ON COLUMN "payments"."purpose" IS 'Subscription, credit package, module or usage';
+
+COMMENT ON COLUMN "payments"."amount" IS 'Amount in COP';
+
+COMMENT ON COLUMN "payments"."payment_method" IS 'e.g. card, pse, nequi. Later: cash';
+
+COMMENT ON COLUMN "payments"."gateway_reference" IS 'Transaction reference in the payment gateway';
+
+COMMENT ON TABLE "usage_charges" IS 'HU-37 / HU-38: accumulated pay-per-use usage. Charged at the end of the month or when the early charge threshold is reached';
+
+COMMENT ON COLUMN "usage_charges"."period_end_date" IS 'End of the month or date the early charge threshold was reached';
+
+COMMENT ON COLUMN "usage_charges"."amount" IS 'Accumulated amount in COP';
+
+COMMENT ON COLUMN "usage_charges"."payment_id" IS 'Payment used to charge it. NULL while open';
+
+ALTER TABLE "branches" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "users" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "drivers" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "subscriptions" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "subscriptions" ADD FOREIGN KEY ("plan_id") REFERENCES "plans" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "subscriptions" ADD FOREIGN KEY ("payment_id") REFERENCES "payments" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "plan_modules" ADD FOREIGN KEY ("plan_id") REFERENCES "plans" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "plan_modules" ADD FOREIGN KEY ("module_id") REFERENCES "modules" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "company_modules" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "company_modules" ADD FOREIGN KEY ("module_id") REFERENCES "modules" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "company_modules" ADD FOREIGN KEY ("payment_id") REFERENCES "payments" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_balances" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_purchases" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_purchases" ADD FOREIGN KEY ("package_id") REFERENCES "credit_packages" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_purchases" ADD FOREIGN KEY ("payment_id") REFERENCES "payments" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_transactions" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_transactions" ADD FOREIGN KEY ("purchase_id") REFERENCES "credit_purchases" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "credit_transactions" ADD FOREIGN KEY ("optimization_id") REFERENCES "route_optimizations" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "orders" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "orders" ADD FOREIGN KEY ("branch_id") REFERENCES "branches" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "routes" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "routes" ADD FOREIGN KEY ("driver_id") REFERENCES "drivers" ("user_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_stops" ADD FOREIGN KEY ("route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_stops" ADD FOREIGN KEY ("order_id") REFERENCES "orders" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_stops" ADD FOREIGN KEY ("student_id") REFERENCES "students" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_optimizations" ADD FOREIGN KEY ("route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_optimizations" ADD FOREIGN KEY ("usage_charge_id") REFERENCES "usage_charges" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_locations" ADD FOREIGN KEY ("route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "evidence_photos" ADD FOREIGN KEY ("stop_id") REFERENCES "route_stops" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "incidents" ADD FOREIGN KEY ("route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "incidents" ADD FOREIGN KEY ("stop_id") REFERENCES "route_stops" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "incident_messages" ADD FOREIGN KEY ("incident_id") REFERENCES "incidents" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "incident_messages" ADD FOREIGN KEY ("sender_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "support_requests" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "system_alerts" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "notifications" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "students" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "payments" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "usage_charges" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "usage_charges" ADD FOREIGN KEY ("payment_id") REFERENCES "payments" ("id") DEFERRABLE INITIALLY IMMEDIATE;
