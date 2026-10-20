@@ -2,3 +2,12 @@ __pycache__/
 *.pyc
 .env
 .venv/
+node_modules/
+.pnpm-store/
+dist/
+build/
+*.log
+.DS_Store
+coverage/
+.vercel
+.turbo

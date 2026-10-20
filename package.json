@@ -1,0 +1,20 @@
+{
+  "name": "fastrouteco",
+  "private": true,
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "dev": "concurrently \"pnpm:dev:backend\" \"pnpm:dev:web\" \"pnpm:dev:mobile\"",
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:web": "pnpm --filter web dev",
+    "dev:mobile": "pnpm --filter mobile dev",
+    "build": "pnpm --filter backend build && pnpm --filter web build && pnpm --filter mobile typecheck",
+    "lint": "pnpm --filter backend lint && pnpm --filter web lint && pnpm --filter mobile lint",
+    "test": "pnpm --filter backend test && pnpm --filter web test && pnpm --filter mobile test",
+    "db:migrate": "pnpm --filter backend prisma:migrate",
+    "db:studio": "pnpm --filter backend prisma:studio",
+    "prisma:generate": "pnpm --filter backend prisma:generate"
+  },
+  "devDependencies": {
+    "concurrently": "^8"
+  }
+}
