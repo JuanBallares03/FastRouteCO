@@ -309,6 +309,8 @@ each successful optimization is charged instead of consuming credits.
 - **Payment gateway:** Wompi (cards, PSE, Nequi)
 - **Evidence photo storage:** Cloudinary
 
+**TypeScript version:** 6.0.x (TypeScript 7.x not yet supported by typescript-eslint; see [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940))
+
 **Pending:** local storage for the mobile app offline mode, stop-order optimization algorithm and hosting.
 
 **Initial city:** Ibagué, Colombia.
