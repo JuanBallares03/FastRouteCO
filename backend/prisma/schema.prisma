@@ -1,0 +1,586 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum CompanyStatus {
+  active
+  inactive
+}
+
+enum UserRole {
+  platform_admin
+  company_admin
+  supervisor
+  driver
+}
+
+enum DriverStatus {
+  available
+  on_route
+  unavailable
+}
+
+enum ServiceModality {
+  subscription
+  pay_per_use
+}
+
+enum SubscriptionStatus {
+  active
+  inactive
+  expired
+}
+
+enum BillingCycle {
+  monthly
+  annual
+}
+
+enum CreditTransactionType {
+  renewal
+  consumption
+  purchase
+}
+
+enum OrderType {
+  delivery
+  pickup
+}
+
+enum OrderChannel {
+  whatsapp
+  phone_call
+  in_person
+}
+
+enum OrderStatus {
+  pending
+  assigned
+  completed
+  cancelled
+}
+
+enum OrderPriority {
+  normal
+  urgent
+}
+
+enum RouteStatus {
+  created
+  optimized
+  in_progress
+  completed
+  cancelled
+}
+
+enum StopStatus {
+  pending
+  arrived
+  completed
+}
+
+enum IncidentCategory {
+  incident
+  question
+}
+
+enum IncidentStatus {
+  open
+  in_progress
+  resolved
+}
+
+enum SupportStatus {
+  open
+  answered
+  closed
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum PaymentPurpose {
+  subscription
+  credit_package
+  module
+  usage
+}
+
+enum UsageChargeStatus {
+  open
+  charged
+  rejected
+}
+
+enum PaymentStatus {
+  pending
+  approved
+  rejected
+}
+
+model Company {
+  id                      String        @id @default(uuid()) @db.Uuid
+  legalName               String        @db.VarChar(200)
+  taxId                   String        @unique @db.VarChar(20)
+  email                   String        @db.VarChar(150)
+  phone                   String?       @db.VarChar(30)
+  address                 String?       @db.VarChar(255)
+  status                  CompanyStatus @default(active)
+  hasOwnFleet             Boolean       @map("has_own_fleet")
+  settings                Json?
+  cardReference           String?       @db.VarChar(100) @map("card_reference")
+  monthlySpendingLimit    Decimal?      @db.Decimal(12, 2) @map("monthly_spending_limit")
+  createdAt               DateTime      @default(now()) @map("created_at") @db.Date
+
+  branches                Branch[]
+  users                   User[]
+  subscriptions           Subscription[]
+  modules                 CompanyModule[]
+  creditBalance           CreditBalance?
+  creditPurchases         CreditPurchase[]
+  creditTransactions      CreditTransaction[]
+  orders                  Order[]
+  routes                  Route[]
+  students                Student[]
+  payments                Payment[]
+  usageCharges            UsageCharge[]
+  systemAlerts            SystemAlert[]
+  notifications           Notification[]
+
+  @@map("companies")
+}
+
+model Branch {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid @map("company_id")
+  name        String   @db.VarChar(100)
+  address     String?  @db.VarChar(255)
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  @@map("branches")
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String?   @db.Uuid @map("company_id")
+  role          UserRole
+  fullName      String    @db.VarChar(150) @map("full_name")
+  email         String    @unique @db.VarChar(150)
+  passwordHash  String    @db.VarChar(255) @map("password_hash")
+  phone         String?   @db.VarChar(30)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Date
+
+  company       Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  driver        Driver?
+  sentMessages  IncidentMessage[] @relation("SentMessages")
+  receivedNotifications Notification[] @relation("UserNotifications")
+
+  @@map("users")
+}
+
+model Driver {
+  userId      String        @id @db.Uuid @map("user_id")
+  status      DriverStatus  @default(unavailable)
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routes      Route[]
+
+  @@map("drivers")
+}
+
+model Plan {
+  id                      String            @id @default(uuid()) @db.Uuid
+  name                    String            @unique @db.VarChar(50)
+  modality                ServiceModality   @default(subscription)
+  maxDrivers              Int?              @map("max_drivers")
+  maxBranches             Int?              @map("max_branches")
+  supportType             String?           @db.VarChar(50) @map("support_type")
+  trialDays               Int?              @map("trial_days")
+  monthlyCredits          Int?              @map("monthly_credits")
+  monthlyPrice            Decimal?          @db.Decimal(12, 2) @map("monthly_price")
+  annualPrice             Decimal?          @db.Decimal(12, 2) @map("annual_price")
+  includedDrivers         Int?              @map("included_drivers")
+  pricePerOptimization    Decimal?          @db.Decimal(12, 2) @map("price_per_optimization")
+  pricePerAdditionalDriver Decimal?         @db.Decimal(12, 2) @map("price_per_additional_driver")
+  earlyChargeThreshold    Decimal?          @db.Decimal(12, 2) @map("early_charge_threshold")
+  isActive                Boolean           @default(true) @map("is_active")
+
+  subscriptions           Subscription[]
+  planModules             PlanModule[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id              String               @id @default(uuid()) @db.Uuid
+  companyId       String               @db.Uuid @map("company_id")
+  planId          String               @db.Uuid @map("plan_id")
+  status          SubscriptionStatus   @default(active)
+  billingCycle    BillingCycle?        @map("billing_cycle")
+  paymentId       String?              @db.Uuid @map("payment_id")
+  startDate       DateTime             @map("start_date") @db.Date
+  renewalDate     DateTime?            @map("renewal_date") @db.Date
+  endDate         DateTime?            @map("end_date") @db.Date
+
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan            Plan                 @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payment         Payment?             @relation("SubscriptionPayment", fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId], where: raw("status = 'active'"), name: "subscription_company_active_unique")
+  @@map("subscriptions")
+}
+
+model Module {
+  id          String       @id @default(uuid()) @db.Uuid
+  code        String       @unique @db.VarChar(50)
+  name        String       @db.VarChar(100)
+  price       Decimal?     @db.Decimal(12, 2)
+  isActive    Boolean      @default(true) @map("is_active")
+
+  planModules PlanModule[]
+  companyModules CompanyModule[]
+
+  @@map("modules")
+}
+
+model PlanModule {
+  planId      String   @db.Uuid @map("plan_id")
+  moduleId    String   @db.Uuid @map("module_id")
+
+  plan        Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@id([planId, moduleId])
+  @@map("plan_modules")
+}
+
+model CompanyModule {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid @map("company_id")
+  moduleId    String   @db.Uuid @map("module_id")
+  paymentId   String   @db.Uuid @map("payment_id")
+  price       Decimal  @db.Decimal(12, 2)
+  startDate   DateTime @default(now()) @map("start_date") @db.Date
+  endDate     DateTime? @map("end_date") @db.Date
+
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  module      Module   @relation(fields: [moduleId], references: [id], onDelete: Restrict)
+  payment     Payment  @relation("CompanyModulePayment", fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@map("company_modules")
+}
+
+model CreditBalance {
+  companyId      String   @id @db.Uuid @map("company_id")
+  planCredits    Int      @default(0) @map("plan_credits")
+  extraCredits   Int      @default(0) @map("extra_credits")
+
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("credit_balances")
+}
+
+model CreditPackage {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  credits     Int
+  price       Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true) @map("is_active")
+
+  purchases   CreditPurchase[]
+
+  @@map("credit_packages")
+}
+
+model CreditPurchase {
+  id            String   @id @default(uuid()) @db.Uuid
+  companyId     String   @db.Uuid @map("company_id")
+  packageId     String   @db.Uuid @map("package_id")
+  paymentId     String   @db.Uuid @map("payment_id")
+  credits       Int
+  price         Decimal  @db.Decimal(12, 2)
+  purchaseDate  DateTime @default(now()) @map("purchase_date") @db.Date
+
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  package       CreditPackage    @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  payment       Payment          @relation("CreditPurchasePayment", fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@map("credit_purchases")
+}
+
+model CreditTransaction {
+  id                String                 @id @default(autoincrement()) @db.BigInt
+  companyId         String                 @db.Uuid @map("company_id")
+  type              CreditTransactionType
+  quantity          Int
+  resultingBalance  Int                    @map("resulting_balance")
+  purchaseId        String?                @db.Uuid @map("purchase_id")
+  optimizationId    String?                @db.Uuid @map("optimization_id")
+  transactionDate   DateTime               @default(now()) @map("transaction_date") @db.Date
+
+  company           Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  purchase          CreditPurchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  optimization      RouteOptimization?     @relation(fields: [optimizationId], references: [id], onDelete: SetNull)
+
+  @@map("credit_transactions")
+}
+
+model Order {
+  id              String        @id @default(uuid()) @db.Uuid
+  companyId       String        @db.Uuid @map("company_id")
+  branchId        String?       @db.Uuid @map("branch_id")
+  type            OrderType
+  address         String        @db.VarChar(255)
+  latitude        Decimal?      @db.Decimal(9, 6)
+  longitude       Decimal?      @db.Decimal(9, 6)
+  priority        OrderPriority @default(normal)
+  customerName    String?       @db.VarChar(150) @map("customer_name")
+  customerPhone   String?       @db.VarChar(30) @map("customer_phone")
+  description     String?       @db.Text
+  channel         OrderChannel?
+  status          OrderStatus   @default(pending)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Date
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch          Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  routeStops      RouteStop[]
+
+  @@map("orders")
+}
+
+model Route {
+  id              String       @id @default(uuid()) @db.Uuid
+  companyId       String       @db.Uuid @map("company_id")
+  driverId        String       @db.Uuid @map("driver_id")
+  routeDate       DateTime     @map("route_date") @db.Date
+  status          RouteStatus  @default(created)
+  startLatitude   Decimal?     @db.Decimal(9, 6) @map("start_latitude")
+  startLongitude  Decimal?     @db.Decimal(9, 6) @map("start_longitude")
+  startedAt       DateTime?    @map("started_at")
+  endedAt         DateTime?    @map("ended_at")
+
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  driver          Driver       @relation(fields: [driverId], references: [userId], onDelete: Restrict)
+  stops           RouteStop[]
+  optimizations   RouteOptimization[]
+  locations       RouteLocation[]
+  incidents       Incident[]
+
+  @@map("routes")
+}
+
+model RouteStop {
+  id                   String       @id @default(uuid()) @db.Uuid
+  routeId              String       @db.Uuid @map("route_id")
+  orderId              String?      @db.Uuid @map("order_id")
+  studentId            String?      @db.Uuid @map("student_id")
+  sequence             Int
+  status               StopStatus   @default(pending)
+  arrivedAt            DateTime?    @map("arrived_at")
+  isGeofenceVerified   Boolean      @default(false) @map("is_geofence_verified")
+  confirmedAt          DateTime?    @map("confirmed_at")
+  syncedAt             DateTime?    @map("synced_at")
+  notes                String?      @db.Text
+  recipientName        String?      @db.VarChar(150) @map("recipient_name")
+
+  route                Route        @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  order                Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  student              Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  evidencePhotos       EvidencePhoto[]
+  incidents            Incident[]
+
+  @@unique([routeId, sequence])
+  @@map("route_stops")
+}
+
+model RouteOptimization {
+  id                  String   @id @default(uuid()) @db.Uuid
+  routeId             String   @db.Uuid @map("route_id")
+  totalDistanceM      Int?     @map("total_distance_m")
+  estimatedDurationS  Int?     @map("estimated_duration_s")
+  processingTimeMs    Int?     @map("processing_time_ms")
+  isSuccessful        Boolean  @map("is_successful")
+  usageChargeId       String?  @db.Uuid @map("usage_charge_id")
+  optimizationDate    DateTime @default(now()) @map("optimization_date") @db.Date
+
+  route               Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  usageCharge         UsageCharge? @relation(fields: [usageChargeId], references: [id], onDelete: SetNull)
+  creditTransactions  CreditTransaction[]
+
+  @@map("route_optimizations")
+}
+
+model RouteLocation {
+  id          String   @id @default(autoincrement()) @db.BigInt
+  routeId     String   @db.Uuid @map("route_id")
+  latitude    Decimal  @db.Decimal(9, 6)
+  longitude   Decimal  @db.Decimal(9, 6)
+  capturedAt  DateTime @map("captured_at")
+  syncedAt    DateTime @default(now()) @map("synced_at")
+  isOffline   Boolean  @default(false) @map("is_offline")
+
+  route       Route    @relation(fields: [routeId], references: [id], onDelete: Cascade)
+
+  @@index([routeId, capturedAt])
+  @@map("route_locations")
+}
+
+model EvidencePhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  stopId      String   @db.Uuid @map("stop_id")
+  photoUrl    String   @db.VarChar(500) @map("photo_url")
+  capturedAt  DateTime? @map("captured_at")
+
+  stop        RouteStop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  @@map("evidence_photos")
+}
+
+model Incident {
+  id                String             @id @default(uuid()) @db.Uuid
+  routeId           String             @db.Uuid @map("route_id")
+  stopId            String?            @db.Uuid @map("stop_id")
+  category          IncidentCategory
+  description       String             @db.Text
+  status            IncidentStatus     @default(open)
+  resolutionNotes   String?            @db.Text @map("resolution_notes")
+  reportedAt        DateTime           @default(now()) @map("reported_at")
+  syncedAt          DateTime?          @map("synced_at")
+  resolvedAt        DateTime?          @map("resolved_at")
+
+  route             Route              @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  stop              RouteStop?         @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  messages          IncidentMessage[]
+
+  @@map("incidents")
+}
+
+model IncidentMessage {
+  id            String   @id @default(autoincrement()) @db.BigInt
+  incidentId    String   @db.Uuid @map("incident_id")
+  senderId      String   @db.Uuid @map("sender_id")
+  message       String   @db.Text
+  sentAt        DateTime @default(now()) @map("sent_at")
+  readAt        DateTime? @map("read_at")
+
+  incident      Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  sender        User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@map("incident_messages")
+}
+
+model SupportRequest {
+  id            String         @id @default(uuid()) @db.Uuid
+  companyId     String         @db.Uuid @map("company_id")
+  subject       String         @db.VarChar(200)
+  description   String         @db.Text
+  status        SupportStatus  @default(open)
+  response      String?        @db.Text
+  sentDate      DateTime       @default(now()) @map("sent_date") @db.Date
+  responseDate  DateTime?      @map("response_date") @db.Date
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("support_requests")
+}
+
+model SystemAlert {
+  id          String         @id @default(autoincrement()) @db.BigInt
+  companyId   String?        @db.Uuid @map("company_id")
+  severity    AlertSeverity
+  source      String?        @db.VarChar(100)
+  message     String         @db.Text
+  createdAt   DateTime       @default(now()) @map("created_at")
+  resolvedAt  DateTime?      @map("resolved_at")
+
+  company     Company?       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("system_alerts")
+}
+
+model SystemSetting {
+  key         String   @id @db.VarChar(100)
+  value       Json
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  @@map("system_settings")
+}
+
+model Notification {
+  id          String   @id @default(autoincrement()) @db.BigInt
+  userId      String   @db.Uuid @map("user_id")
+  type        String   @db.VarChar(50)
+  message     String   @db.Text
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Student {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @db.Uuid @map("company_id")
+  fullName        String   @db.VarChar(150) @map("full_name")
+  pickupAddress   String   @db.VarChar(255) @map("pickup_address")
+  latitude        Decimal? @db.Decimal(9, 6)
+  longitude       Decimal? @db.Decimal(9, 6)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Date
+
+  company         Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  routeStops      RouteStop[]
+
+  @@map("students")
+}
+
+model Payment {
+  id                  String            @id @default(uuid()) @db.Uuid
+  companyId           String            @db.Uuid @map("company_id")
+  purpose             PaymentPurpose
+  amount              Decimal           @db.Decimal(12, 2)
+  paymentMethod       String?           @db.VarChar(30) @map("payment_method")
+  status              PaymentStatus     @default(pending)
+  gatewayReference    String?           @unique @db.VarChar(100) @map("gateway_reference")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  approvedAt          DateTime?         @map("approved_at")
+
+  company             Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  subscriptions       Subscription[]    @relation("SubscriptionPayment")
+  companyModules      CompanyModule[]   @relation("CompanyModulePayment")
+  creditPurchases     CreditPurchase[]  @relation("CreditPurchasePayment")
+  usageCharges        UsageCharge[]
+
+  @@map("payments")
+}
+
+model UsageCharge {
+  id                  String               @id @default(uuid()) @db.Uuid
+  companyId           String               @db.Uuid @map("company_id")
+  periodStartDate     DateTime             @map("period_start_date") @db.Date
+  periodEndDate       DateTime?            @map("period_end_date") @db.Date
+  optimizationCount   Int                  @default(0) @map("optimization_count")
+  additionalDrivers   Int                  @default(0) @map("additional_drivers")
+  amount              Decimal              @default(0) @db.Decimal(12, 2)
+  status              UsageChargeStatus    @default(open)
+  paymentId           String?              @db.Uuid @map("payment_id")
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payment             Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  routeOptimizations  RouteOptimization[]
+
+  @@map("usage_charges")
+}
