@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum CompanyStatus {
@@ -154,6 +153,7 @@ model Company {
   payments                Payment[]
   usageCharges            UsageCharge[]
   systemAlerts            SystemAlert[]
+  supportRequests         SupportRequest[]
   notifications           Notification[]
 
   @@map("companies")
@@ -316,12 +316,13 @@ model CreditPurchase {
   company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   package       CreditPackage    @relation(fields: [packageId], references: [id], onDelete: Restrict)
   payment       Payment          @relation("CreditPurchasePayment", fields: [paymentId], references: [id], onDelete: Restrict)
+  creditTransactions CreditTransaction[]
 
   @@map("credit_purchases")
 }
 
 model CreditTransaction {
-  id                String                 @id @default(autoincrement()) @db.BigInt
+  id                BigInt                 @id @default(autoincrement())
   companyId         String                 @db.Uuid @map("company_id")
   type              CreditTransactionType
   quantity          Int
@@ -423,7 +424,7 @@ model RouteOptimization {
 }
 
 model RouteLocation {
-  id          String   @id @default(autoincrement()) @db.BigInt
+  id          BigInt   @id @default(autoincrement())
   routeId     String   @db.Uuid @map("route_id")
   latitude    Decimal  @db.Decimal(9, 6)
   longitude   Decimal  @db.Decimal(9, 6)
@@ -468,7 +469,7 @@ model Incident {
 }
 
 model IncidentMessage {
-  id            String   @id @default(autoincrement()) @db.BigInt
+  id            BigInt   @id @default(autoincrement())
   incidentId    String   @db.Uuid @map("incident_id")
   senderId      String   @db.Uuid @map("sender_id")
   message       String   @db.Text
@@ -497,7 +498,7 @@ model SupportRequest {
 }
 
 model SystemAlert {
-  id          String         @id @default(autoincrement()) @db.BigInt
+  id          BigInt         @id @default(autoincrement())
   companyId   String?        @db.Uuid @map("company_id")
   severity    AlertSeverity
   source      String?        @db.VarChar(100)
@@ -519,14 +520,16 @@ model SystemSetting {
 }
 
 model Notification {
-  id          String   @id @default(autoincrement()) @db.BigInt
+  id          BigInt   @id @default(autoincrement())
   userId      String   @db.Uuid @map("user_id")
+  companyId   String   @db.Uuid @map("company_id")
   type        String   @db.VarChar(50)
   message     String   @db.Text
   isRead      Boolean  @default(false) @map("is_read")
   createdAt   DateTime @default(now()) @map("created_at")
 
   user        User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
