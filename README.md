@@ -73,6 +73,7 @@ stories it appears as "Cliente empresa".
 - Purchase add-on modules, such as the school transport module (available as an add-on on the Pro plan and in pay-per-use).
 - View logistics reports, indicators and general operation statistics.
 - Request technical support.
+- Manage general system settings.
 
 The Company Administrator can also perform all Logistics Supervisor 
 functions, since smaller companies may not have a dedicated supervisor.
@@ -195,6 +196,7 @@ chooses one modality. A company has only one active modality at a time.
 Prices for both modalities are still to be defined.
 
 ### Free Trial
+
 - **Duration:** 7 days, available once per company
 - **Drivers:** up to 3
 - **Branches:** 1
@@ -207,6 +209,7 @@ Prices for both modalities are still to be defined.
 Fixed monthly or annual price, with everything included in a package.
 
 #### Basic
+
 - **Billing:** monthly or annual
 - **Drivers:** up to 3
 - **Branches:** 1
@@ -215,6 +218,7 @@ Fixed monthly or annual price, with everything included in a package.
 - **Credit packages:** available
 
 #### Pro
+
 - **Billing:** monthly or annual
 - **Drivers:** up to 10
 - **Branches:** up to 5
@@ -223,6 +227,7 @@ Fixed monthly or annual price, with everything included in a package.
 - **Credit packages:** available
 
 #### Premium
+
 - **Billing:** monthly or annual
 - **Drivers:** unlimited
 - **Branches:** unlimited
@@ -252,6 +257,7 @@ A base membership plus charges only for what the company uses.
   starts. Routes already optimized can still be completed.
 
 ### General rules
+
 - Every new company starts automatically on the Free Trial and can 
   choose a subscription plan or pay-per-use at any time.
 - When the Free Trial ends without a chosen modality, the company keeps 
@@ -301,11 +307,91 @@ each successful optimization is charged instead of consuming credits.
 - **Map service:** OpenStreetMap
 - **Email service:** Resend
 - **Payment gateway:** Wompi (cards, PSE, Nequi)
+- **Evidence photo storage:** Cloudinary
 
-**Pending:** photo evidence storage, local storage for the mobile app 
-offline mode, stop-order optimization algorithm and hosting.
+**Pending:** local storage for the mobile app offline mode, stop-order optimization algorithm and hosting.
 
 **Initial city:** Ibagué, Colombia.
+
+## Setup and Run
+
+### Prerequisites
+
+- Node.js 22+
+- pnpm 12.14.0 (`corepack enable && corepack prepare pnpm@12.14.0 --activate`)
+- Docker & Docker Compose
+- Android Studio (for mobile development build)
+
+### Initial Setup
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start local infrastructure (PostgreSQL on 5433, Redis, Neo4j)
+docker compose up -d
+
+# Run database migrations
+pnpm db:migrate
+```
+
+### Development (3 terminals)
+
+```bash
+# Terminal 1: Backend API on http://localhost:3000
+pnpm dev:backend
+
+# Terminal 2: Web panel on http://localhost:5173
+pnpm dev:web
+
+# Terminal 3: Mobile (development build)
+pnpm dev:mobile
+```
+
+### Mobile: API URLs
+
+- **Android emulator:** `http://10.0.2.2:3000` (configured in `.env.example`)
+- **Physical Android device:** Use your PC's local IP (e.g., `http://192.168.1.50:3000`)
+- **iOS:** Development build not supported locally; use EAS Build (`pnpm --filter mobile ios`)
+
+### Mobile: Development Build
+
+```bash
+# First time only
+pnpm --filter mobile exec expo install --fix
+pnpm --filter mobile android
+
+# Subsequent runs
+pnpm dev:mobile
+```
+
+### Tests
+
+```bash
+# All tests
+pnpm test
+
+# Individual apps
+pnpm --filter backend test
+pnpm --filter web test
+pnpm --filter mobile test
+```
+
+### Database
+
+```bash
+# Run migrations
+pnpm db:migrate
+
+# Open Prisma Studio
+pnpm db:studio
+```
+
+### Notes
+
+- The PostgreSQL container uses port **5433** on the host (mapped to 5432 internally) to avoid conflicts with local PostgreSQL installations.
+- JWT secrets and API keys must be set in each app's `.env` file (copied from `.env.example`).
+- Mobile development build requires Android Studio; Expo Go is not supported due to native modules.
 
 ## Glossary
 
