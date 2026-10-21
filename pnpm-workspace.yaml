@@ -4,9 +4,9 @@ packages:
   - "mobile"
 allowBuilds:
   '@parcel/watcher': true
-  '@prisma/engines': false
-  esbuild: false
-  prisma: false
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - "@expo/cli@58.1.13"
