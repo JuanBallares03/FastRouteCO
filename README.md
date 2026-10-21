@@ -395,6 +395,28 @@ pnpm db:studio
 - JWT secrets and API keys must be set in each app's `.env` file (copied from `.env.example`).
 - Mobile development build requires Android Studio; Expo Go is not supported due to native modules.
 
+### Windows: Android build requirements
+
+On Windows, the Android SDK's bundled `ninja.exe` (version 1.10) does not support long paths, which causes native compilation to fail. To fix this:
+
+1. **Enable long paths in Windows**  
+   Run in PowerShell as Administrator:
+   ```powershell
+   Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1
+   ```
+   Then restart your terminal or computer.
+
+2. **Replace the SDK's `ninja.exe` with the latest Ninja release**  
+   - Download the latest `ninja-win.zip` from [ninja-build/ninja releases](https://github.com/ninja-build/ninja/releases)
+   - Extract `ninja.exe` and replace the one in your Android SDK at:
+     ```
+     %ANDROID_SDK_ROOT%\cmake\<version>\bin\ninja.exe
+     ```
+     (e.g., `C:\Users\<user>\AppData\Local\Android\Sdk\cmake\3.22.1\bin\ninja.exe`)
+   - Verify: `ninja --version` should show 1.13.2 or newer.
+
+Without these steps, Gradle's CMake tasks will fail with path-length errors during `pnpm --filter mobile android`.
+
 ## Glossary
 
 - **Route (ruta):** the set of orders assigned to one driver for a given 
