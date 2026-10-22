@@ -145,10 +145,29 @@ CREATE TABLE "users" (
   "role" user_role NOT NULL,
   "full_name" varchar(150) NOT NULL,
   "email" varchar(150) UNIQUE NOT NULL,
-  "password_hash" varchar(255) NOT NULL,
+  "password_hash" varchar(255),
   "phone" varchar(30),
   "is_active" boolean NOT NULL DEFAULT true,
   "created_at" date NOT NULL DEFAULT (current_date)
+);
+
+CREATE TABLE "refresh_tokens" (
+  "id" uuid PRIMARY KEY,
+  "user_id" uuid NOT NULL,
+  "token_hash" varchar(64) UNIQUE NOT NULL,
+  "expires_at" timestamp NOT NULL,
+  "revoked_at" timestamp,
+  "replaced_by" uuid,
+  "created_at" timestamp NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "user_invitations" (
+  "id" uuid PRIMARY KEY,
+  "user_id" uuid NOT NULL,
+  "token_hash" varchar(64) UNIQUE NOT NULL,
+  "expires_at" timestamp NOT NULL,
+  "used_at" timestamp,
+  "created_at" timestamp NOT NULL DEFAULT (now())
 );
 
 CREATE TABLE "drivers" (
@@ -410,6 +429,10 @@ CREATE TABLE "usage_charges" (
   "payment_id" uuid
 );
 
+CREATE INDEX ON "refresh_tokens" ("user_id");
+
+CREATE INDEX ON "user_invitations" ("user_id");
+
 CREATE UNIQUE INDEX ON "route_stops" ("route_id", "sequence");
 
 CREATE INDEX ON "route_locations" ("route_id", "captured_at");
@@ -427,6 +450,26 @@ COMMENT ON COLUMN "companies"."card_reference" IS 'HU-37: reference (token) of t
 COMMENT ON COLUMN "companies"."monthly_spending_limit" IS 'HU-39: optional pay-per-use spending limit. NULL = no limit';
 
 COMMENT ON COLUMN "users"."company_id" IS 'NULL for the platform admin';
+
+COMMENT ON COLUMN "users"."password_hash" IS 'NULL until the user sets a password through the invitation link. Login is rejected while it is NULL';
+
+COMMENT ON TABLE "refresh_tokens" IS 'RNF04: JWT session refresh tokens with rotation';
+
+COMMENT ON COLUMN "refresh_tokens"."token_hash" IS 'SHA-256 of the refresh token; the token itself is never stored';
+
+COMMENT ON COLUMN "refresh_tokens"."expires_at" IS '7 days after creation';
+
+COMMENT ON COLUMN "refresh_tokens"."revoked_at" IS 'NULL = active. Set on logout, rotation or user/company deactivation';
+
+COMMENT ON COLUMN "refresh_tokens"."replaced_by" IS 'Token that replaced this one on rotation; used to detect reuse of a stolen token';
+
+COMMENT ON TABLE "user_invitations" IS 'HU-01, HU-21, HU-25, HU-27: email link so a new user defines their own password. No password is sent by email';
+
+COMMENT ON COLUMN "user_invitations"."token_hash" IS 'SHA-256 of the invitation token sent by email';
+
+COMMENT ON COLUMN "user_invitations"."expires_at" IS '72 hours after creation';
+
+COMMENT ON COLUMN "user_invitations"."used_at" IS 'NULL = pending. Set when the password is defined or when the invitation is resent';
 
 COMMENT ON COLUMN "drivers"."status" IS 'RF05: availability';
 
@@ -631,6 +674,10 @@ COMMENT ON COLUMN "usage_charges"."payment_id" IS 'Payment used to charge it. NU
 ALTER TABLE "branches" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "users" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "refresh_tokens" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "user_invitations" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "drivers" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
