@@ -1,0 +1,513 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_dashboard" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior: none; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "secondary-fixed": "#cce5ff", "tertiary-fixed": "#7ffc97", "on-error-container": "#93000a", "error-container": "#ffdad6", "primary-container": "#1e40af", "on-surface-variant": "#444653", "on-secondary": "#ffffff", "on-primary-container": "#a8b8ff", "surface-dim": "#d2d9f4", "on-tertiary": "#ffffff", "on-error": "#ffffff", "surface-container-high": "#e2e7ff", "on-tertiary-container": "#56d474", "on-background": "#131b2e", "on-primary-fixed": "#001453", "tertiary-container": "#005823", "secondary-fixed-dim": "#93ccff", "secondary": "#006398", "tertiary": "#003e17", "on-secondary-fixed-variant": "#004b73", "on-primary": "#ffffff", "primary-fixed-dim": "#b8c4ff", "inverse-primary": "#b8c4ff", "surface-container": "#eaedff", "surface-container-highest": "#dae2fd", "inverse-on-surface": "#eef0ff", "on-tertiary-fixed-variant": "#005320", "primary-fixed": "#dde1ff", "surface-bright": "#faf8ff", "secondary-container": "#5bb8fe", "on-secondary-container": "#00476e", "primary": "#00288e", "surface-variant": "#dae2fd", "on-surface": "#131b2e", "background": "#faf8ff", "outline": "#757684", "on-primary-fixed-variant": "#173bab", "surface": "#faf8ff", "error": "#ba1a1a", "surface-container-lowest": "#ffffff", "on-tertiary-fixed": "#002109", "on-secondary-fixed": "#001d31", "tertiary-fixed-dim": "#62df7d", "surface-container-low": "#f2f3ff", "inverse-surface": "#283044", "outline-variant": "#c4c5d5", "surface-tint": "#3755c3" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "margin": "1rem", "gutter": "1rem", "space-xl": "2rem", "margin-md": "1.5rem", "space-sm": "0.5rem", "gutter-lg": "2rem", "margin-lg": "2rem", "gutter-md": "1.5rem", "space-xs": "0.25rem", "space-md": "1rem" }, "fontFamily": { "body-md": ["Inter"], "headline-lg": ["Inter"], "headline-sm": ["Inter"], "label-md": ["Inter"], "display-lg": ["Inter"], "display-lg-mobile": ["Inter"], "headline-lg-mobile": ["Inter"], "label-lg": ["Inter"], "body-lg": ["Inter"], "code-tracking": ["JetBrains Mono"], "headline-md": ["Inter"], "label-sm": ["Inter"], "body-sm": ["Inter"] }, "fontSize": { "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "500" }], "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "display-lg-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "label-lg": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "code-tracking": ["13px", { "lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500" }], "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "500" }], "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }] } } } };</script></head><body class="bg-surface font-body-md text-body-md text-on-surface"><aside class="fixed left-0 top-0 h-screen w-72 bg-surface-container-low shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between"><div class="flex flex-col h-full overflow-hidden"><div class="h-16 px-space-md flex items-center gap-space-sm bg-surface-container-lowest"><img alt="Logo FastRouteCO" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1W4fio4a9RGcJwvqHYQaH13hMYZCPAhzqSiLQzgMkC8RFvIGSPZlAIiJwyCNuPLnAUOaA03XKJetJ-5yDuOHDos2cPAMvmWJOb_kNqw0yP7COiRM4I0J34_Dwu7Io3UUTmi8g8_oQG_z07vQ5DyaBb0NWtJk6CZ4Oxs-8G6L487VxB6O0i7oCQ6VEBY7VSC7daE_E3NAbZq2vDR7mTeiqOEScrrKwt280GUJobweiMgdIPEWSxIQSZM2L4"><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-primary leading-none tracking-tight">FastRouteCO</span><span class="font-label-sm text-label-sm text-on-surface-variant">Logística Colombia</span></div></div><div class="flex-1 overflow-y-auto px-space-md py-space-md flex flex-col gap-space-lg"><nav class="flex flex-col gap-space-xs"><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">dashboard</span><span class="">Dashboard</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">corporate_fare</span><span class="">Mi empresa</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">hub</span><span class="">Sedes</span></a><a aria-current="page" class="flex items-center gap-space-sm px-space-md py-space-sm bg-primary-container text-on-primary font-label-lg rounded-lg shadow-sm transition-colors" href="#"><span class="material-symbols-outlined text-[20px]">badge</span><span class="">Supervisores</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">local_shipping</span><span class="">Conductores</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">alt_route</span><span class="">Operación</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">credit_card</span><span class="">Suscripción y créditos</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">extension</span><span class="">Módulos adicionales</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">bar_chart</span><span class="">Reportes</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">contact_support</span><span class="">Soporte</span></a></nav></div></div></aside><div class="pl-72"><header class="fixed top-0 left-72 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 px-space-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md flex-1 max-w-xl"><div class="relative w-full"><span class="material-symbols-outlined absolute left-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span><input class="w-full h-10 pl-10 pr-space-md bg-surface-container-lowest text-on-surface font-body-md text-body-md rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Buscar despachos, guías, placas o novedades..." type="search"></div><div class="flex items-center gap-space-xs bg-surface-container-lowest px-space-md h-10 rounded-lg shadow-sm shrink-0"><span class="material-symbols-outlined text-secondary text-[18px]">location_city</span><select class="bg-transparent font-label-md text-label-md text-on-surface focus:outline-none cursor-pointer pr-2"><option value="ibague-norte">Sede Ibagué - Centro Logístico Norte</option><option value="ibague-papayo">Sede Ibagué - El Papayo</option><option value="espinal">Sede El Espinal - Tolima</option><option value="melgar">Sede Melgar - Tolima</option><option value="todas">Todas las sedes (Tolima)</option></select></div></div><div class="flex items-center gap-space-md"><button class="relative p-space-xs rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-error"></span></button><button class="p-space-xs rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">help_outline</span></button><div class="h-6 w-[1px] bg-outline-variant/30"></div><div class="flex items-center gap-space-sm"><div class="flex flex-col text-right"><span class="font-label-lg text-label-lg text-on-surface leading-tight">Carlos Restrepo M.</span><span class="font-label-sm text-label-sm text-on-surface-variant">Supervisión Tolima</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="relative pt-16 w-full min-h-screen bg-surface px-gutter-lg py-space-lg"><div class="flex flex-col w-full">
+<div class="flex flex-col gap-space-lg w-full max-w-7xl mx-auto">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-2">
+<span class="px-space-xs py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-code-tracking text-label-sm uppercase tracking-wider">Centro de Operaciones Tolima</span>
+<span class="w-1.5 h-1.5 rounded-full bg-outline-variant"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Gestión Humana y Logística</span>
+</div>
+<h1 class="font-display-lg text-display-lg text-on-surface tracking-tight">Supervisores</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Equipo responsable de la asignación de rutas y control diario de entregas.</p>
+</div>
+<div class="flex items-center gap-space-sm shrink-0">
+<button class="flex items-center gap-space-xs px-space-lg py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg shadow-md hover:shadow-lg transition-all active:scale-[0.98]" id="btn-abrir-modal" type="button">
+<span class="material-symbols-outlined text-[20px]">add</span>
+<span class="">Nuevo supervisor</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Total supervisores</span>
+<span class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[18px]">badge</span>
+</span>
+</div>
+<div class="mt-space-sm flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">4</span>
+<span class="font-label-sm text-label-sm text-tertiary-container font-semibold">100% cupos asignados</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Supervisores activos</span>
+<span class="w-8 h-8 rounded-lg bg-tertiary-fixed/30 flex items-center justify-center text-tertiary-container">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+</span>
+</div>
+<div class="mt-space-sm flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">3</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">En jornada diurna</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Inactivos / Permiso</span>
+<span class="w-8 h-8 rounded-lg bg-error-container/60 flex items-center justify-center text-error">
+<span class="material-symbols-outlined text-[18px]">person_off</span>
+</span>
+</div>
+<div class="mt-space-sm flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">1</span>
+<span class="font-label-sm text-label-sm text-error">Requiere reemplazo</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant">Sedes cubiertas</span>
+<span class="w-8 h-8 rounded-lg bg-secondary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+</span>
+</div>
+<div class="mt-space-sm flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg text-on-surface">4</span>
+<span class="font-label-sm text-label-sm text-secondary font-semibold">Ibagué y municipios</span>
+</div>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="relative w-full md:max-w-md">
+<span class="material-symbols-outlined absolute left-space-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+<input class="w-full h-11 pl-11 pr-space-md rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md placeholder:text-on-surface-variant/70 focus:bg-surface-container-lowest focus:outline-none focus:shadow-md transition-all" id="buscador-supervisor" placeholder="Buscar por nombre o correo electrónico..." type="search">
+</div>
+<div class="flex items-center gap-space-sm w-full md:w-auto justify-end">
+<span class="font-label-sm text-label-sm text-on-surface-variant hidden sm:inline">Filtrar estado:</span>
+<div class="flex items-center bg-surface-container-low p-1 rounded-lg">
+<button class="btn-filtro px-space-md py-1.5 rounded-md font-label-md text-label-md bg-surface-container-lowest text-primary shadow-sm font-semibold transition-all" data-filtro="todos" type="button">Todos</button>
+<button class="btn-filtro px-space-md py-1.5 rounded-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all" data-filtro="activo" type="button">Activos</button>
+<button class="btn-filtro px-space-md py-1.5 rounded-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all" data-filtro="inactivo" type="button">Inactivos</button>
+</div>
+</div>
+</div>
+<div class="rounded-xl bg-surface-container-lowest shadow-sm overflow-hidden flex flex-col">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="py-space-md px-space-lg font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider" scope="col">Supervisor y Sede</th>
+<th class="py-space-md px-space-lg font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider" scope="col">Correo electrónico</th>
+<th class="py-space-md px-space-lg font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider" scope="col">Teléfono móvil</th>
+<th class="py-space-md px-space-lg font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider" scope="col">Estado</th>
+<th class="py-space-md px-space-lg font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider text-right" scope="col">Acciones</th>
+</tr>
+</thead>
+<tbody class="divide-y-0" id="tabla-supervisores">
+<tr class="fila-supervisor hover:bg-surface-container-low/50 transition-colors" data-correo="acaicedo@distribuidoratolima.com" data-estado="activo" data-nombre="andres felipe caicedo murillo">
+<td class="py- space-md px-space-lg py-4">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-label-lg text-label-lg font-bold shrink-0">
+                    AC
+                  </div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold truncate">Andrés Felipe Caicedo</span>
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[14px] text-secondary">warehouse</span>
+                      Sede Principal El Papayo
+                    </span>
+</div>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<div class="flex items-center gap-1.5 font-code-tracking text-code-tracking text-on-surface">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">mail</span>
+<span class="">acaicedo@distribuidoratolima.com</span>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">314 220 9182</span>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-tertiary-fixed/40 text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span>
+<span class="">Activo</span>
+</span>
+</td>
+<td class="py-space-md px-space-lg text-right">
+<div class="flex items-center justify-end gap-space-xs">
+<button class="btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-medium transition-colors" type="button">
+                    Desactivar
+                  </button>
+<button class="btn-editar p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" title="Editar información" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="fila-supervisor hover:bg-surface-container-low/50 transition-colors" data-correo="vgomez@distribuidoratolima.com" data-estado="activo" data-nombre="valeria gomez cardenas">
+<td class="py-space-md px-space-lg py-4">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-label-lg text-label-lg font-bold shrink-0">
+                    VG
+                  </div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold truncate">Valeria Gómez Cárdenas</span>
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[14px] text-secondary">local_shipping</span>
+                      Sede Mirolindo Industrial
+                    </span>
+</div>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<div class="flex items-center gap-1.5 font-code-tracking text-code-tracking text-on-surface">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">mail</span>
+<span class="">vgomez@distribuidoratolima.com</span>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">318 765 4321</span>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-tertiary-fixed/40 text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span>
+<span class="">Activo</span>
+</span>
+</td>
+<td class="py-space-md px-space-lg text-right">
+<div class="flex items-center justify-end gap-space-xs">
+<button class="btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-medium transition-colors" type="button">
+                    Desactivar
+                  </button>
+<button class="btn-editar p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" title="Editar información" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="fila-supervisor hover:bg-surface-container-low/50 transition-colors" data-correo="mrojas@distribuidoratolima.com" data-estado="inactivo" data-nombre="mario alberto rojas">
+<td class="py-space-md px-space-lg py-4">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center font-label-lg text-label-lg font-bold shrink-0">
+                    MR
+                  </div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold truncate">Mario Alberto Rojas</span>
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">store</span>
+                      Sede Centro Carrera Tercera
+                    </span>
+</div>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<div class="flex items-center gap-1.5 font-code-tracking text-code-tracking text-on-surface">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">mail</span>
+<span class="">mrojas@distribuidoratolima.com</span>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">311 409 8812</span>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-error-container/50 text-on-error-container font-label-sm text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-error"></span>
+<span class="">Inactivo</span>
+</span>
+</td>
+<td class="py-space-md px-space-lg text-right">
+<div class="flex items-center justify-end gap-space-xs">
+<button class="btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-primary hover:bg-primary-fixed hover:text-on-primary-fixed font-label-md text-label-md font-medium transition-colors" type="button">
+                    Reactivar
+                  </button>
+<button class="btn-editar p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" title="Editar información" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="fila-supervisor hover:bg-surface-container-low/50 transition-colors" data-correo="clozano@distribuidoratolima.com" data-estado="activo" data-nombre="claudia patricia lozano">
+<td class="py-space-md px-space-lg py-4">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest text-primary flex items-center justify-center font-label-lg text-label-lg font-bold shrink-0">
+                    CL
+                  </div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold truncate">Claudia Patricia Lozano</span>
+<span class="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+<span class="material-symbols-outlined text-[14px] text-secondary">alt_route</span>
+                      Sede El Salado Norte
+                    </span>
+</div>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<div class="flex items-center gap-1.5 font-code-tracking text-code-tracking text-on-surface">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">mail</span>
+<span class="">clozano@distribuidoratolima.com</span>
+</div>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">320 891 0043</span>
+</td>
+<td class="py-space-md px-space-lg">
+<span class="estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-tertiary-fixed/40 text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span>
+<span class="">Activo</span>
+</span>
+</td>
+<td class="py-space-md px-space-lg text-right">
+<div class="flex items-center justify-end gap-space-xs">
+<button class="btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-medium transition-colors" type="button">
+                    Desactivar
+                  </button>
+<button class="btn-editar p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" title="Editar información" type="button">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-space-lg py-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-sm font-label-md text-label-md text-on-surface-variant">
+<span class="">Mostrando 4 supervisores asignados a sedes en Tolima</span>
+<div class="flex items-center gap-space-sm">
+<span class="">Actualización en tiempo real</span>
+<span class="w-2 h-2 rounded-full bg-tertiary-container"></span>
+</div>
+</div>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-high/40 flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-start gap-space-md">
+<span class="material-symbols-outlined text-[28px] text-primary shrink-0 mt-0.5">verified_user</span>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Permisos y control de seguridad</span>
+<p class="font-body-md text-body-md text-on-surface-variant mt-0.5">Los supervisores solo pueden monitorear flotas, despachar vehículos y reasignar pedidos de la sede que tienen vinculada por contrato logístico.</p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs shrink-0">
+<span class="font-code-tracking text-code-tracking text-secondary font-medium">Protocolo FastRouteCO v2.4</span>
+</div>
+</div>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-on-background/40 backdrop-blur-sm hidden transition-opacity" id="modal-supervisor">
+<div class="w-full max-w-lg rounded-2xl bg-surface-container-lowest shadow-2xl p-space-xl flex flex-col gap-space-lg relative animate-in fade-in zoom-in-95 duration-150">
+<div class="flex items-start justify-between gap-space-md">
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-primary font-semibold uppercase tracking-wider">Gestión Operativa</span>
+<h2 class="font-headline-md text-headline-md text-on-surface">Registrar supervisor</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Incorpore un nuevo integrante al control diario de rutas en Ibagué.</p>
+</div>
+<button class="p-1 rounded-full text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" id="btn-cerrar-modal" type="button">
+<span class="material-symbols-outlined text-[24px]">close</span>
+</button>
+</div>
+<form class="flex flex-col gap-space-md" id="form-nuevo-supervisor">
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface" for="nombre-completo">Nombre completo</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">person</span>
+<input class="w-full h-11 pl-10 pr-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all" id="nombre-completo" placeholder="Ej. Andrés Felipe Caicedo" required="" type="text">
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface" for="correo-electronico">Correo electrónico corporativo</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">mail</span>
+<input class="w-full h-11 pl-10 pr-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all" id="correo-electronico" placeholder="acaicedo@distribuidoratolima.com" required="" type="email">
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface" for="telefono-movil">Teléfono móvil</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">call</span>
+<input class="w-full h-11 pl-10 pr-3 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all" id="telefono-movil" placeholder="314 220 9182" required="" type="tel">
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface" for="sede-asignada">Sede operativa asignada</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">hub</span>
+<select class="w-full h-11 pl-10 pr-8 rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/20 focus:outline-none appearance-none cursor-pointer transition-all" id="sede-asignada"><option value="Sede El Papayo (Ibagué)">Sede El Papayo (Ibagué)</option><option value="Sede Mirolindo Industrial (Ibagué)">Sede Mirolindo Industrial (Ibagué)</option><option value="Sede El Salado Norte (Ibagué)">Sede El Salado Norte (Ibagué)</option><option value="Sede El Espinal (Tolima)">Sede El Espinal (Tolima)</option><option value="Sede Melgar (Tolima)">Sede Melgar (Tolima)</option></select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-high/60 flex items-start gap-space-sm mt-1">
+<span class="material-symbols-outlined text-[20px] text-primary shrink-0 mt-0.5">info</span>
+<span class="font-body-sm text-body-sm text-on-surface">Se enviará un correo con el enlace para configurar su acceso al panel web y credenciales seguras de despacho.</span>
+</div>
+<div class="flex items-center justify-end gap-space-sm pt-space-xs mt-2">
+<button class="px-space-lg py-2.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-lg text-label-lg transition-colors" id="btn-cancelar-modal" type="button">
+            Cancelar
+          </button>
+<button class="px-space-lg py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg shadow-md hover:shadow-lg transition-all active:scale-[0.98]" type="submit">
+            Crear supervisor
+          </button>
+</div>
+</form>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    // Manejo de clase activa en Sidebar para 'Supervisores'
+    const linkSupervisores = document.querySelector('aside a[data-path="supervisores"]');
+    if (linkSupervisores) {
+      document.querySelectorAll('aside nav a').forEach(el => {
+        el.className = 'flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg';
+      });
+      linkSupervisores.className = 'flex items-center gap-space-sm px-space-md py-space-sm bg-primary-container text-on-primary font-label-lg rounded-lg shadow-sm';
+    }
+
+    // Modal Registrar Supervisor
+    const modal = document.getElementById('modal-supervisor');
+    const btnAbrir = document.getElementById('btn-abrir-modal');
+    const btnCerrar = document.getElementById('btn-cerrar-modal');
+    const btnCancelar = document.getElementById('btn-cancelar-modal');
+    const formSupervisor = document.getElementById('form-nuevo-supervisor');
+
+    function abrirModal() {
+      modal.classList.remove('hidden');
+    }
+    function cerrarModal() {
+      modal.classList.add('hidden');
+      formSupervisor.reset();
+    }
+
+    btnAbrir?.addEventListener('click', abrirModal);
+    btnCerrar?.addEventListener('click', cerrarModal);
+    btnCancelar?.addEventListener('click', cerrarModal);
+    modal?.addEventListener('click', (e) => {
+      if (e.target === modal) cerrarModal();
+    });
+
+    // Envío simulado del formulario
+    formSupervisor?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nombre = document.getElementById('nombre-completo').value;
+      const correo = document.getElementById('correo-electronico').value;
+      const tel = document.getElementById('telefono-movil').value;
+      const sede = document.getElementById('sede-asignada').value;
+
+      const iniciales = nombre.split(' ').map(p => p[0]).join('').substring(0, 2).toUpperCase() || 'SP';
+
+      const tbody = document.getElementById('tabla-supervisores');
+      const tr = document.createElement('tr');
+      tr.className = 'fila-supervisor hover:bg-surface-container-low/50 transition-colors';
+      tr.setAttribute('data-estado', 'activo');
+      tr.setAttribute('data-nombre', nombre.toLowerCase());
+      tr.setAttribute('data-correo', correo.toLowerCase());
+
+      tr.innerHTML = `
+        <td class="py-space-md px-space-lg py-4">
+          <div class="flex items-center gap-space-md">
+            <div class="w-10 h-10 rounded-full bg-primary-fixed text-on-primary-fixed flex items-center justify-center font-label-lg text-label-lg font-bold shrink-0">
+              ${iniciales}
+            </div>
+            <div class="flex flex-col min-w-0">
+              <span class="font-label-lg text-label-lg text-on-surface font-semibold truncate">${nombre}</span>
+              <span class="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+                <span class="material-symbols-outlined text-[14px] text-secondary">warehouse</span>
+                ${sede}
+              </span>
+            </div>
+          </div>
+        </td>
+        <td class="py-space-md px-space-lg">
+          <div class="flex items-center gap-1.5 font-code-tracking text-code-tracking text-on-surface">
+            <span class="material-symbols-outlined text-[16px] text-on-surface-variant">mail</span>
+            <span>${correo}</span>
+          </div>
+        </td>
+        <td class="py-space-md px-space-lg">
+          <span class="font-code-tracking text-code-tracking text-on-surface-variant">${tel}</span>
+        </td>
+        <td class="py-space-md px-space-lg">
+          <span class="estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-tertiary-fixed/40 text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+            <span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span>
+            <span>Activo</span>
+          </span>
+        </td>
+        <td class="py-space-md px-space-lg text-right">
+          <div class="flex items-center justify-end gap-space-xs">
+            <button type="button" class="btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-medium transition-colors">
+              Desactivar
+            </button>
+            <button type="button" class="btn-editar p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" title="Editar información">
+              <span class="material-symbols-outlined text-[18px]">edit</span>
+            </button>
+          </div>
+        </td>
+      `;
+
+      tbody.prepend(tr);
+      asignarEventosAcciones(tr);
+      cerrarModal();
+    });
+
+    // Filtros de estado
+    let filtroActual = 'todos';
+    const botonesFiltro = document.querySelectorAll('.btn-filtro');
+    const inputBusqueda = document.getElementById('buscador-supervisor');
+
+    botonesFiltro.forEach(btn => {
+      btn.addEventListener('click', () => {
+        botonesFiltro.forEach(b => {
+          b.className = 'btn-filtro px-space-md py-1.5 rounded-md font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all';
+        });
+        btn.className = 'btn-filtro px-space-md py-1.5 rounded-md font-label-md text-label-md bg-surface-container-lowest text-primary shadow-sm font-semibold transition-all';
+        filtroActual = btn.getAttribute('data-filtro');
+        aplicarFiltros();
+      });
+    });
+
+    inputBusqueda?.addEventListener('input', () => {
+      aplicarFiltros();
+    });
+
+    function aplicarFiltros() {
+      const termino = (inputBusqueda?.value || '').trim().toLowerCase();
+      const filas = document.querySelectorAll('.fila-supervisor');
+
+      filas.forEach(fila => {
+        const estado = fila.getAttribute('data-estado');
+        const nombre = fila.getAttribute('data-nombre') || '';
+        const correo = fila.getAttribute('data-correo') || '';
+
+        const coincideEstado = (filtroActual === 'todos') || (estado === filtroActual);
+        const coincideTermino = !termino || nombre.includes(termino) || correo.includes(termino);
+
+        if (coincideEstado && coincideTermino) {
+          fila.classList.remove('hidden');
+        } else {
+          fila.classList.add('hidden');
+        }
+      });
+    }
+
+    // Toggle de Desactivar / Reactivar
+    function asignarEventosAcciones(contexto = document) {
+      contexto.querySelectorAll('.btn-toggle-estado').forEach(btn => {
+        btn.onclick = function() {
+          const fila = this.closest('.fila-supervisor');
+          const badge = fila.querySelector('.estado-badge');
+          const estadoActual = fila.getAttribute('data-estado');
+
+          if (estadoActual === 'activo') {
+            fila.setAttribute('data-estado', 'inactivo');
+            this.textContent = 'Reactivar';
+            this.className = 'btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-primary hover:bg-primary-fixed hover:text-on-primary-fixed font-label-md text-label-md font-medium transition-colors';
+            badge.className = 'estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-error-container/50 text-on-error-container font-label-sm text-label-sm font-semibold';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-error"></span><span>Inactivo</span>';
+          } else {
+            fila.setAttribute('data-estado', 'activo');
+            this.textContent = 'Desactivar';
+            this.className = 'btn-toggle-estado px-space-sm py-1.5 rounded-lg bg-surface-container text-error hover:bg-error-container hover:text-on-error-container font-label-md text-label-md font-medium transition-colors';
+            badge.className = 'estado-badge inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full bg-tertiary-fixed/40 text-on-tertiary-fixed font-label-sm text-label-sm font-semibold';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-tertiary-container animate-pulse"></span><span>Activo</span>';
+          }
+          aplicarFiltros();
+        };
+      });
+    }
+
+    asignarEventosAcciones();
+  })();
+</script></main></div>
+
+</body></html>

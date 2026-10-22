@@ -1,0 +1,532 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0" name="viewport"><meta content="web_dashboard" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"><link href="https://fonts.googleapis.com" rel="preconnect"><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior: none; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "secondary-fixed": "#cce5ff", "tertiary-fixed": "#7ffc97", "on-error-container": "#93000a", "error-container": "#ffdad6", "primary-container": "#1e40af", "on-surface-variant": "#444653", "on-secondary": "#ffffff", "on-primary-container": "#a8b8ff", "surface-dim": "#d2d9f4", "on-tertiary": "#ffffff", "on-error": "#ffffff", "surface-container-high": "#e2e7ff", "on-tertiary-container": "#56d474", "on-background": "#131b2e", "on-primary-fixed": "#001453", "tertiary-container": "#005823", "secondary-fixed-dim": "#93ccff", "secondary": "#006398", "tertiary": "#003e17", "on-secondary-fixed-variant": "#004b73", "on-primary": "#ffffff", "primary-fixed-dim": "#b8c4ff", "inverse-primary": "#b8c4ff", "surface-container": "#eaedff", "surface-container-highest": "#dae2fd", "inverse-on-surface": "#eef0ff", "on-tertiary-fixed-variant": "#005320", "primary-fixed": "#dde1ff", "surface-bright": "#faf8ff", "secondary-container": "#5bb8fe", "on-secondary-container": "#00476e", "primary": "#00288e", "surface-variant": "#dae2fd", "on-surface": "#131b2e", "background": "#faf8ff", "outline": "#757684", "on-primary-fixed-variant": "#173bab", "surface": "#faf8ff", "error": "#ba1a1a", "surface-container-lowest": "#ffffff", "on-tertiary-fixed": "#002109", "on-secondary-fixed": "#001d31", "tertiary-fixed-dim": "#62df7d", "surface-container-low": "#f2f3ff", "inverse-surface": "#283044", "outline-variant": "#c4c5d5", "surface-tint": "#3755c3" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "margin": "1rem", "gutter": "1rem", "space-xl": "2rem", "margin-md": "1.5rem", "space-sm": "0.5rem", "gutter-lg": "2rem", "margin-lg": "2rem", "gutter-md": "1.5rem", "space-xs": "0.25rem", "space-md": "1rem" }, "fontFamily": { "body-md": ["Inter"], "headline-lg": ["Inter"], "headline-sm": ["Inter"], "label-md": ["Inter"], "display-lg": ["Inter"], "display-lg-mobile": ["Inter"], "headline-lg-mobile": ["Inter"], "label-lg": ["Inter"], "body-lg": ["Inter"], "code-tracking": ["JetBrains Mono"], "headline-md": ["Inter"], "label-sm": ["Inter"], "body-sm": ["Inter"] }, "fontSize": { "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "500" }], "display-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "display-lg-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "label-lg": ["14px", { "lineHeight": "20px", "fontWeight": "600" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "code-tracking": ["13px", { "lineHeight": "18px", "letterSpacing": "0.05em", "fontWeight": "500" }], "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "fontWeight": "500" }], "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }] } } } };</script></head><body class="bg-surface font-body-md text-body-md text-on-surface"><aside class="fixed left-0 top-0 h-screen w-72 bg-surface-container-low shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between"><div class="flex flex-col h-full overflow-hidden"><div class="h-16 px-space-md flex items-center gap-space-sm bg-surface-container-lowest"><img alt="Logo FastRouteCO" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1W4fio4a9RGcJwvqHYQaH13hMYZCPAhzqSiLQzgMkC8RFvIGSPZlAIiJwyCNuPLnAUOaA03XKJetJ-5yDuOHDos2cPAMvmWJOb_kNqw0yP7COiRM4I0J34_Dwu7Io3UUTmi8g8_oQG_z07vQ5DyaBb0NWtJk6CZ4Oxs-8G6L487VxB6O0i7oCQ6VEBY7VSC7daE_E3NAbZq2vDR7mTeiqOEScrrKwt280GUJobweiMgdIPEWSxIQSZM2L4"><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-primary leading-none tracking-tight">FastRouteCO</span><span class="font-label-sm text-label-sm text-on-surface-variant">Logística Colombia</span></div></div><div class="flex-1 overflow-y-auto px-space-md py-space-md flex flex-col gap-space-lg"><nav class="flex flex-col gap-space-xs"><span class="px-space-sm pb-space-xs font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Administración Global</span><a aria-current="page" class="flex items-center gap-space-sm px-space-md py-space-sm transition-colors bg-primary-container text-on-primary font-label-lg rounded-lg shadow-sm" href="#"><span class="material-symbols-outlined text-[20px]">apartment</span><span class="">Empresas</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">payments</span><span class="">Planes y precios</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">monitoring</span><span class="">Monitoreo</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">contact_support</span><span class="">Soporte</span></a><a class="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-lg text-label-lg" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span class="">Configuración</span></a></nav></div></div></aside><div class="pl-72"><header class="fixed top-0 left-72 right-0 h-16 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 px-space-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md flex-1 max-w-xl"><div class="relative w-full"><span class="material-symbols-outlined absolute left-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span><input class="w-full h-10 pl-10 pr-space-md bg-surface-container-lowest text-on-surface font-body-md text-body-md rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Buscar despachos, guías, placas o novedades..." type="search"></div></div><div class="flex items-center gap-space-md"><button class="relative p-space-xs rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-1 right-1 w-2 h-2 rounded-full bg-error"></span></button><button class="p-space-xs rounded-full hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">help_outline</span></button><div class="h-6 w-[1px] bg-outline-variant/30"></div><div class="flex items-center gap-space-sm"><div class="flex flex-col text-right"><span class="font-label-lg text-label-lg text-on-surface leading-tight">Carlos Restrepo M.</span><span class="font-label-sm text-label-sm text-on-surface-variant">Supervisión Tolima</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="relative pt-16 w-full min-h-screen bg-surface px-gutter-lg py-space-lg"><div class="flex flex-col w-full">
+<!-- Navegación de migas de pan y metadatos del sistema -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-sm mb-space-md">
+<nav aria-label="Ruta de navegación" class="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant">
+<a class="hover:text-primary transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]">apartment</span>
+<span class="">Empresas</span>
+</a>
+<span class="material-symbols-outlined text-[14px] text-outline-variant">chevron_right</span>
+<span class="text-on-surface font-label-lg text-label-lg truncate max-w-xs md:max-w-md">Distribuidora Ibagué Logística S.A.S.</span>
+</nav>
+<div class="flex items-center gap-space-sm">
+
+<span class="font-label-sm text-label-sm text-on-surface-variant">Tolima Centro</span>
+</div>
+</div>
+<!-- Cabecera principal con acciones operativas -->
+<div class="relative bg-surface-container-lowest rounded-xl p-space-lg shadow-sm mb-space-lg overflow-hidden">
+<!-- Resplandor tonal ambiental sutil -->
+<div class="absolute -right-20 -top-20 w-80 h-80 rounded-full bg-secondary-fixed/40 blur-3xl pointer-events-none"></div>
+<div class="absolute -left-10 -bottom-10 w-60 h-60 rounded-full bg-surface-container-high/60 blur-2xl pointer-events-none"></div>
+<div class="relative flex flex-col lg:flex-row lg:items-center justify-between gap-space-lg">
+<div class="flex items-start gap-space-md">
+<div class="w-16 h-16 rounded-xl bg-primary-container text-on-primary flex items-center justify-center shadow-md shrink-0">
+<span class="material-symbols-outlined text-[36px]">local_shipping</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex flex-wrap items-center gap-space-sm">
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Distribuidora Ibagué Logística S.A.S.</h1>
+<span class="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+              Cuenta activa en red
+            </span>
+</div>
+<div class="flex flex-wrap items-center gap-x-space-md gap-y-1 mt-space-xs text-on-surface-variant font-label-md text-label-md">
+<span class="flex items-center gap-1 text-on-surface font-semibold">
+<span class="material-symbols-outlined text-[16px] text-secondary">badge</span>
+              NIT: <span class="font-code-tracking text-code-tracking text-on-surface font-normal">901.324.567-8</span>
+</span>
+<span class="text-outline-variant">•</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-primary">pin_drop</span>
+              Sede Ibagué Centro Logístico
+            </span>
+<span class="text-outline-variant">•</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-tertiary">calendar_today</span>
+              Vinculada: 14 Feb 2023
+            </span>
+</div>
+</div>
+</div>
+<!-- Botones de Acción Primaria -->
+<div class="flex flex-wrap items-center gap-space-sm shrink-0">
+<!-- Toggle interactivo de estado de la cuenta -->
+<button class="group flex items-center gap-space-sm px-space-md py-2.5 rounded-lg bg-surface-container text-on-surface hover:bg-error-container hover:text-on-error-container transition-all shadow-sm" id="btn-toggle-empresa" type="button">
+<span class="material-symbols-outlined text-[20px] text-error group-hover:scale-110 transition-transform" id="icon-toggle">block</span>
+<span class="font-label-lg text-label-lg" id="text-toggle">Desactivar empresa</span>
+</button>
+<!-- Botón editar información -->
+
+</div>
+</div>
+</div>
+<!-- Cuadrícula Bento de Nivel 1: Datos Generales y Suscripción -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg mb-space-xl">
+<!-- Tarjeta 1: Información general de la empresa (8 cols) -->
+<div class="lg:col-span-7 xl:col-span-8 flex flex-col bg-surface-container-lowest rounded-xl p-space-lg shadow-sm">
+<div class="flex items-center justify-between pb-space-md mb-space-md border-b-0">
+<div class="flex items-center gap-space-sm">
+<div class="w-9 h-9 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[22px]">domain</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Información general de la empresa</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Registro mercantil y datos de despacho fiscal</p>
+</div>
+</div>
+
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-md">
+<!-- Razón Social -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Razón Social</span>
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">Distribuidora Ibagué Logística S.A.S.</span>
+</div>
+<!-- NIT -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Número de Identificación Tributaria</span>
+<span class="font-code-tracking text-code-tracking text-primary font-semibold">901.324.567-8</span>
+</div>
+<!-- Correo Electrónico Corporativo -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Correo Electrónico Oficial</span>
+<a class="font-label-lg text-label-lg text-secondary hover:underline flex items-center gap-1.5 truncate" href="mailto:gerencia@ibaguelogistica.com.co">
+<span class="material-symbols-outlined text-[16px]">alternate_email</span>
+            gerencia@ibaguelogistica.com.co
+          </a>
+</div>
+<!-- Teléfono de Contacto -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Teléfonos de Despacho</span>
+<span class="font-code-tracking text-code-tracking text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">call</span>
+            (608) 265 4400 / 312 450 8921
+          </span>
+</div>
+<!-- Dirección Operativa -->
+<div class="md:col-span-2 p-space-md rounded-lg bg-surface-container-low flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Dirección de Operación Central</span>
+<div class="flex items-center gap-1.5 text-on-surface font-body-md text-body-md">
+<span class="material-symbols-outlined text-[18px] text-secondary">location_on</span>
+<span class="">Calle 64 # 20-15, Zona Franca, Ibagué, Tolima</span>
+</div>
+</div>
+
+</div>
+<!-- Estado de la empresa -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Estado en el Sistema</span>
+<span class="font-label-lg text-label-lg text-on-surface font-medium">Operatividad</span>
+</div>
+<span class="inline-flex items-center gap-1.5 px-space-md py-1 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-md text-label-md font-semibold">
+<span class="w-2 h-2 rounded-full bg-tertiary-container"></span>
+            Activa
+          </span>
+</div>
+<!-- Conductores propios -->
+<div class="p-space-md rounded-lg bg-surface-container-low flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Conductores Propios</span>
+<span class="font-label-lg text-label-lg text-on-surface font-medium">Habilitado y confirmado</span>
+</div>
+<span class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px]">verified_user</span>
+</span>
+</div>
+</div>
+</div>
+<!-- Tarjeta 2: Plan y estado de la suscripción (4 cols) -->
+<div class="lg:col-span-5 xl:col-span-4 flex flex-col bg-surface-container-lowest rounded-xl p-space-lg shadow-sm relative overflow-hidden">
+<!-- Decoración gráfica de nivel superior -->
+<div class="absolute top-0 right-0 transform translate-x-4 -translate-y-4 w-32 h-32 bg-secondary-fixed/50 rounded-full blur-xl pointer-events-none"></div>
+<div class="flex items-center justify-between pb-space-md mb-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-9 h-9 rounded-lg bg-secondary-fixed text-on-secondary-fixed-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">workspace_premium</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Plan y suscripción</h2>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Facturación recurrente Colombia</p>
+</div>
+</div>
+<span class="inline-flex items-center gap-1 px-space-sm py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+          Activa
+        </span>
+</div>
+<!-- Detalle del plan -->
+<div class="p-space-lg rounded-xl bg-gradient-to-br from-surface-container-high to-surface-container flex flex-col gap-space-sm mb-space-md relative">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary font-semibold">Nivel corporativo</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Renovación automática</span>
+</div>
+<div class="flex items-baseline gap-space-xs">
+<span class="font-display-lg text-display-lg text-primary tracking-tight font-bold">Plan Pro</span>
+<span class="font-body-md text-body-md text-on-surface-variant">/ Hasta 10 conductores incluidos</span>
+</div>
+<div class="pt-space-xs mt-space-xs flex items-center justify-between border-t-0 text-on-surface">
+<span class="font-label-md text-label-md text-on-surface-variant">Modalidad:</span>
+<span class="font-label-lg text-label-lg font-semibold">Mensual</span>
+</div>
+<div class="flex items-center justify-between text-on-surface">
+<span class="font-label-md text-label-md text-on-surface-variant">Tarifa comercial:</span>
+<span class="font-code-tracking text-code-tracking text-primary font-bold">$280.000 COP <span class="font-label-sm text-label-sm text-on-surface-variant font-normal">/ mes</span></span>
+</div>
+</div>
+<!-- Métricas rápidas de cupo de suscripción con SVG -->
+
+<!-- Acción de cambio de plan -->
+
+</div>
+</div>
+<!-- Sección 3: Administradores de la empresa -->
+<div class="flex flex-col bg-surface-container-lowest rounded-xl p-space-lg shadow-sm mb-space-xl">
+<!-- Cabecera de sección -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-md pb-space-lg border-b-0">
+<div class="flex items-start gap-space-sm">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary mt-0.5">
+<span class="material-symbols-outlined text-[24px]">manage_accounts</span>
+</div>
+<div class="flex flex-col">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Administradores de la empresa</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Usuarios con permisos completos para gestionar la cuenta corporativa, nómina de supervisores y rutas de despacho.</p>
+</div>
+</div>
+<!-- Botón crear administrador -->
+<button class="inline-flex items-center justify-center gap-space-sm px-space-lg py-2.5 rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-all shadow-sm font-label-lg text-label-lg shrink-0" id="btn-mostrar-formulario" type="button">
+<span class="material-symbols-outlined text-[20px]">person_add</span>
+<span class="">Crear administrador</span>
+</button>
+</div>
+<!-- Formulario de creación desplegable / visible -->
+<div class="hidden my-space-md p-space-lg rounded-xl bg-surface-container-low transition-all" id="panel-crear-admin">
+<div class="flex items-center justify-between pb-space-sm mb-space-md border-b-0">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-secondary text-[22px]">badge</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Crear nuevo administrador</h3>
+</div>
+<button class="p-1 rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors" id="btn-cerrar-form" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<form class="flex flex-col gap-space-md" id="form-nuevo-admin" onsubmit="event.preventDefault();">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+<!-- Nombre completo -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-medium flex items-center gap-1" for="admin-nombre">
+              Nombre completo <span class="text-error">*</span>
+</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">person</span>
+<input class="w-full h-[42px] pl-10 pr-space-md bg-surface-container-lowest rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm" id="admin-nombre" placeholder="Ej. Carlos Alberto Gómez Pardo" required="" type="text">
+</div>
+</div>
+<!-- Correo electrónico -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-medium flex items-center gap-1" for="admin-correo">
+              Correo electrónico <span class="text-error">*</span>
+</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">mail</span>
+<input class="w-full h-[42px] pl-10 pr-space-md bg-surface-container-lowest rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm" id="admin-correo" placeholder="cgomez@ibaguelogistica.com.co" required="" type="email">
+</div>
+</div>
+<!-- Teléfono móvil -->
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-medium flex items-center gap-1" for="admin-celular">
+              Teléfono móvil <span class="text-error">*</span>
+</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">smartphone</span>
+<input class="w-full h-[42px] pl-10 pr-space-md bg-surface-container-lowest rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm" id="admin-celular" placeholder="310 987 6543" required="" type="tel">
+</div>
+</div>
+</div>
+<!-- Mensaje aclaratorio de credenciales -->
+<div class="p-space-sm px-space-md rounded-lg bg-surface-container flex items-center gap-space-sm text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[20px] text-secondary shrink-0">mark_email_read</span>
+<p class="">Se enviará un correo electrónico con los datos de acceso para que el administrador inicie sesión por primera vez.</p>
+</div>
+<!-- Acciones del formulario -->
+<div class="flex items-center justify-end gap-space-sm pt-space-xs">
+<button class="px-space-md py-2 rounded-lg bg-surface-container-highest text-on-surface hover:bg-surface-dim transition-all font-label-md text-label-md" id="btn-cancelar-crear" type="button">
+            Cancelar
+          </button>
+<button class="px-space-lg py-2 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-all font-label-md text-label-md font-semibold flex items-center gap-1.5 shadow-sm" id="btn-guardar-admin" type="button">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span class="">Guardar y enviar acceso</span>
+</button>
+</div>
+</form>
+</div>
+<!-- Tabla de administradores existentes -->
+<div class="overflow-x-auto mt-space-md">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm uppercase tracking-wider">
+<th class="py-3 px-space-md rounded-l-lg">Nombre completo</th>
+<th class="py-3 px-space-md">Correo electrónico</th>
+<th class="py-3 px-space-md">Teléfono móvil</th>
+<th class="py-3 px-space-md">Estado</th>
+<th class="py-3 px-space-md rounded-r-lg text-right">Acciones</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md divide-y-0">
+<!-- Administrador 1 (Activo) -->
+<tr class="hover:bg-surface-container-low/70 transition-colors">
+<td class="py-4 px-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-9 h-9 rounded-full bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-label-md text-label-md font-semibold shrink-0">
+                  CG
+                </div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">Carlos Alberto Gómez Pardo</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Administrador principal</span>
+</div>
+</div>
+</td>
+<td class="py-4 px-space-md">
+<span class="font-code-tracking text-code-tracking text-on-surface">cgomez@ibaguelogistica.com.co</span>
+</td>
+<td class="py-4 px-space-md">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">310 987 6543</span>
+</td>
+<td class="py-4 px-space-md">
+<span class="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+                Activo
+              </span>
+</td>
+<td class="py-4 px-space-md text-right">
+<button class="inline-flex items-center gap-1 px-space-sm py-1.5 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container font-label-sm text-label-sm transition-all shadow-sm" data-active="true" onclick="toggleAdminStatus(this)" type="button">
+<span class="material-symbols-outlined text-[16px]">person_off</span>
+<span class="">Desactivar</span>
+</button>
+</td>
+</tr>
+<!-- Administrador 2 (Activo) -->
+<tr class="hover:bg-surface-container-low/70 transition-colors">
+<td class="py-4 px-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-9 h-9 rounded-full bg-surface-container-high text-primary flex items-center justify-center font-label-md text-label-md font-semibold shrink-0">
+                  MR
+                </div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">María Fernanda Ramírez Osorio</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Directora de Operaciones</span>
+</div>
+</div>
+</td>
+<td class="py-4 px-space-md">
+<span class="font-code-tracking text-code-tracking text-on-surface">mramirez@ibaguelogistica.com.co</span>
+</td>
+<td class="py-4 px-space-md">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">315 442 1980</span>
+</td>
+<td class="py-4 px-space-md">
+<span class="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+                Activo
+              </span>
+</td>
+<td class="py-4 px-space-md text-right">
+<button class="inline-flex items-center gap-1 px-space-sm py-1.5 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container font-label-sm text-label-sm transition-all shadow-sm" data-active="true" onclick="toggleAdminStatus(this)" type="button">
+<span class="material-symbols-outlined text-[16px]">person_off</span>
+<span class="">Desactivar</span>
+</button>
+</td>
+</tr>
+<!-- Administrador 3 (Inactivo) -->
+<tr class="hover:bg-surface-container-low/70 transition-colors opacity-85">
+<td class="py-4 px-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-9 h-9 rounded-full bg-surface-dim text-on-surface-variant flex items-center justify-center font-label-md text-label-md font-semibold shrink-0">
+                  JL
+                </div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">Jorge Enrique Lozano Díaz</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Ex-supervisor de flota</span>
+</div>
+</div>
+</td>
+<td class="py-4 px-space-md">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant line-through">jlozano@ibaguelogistica.com.co</span>
+</td>
+<td class="py-4 px-space-md">
+<span class="font-code-tracking text-code-tracking text-on-surface-variant">320 811 7622</span>
+</td>
+<td class="py-4 px-space-md">
+<span class="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+                Inactivo
+              </span>
+</td>
+<td class="py-4 px-space-md text-right">
+<button class="inline-flex items-center gap-1 px-space-sm py-1.5 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed hover:bg-tertiary-container hover:text-on-tertiary font-label-sm text-label-sm transition-all shadow-sm" data-active="false" onclick="toggleAdminStatus(this)" type="button">
+<span class="material-symbols-outlined text-[16px]">how_to_reg</span>
+<span class="">Reactivar</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Paginación o indicador de total -->
+<div class="pt-space-md mt-space-md flex flex-col sm:flex-row items-center justify-between text-on-surface-variant font-label-sm text-label-sm gap-space-sm">
+<span class="">Mostrando 3 de 3 administradores registrados para esta sede</span>
+<div class="flex items-center gap-space-xs">
+<button class="p-1.5 rounded bg-surface-container text-outline cursor-not-allowed" disabled="" type="button">
+<span class="material-symbols-outlined text-[16px]">chevron_left</span>
+</button>
+<span class="px-space-sm font-semibold text-on-surface">Página 1</span>
+<button class="p-1.5 rounded bg-surface-container text-outline cursor-not-allowed" disabled="" type="button">
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Modal Diálogo de Confirmación Desactivar Empresa -->
+<div class="fixed inset-0 z-50 bg-inverse-surface/40 backdrop-blur-sm hidden items-center justify-center p-space-md" id="modal-confirm-empresa">
+<div class="bg-surface-container-lowest max-w-md w-full rounded-xl p-space-lg shadow-xl flex flex-col gap-space-md">
+<div class="flex items-center gap-space-sm text-error">
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">warning</span>
+</div>
+<div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Confirmar acción de estado</h4>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Distribuidora Ibagué Logística S.A.S.</span>
+</div>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant" id="modal-desc-empresa">
+        Al desactivar la empresa se suspenderán temporalmente los despachos activos, el acceso para los conductores en ruta y el inicio de sesión de todos sus administradores.
+      </p>
+<div class="flex items-center justify-end gap-space-sm pt-space-xs">
+<button class="px-space-md py-2 rounded-lg bg-surface-container-highest text-on-surface font-label-md text-label-md" id="btn-cancelar-modal-empresa" type="button">
+          Cancelar
+        </button>
+<button class="px-space-lg py-2 rounded-lg bg-error text-on-error font-label-md text-label-md font-semibold" id="btn-confirmar-modal-empresa" type="button">
+          Confirmar cambio
+        </button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Manejo de interacción de creación de administrador
+  const btnMostrarFormulario = document.getElementById('btn-mostrar-formulario');
+  const panelCrearAdmin = document.getElementById('panel-crear-admin');
+  const btnCerrarForm = document.getElementById('btn-cerrar-form');
+  const btnCancelarCrear = document.getElementById('btn-cancelar-crear');
+  const btnGuardarAdmin = document.getElementById('btn-guardar-admin');
+
+  function openForm() {
+    panelCrearAdmin.classList.remove('hidden');
+    document.getElementById('admin-nombre').focus();
+  }
+
+  function closeForm() {
+    panelCrearAdmin.classList.add('hidden');
+  }
+
+  if (btnMostrarFormulario) btnMostrarFormulario.addEventListener('click', openForm);
+  if (btnCerrarForm) btnCerrarForm.addEventListener('click', closeForm);
+  if (btnCancelarCrear) btnCancelarCrear.addEventListener('click', closeForm);
+
+  if (btnGuardarAdmin) {
+    btnGuardarAdmin.addEventListener('click', () => {
+      const nom = document.getElementById('admin-nombre').value;
+      const email = document.getElementById('admin-correo').value;
+      if (!nom || !email) {
+        alert('Por favor complete los campos obligatorios para registrar al administrador.');
+        return;
+      }
+      alert('Se han guardado los datos exitosamente. Se envió el correo de activación a ' + email);
+      closeForm();
+    });
+  }
+
+  // Manejo interactivo de cambio de estado de empresa (Desactivar / Reactivar)
+  const btnToggleEmpresa = document.getElementById('btn-toggle-empresa');
+  const iconToggle = document.getElementById('icon-toggle');
+  const textToggle = document.getElementById('text-toggle');
+  const modalEmpresa = document.getElementById('modal-confirm-empresa');
+  const btnCancelarModalEmpresa = document.getElementById('btn-cancelar-modal-empresa');
+  const btnConfirmarModalEmpresa = document.getElementById('btn-confirmar-modal-empresa');
+  const modalDescEmpresa = document.getElementById('modal-desc-empresa');
+
+  let empresaActiva = true;
+
+  if (btnToggleEmpresa) {
+    btnToggleEmpresa.addEventListener('click', () => {
+      if (empresaActiva) {
+        modalDescEmpresa.textContent = 'Al desactivar la empresa se suspenderán temporalmente los despachos activos, el acceso para los conductores en ruta y el inicio de sesión de todos sus administradores.';
+      } else {
+        modalDescEmpresa.textContent = 'Al reactivar la empresa se restablecerá de inmediato el acceso a la plataforma para administradores, supervisores y conductores registrados.';
+      }
+      modalEmpresa.classList.remove('hidden');
+      modalEmpresa.classList.add('flex');
+    });
+  }
+
+  if (btnCancelarModalEmpresa) {
+    btnCancelarModalEmpresa.addEventListener('click', () => {
+      modalEmpresa.classList.add('hidden');
+      modalEmpresa.classList.remove('flex');
+    });
+  }
+
+  if (btnConfirmarModalEmpresa) {
+    btnConfirmarModalEmpresa.addEventListener('click', () => {
+      empresaActiva = !empresaActiva;
+      if (empresaActiva) {
+        textToggle.textContent = 'Desactivar empresa';
+        iconToggle.textContent = 'block';
+        iconToggle.className = 'material-symbols-outlined text-[20px] text-error group-hover:scale-110 transition-transform';
+      } else {
+        textToggle.textContent = 'Reactivar empresa';
+        iconToggle.textContent = 'check_circle';
+        iconToggle.className = 'material-symbols-outlined text-[20px] text-tertiary-container group-hover:scale-110 transition-transform';
+      }
+      modalEmpresa.classList.add('hidden');
+      modalEmpresa.classList.remove('flex');
+    });
+  }
+
+  // Manejo de cambio de estado de cada administrador en la tabla
+  function toggleAdminStatus(button) {
+    const isActive = button.getAttribute('data-active') === 'true';
+    const tr = button.closest('tr');
+    const badgeCell = tr.children[3];
+
+    if (isActive) {
+      button.setAttribute('data-active', 'false');
+      button.className = 'inline-flex items-center gap-1 px-space-sm py-1.5 rounded-lg bg-tertiary-fixed text-on-tertiary-fixed hover:bg-tertiary-container hover:text-on-tertiary font-label-sm text-label-sm transition-all shadow-sm';
+      button.innerHTML = '<span class="material-symbols-outlined text-[16px]">how_to_reg</span><span>Reactivar</span>';
+      
+      badgeCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-error"></span>Inactivo</span>';
+      tr.classList.add('opacity-85');
+    } else {
+      button.setAttribute('data-active', 'true');
+      button.className = 'inline-flex items-center gap-1 px-space-sm py-1.5 rounded-lg bg-surface-container text-on-surface-variant hover:bg-error-container hover:text-on-error-container font-label-sm text-label-sm transition-all shadow-sm';
+      button.innerHTML = '<span class="material-symbols-outlined text-[16px]">person_off</span><span>Desactivar</span>';
+      
+      badgeCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-space-sm py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>Activo</span>';
+      tr.classList.remove('opacity-85');
+    }
+  }
+
+  // Notificación rápida para edición de empresa
+  const btnEditarEmpresa = document.getElementById('btn-editar-empresa');
+  if (btnEditarEmpresa) {
+    btnEditarEmpresa.addEventListener('click', () => {
+      alert('Abriendo editor corporativo de Distribuidora Ibagué Logística S.A.S. (NIT 901.324.567-8)');
+    });
+  }
+</script></main></div>
+
+</body></html>
