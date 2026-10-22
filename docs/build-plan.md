@@ -111,6 +111,23 @@ Deliverables: the three projects running, Docker Compose services healthy, the i
 
 ### Phase 1 — Access, companies and users
 
+Decisions already taken (do not reopen them; if one becomes a problem, explain why and ask before changing it):
+
+| Area | Decision |
+|---|---|
+| First Platform Administrator | Created with the CLI command `pnpm db:seed:admin`; no credentials stored in the repository |
+| Sessions | JWT access token (15 min) and refresh token (7 days) with rotation. Refresh tokens stored in `refresh_tokens` as a SHA-256 hash, with `replaced_by` to detect reuse |
+| New users | No public sign-up. New users (Company Administrator, supervisor, driver) receive an invitation email with a link (`${WEB_APP_URL}/set-password?token=...`) to define their own password. Invitations are stored in `user_invitations` as a SHA-256 hash, expire after 72 hours and can be resent by the administrator who created the user. Passwords are never sent by email |
+| Passwords | bcrypt; minimum 10 characters; no forced expiration. `users.password_hash` is NULL until the invitation is accepted, and login is rejected while it is NULL |
+| Deactivation | Inactive users and users of inactive companies cannot log in; deactivating a user or a company revokes their refresh tokens. Companies are never deleted (HU-20 CA04) |
+| Permissions | Drivers are managed by the Logistics Supervisor and the Company Administrator (HU-27) |
+| Web components | shadcn/ui with Tailwind CSS, themed with `docs/design/DESIGN.md` |
+| Design references | `docs/design/phase-1` gives style and layout only; fields and actions come from the HU, RF and data model |
+| Out of scope | "Forgot password" is not in the user stories and is not built in Phase 1 |
+| Tests | Each step includes its own tests; multi-company isolation tests (RNF09) start with the company endpoints. Tests use their own configuration and never read `.env` |
+
+Steps: (1) backend authentication, (2) Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) seed data, (5) web design system, (6) login and set-password screens, (7–12) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
+
 - Login and role-based access for the four roles; the Company Administrator can also do everything the Logistics Supervisor does (RNF04, HU-04, CU-01).
 - Multi-company data isolation: each company only accesses its own data (RNF09).
 - Company registration with automatic 7-day Free Trial (RF02, RF19, HU-01, CU-02, CU-03).
