@@ -1,0 +1,160 @@
+import { Request, Response, NextFunction } from 'express';
+import { validationResult } from 'express-validator';
+import {
+  validateUserCredentials,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  acceptInvitation,
+  resendInvitation,
+  getUserProfile,
+  AuthUser,
+} from './auth.service.js';
+
+interface AuthenticatedRequest extends Request {
+  user?: AuthUser;
+}
+
+function handleValidation(req: Request, res: Response): boolean {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).json({ errors: errors.array() });
+    return false;
+  }
+  return true;
+}
+
+export async function login(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!handleValidation(req, res)) return;
+
+    const { email, password } = req.body;
+    const result = await validateUserCredentials(email, password);
+
+    if (!result) {
+      res.status(401).json({ message: 'Credenciales inválidas' });
+      return;
+    }
+
+    res.json({
+      accessToken: result.tokens.accessToken,
+      refreshToken: result.tokens.refreshToken,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        role: result.user.role,
+        companyId: result.user.companyId,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function refresh(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!handleValidation(req, res)) return;
+
+    const { refreshToken } = req.body;
+    const tokens = await rotateRefreshToken(refreshToken);
+
+    if (!tokens) {
+      res.status(401).json({ message: 'Refresh token inválido o expirado' });
+      return;
+    }
+
+    res.json({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'JsonWebTokenError') {
+      res.status(401).json({ message: 'Refresh token inválido' });
+      return;
+    }
+    next(error);
+  }
+}
+
+export async function logout(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!handleValidation(req, res)) return;
+
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    }
+
+    res.json({ message: 'Sesión cerrada correctamente' });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function me(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  try {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ message: 'No autenticado' });
+      return;
+    }
+
+    const profile = await getUserProfile(user.id);
+    if (!profile) {
+      res.status(404).json({ message: 'Usuario no encontrado' });
+      return;
+    }
+
+    res.json({
+      id: profile.id,
+      email: profile.email,
+      role: profile.role,
+      companyId: profile.companyId,
+      isActive: profile.isActive,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function acceptInvitationHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!handleValidation(req, res)) return;
+
+    const { token, password } = req.body;
+    const result = await acceptInvitation(token, password);
+
+    if (!result) {
+      res.status(400).json({ message: 'Token de invitación inválido, expirado o ya usado' });
+      return;
+    }
+
+    res.json({
+      accessToken: result.tokens.accessToken,
+      refreshToken: result.tokens.refreshToken,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        role: result.user.role,
+        companyId: result.user.companyId,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function resendInvitationHandler(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { userId } = req.params as { userId: string };
+    const invitationUrl = await resendInvitation(userId);
+
+    if (!invitationUrl) {
+      res.status(404).json({ message: 'Usuario no encontrado' });
+      return;
+    }
+
+    res.json({ message: 'Invitación reenviada', invitationUrl });
+  } catch (error) {
+    next(error);
+  }
+}
