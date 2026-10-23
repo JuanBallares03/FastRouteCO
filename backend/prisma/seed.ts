@@ -119,7 +119,6 @@ const CREDIT_PACKAGES = [
 ];
 
 const SYSTEM_SETTINGS = {
-  trial_days: 7,
   invitation_expiry_hours: 72,
   refresh_token_days: 7,
   access_token_minutes: 15,

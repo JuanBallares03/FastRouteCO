@@ -3,6 +3,18 @@ import { prisma } from '../../lib/prisma.js';
 import { sendCompanyConfirmationEmail } from '../../lib/email.js';
 import { createInvitationForUser } from '../auth/auth.service.js';
 
+function getColombiaDate(): Date {
+  const now = new Date();
+  const colombiaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  return colombiaTime;
+}
+
+function addDaysColombia(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
 export async function createCompany(data: {
   legalName: string;
   taxId: string;
@@ -35,9 +47,8 @@ export async function createCompany(data: {
     throw new Error('No hay plan de prueba gratuita disponible');
   }
 
-  const now = new Date();
-  const renewalDate = new Date(now);
-  renewalDate.setDate(renewalDate.getDate() + (freeTrialPlan.trialDays ?? 7));
+  const now = getColombiaDate();
+  const renewalDate = addDaysColombia(now, freeTrialPlan.trialDays ?? 7);
 
   const company = await prisma.$transaction(async (tx) => {
     const newCompany = await tx.company.create({

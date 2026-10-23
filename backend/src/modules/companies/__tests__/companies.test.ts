@@ -155,10 +155,18 @@ describe('Companies Module', () => {
       expect(subscription!.paymentId).toBeNull();
       expect(subscription!.renewalDate).not.toBeNull();
       const renewalDate = new Date(subscription!.renewalDate!);
+      // Calculate expected date in Colombia timezone (UTC-5)
       const expectedRenewal = new Date();
-      expectedRenewal.setDate(expectedRenewal.getDate() + 7);
-      // Allow up to 24 hours tolerance for timezone/precision differences
-      expect(Math.abs(renewalDate.getTime() - expectedRenewal.getTime())).toBeLessThan(24 * 60 * 60 * 1000);
+      const colombiaOffset = -5 * 60; // UTC-5 in minutes
+      const utcMinutes = expectedRenewal.getTime() / 60000;
+      const colombiaMinutes = utcMinutes + colombiaOffset;
+      const colombiaDate = new Date(colombiaMinutes * 60000);
+      colombiaDate.setDate(colombiaDate.getDate() + 7);
+      colombiaDate.setHours(0, 0, 0, 0);
+      // Compare only the date part (YYYY-MM-DD)
+      const renewalDateStr = renewalDate.toISOString().split('T')[0];
+      const expectedDateStr = colombiaDate.toISOString().split('T')[0];
+      expect(renewalDateStr).toBe(expectedDateStr);
 
       const creditBalance = await prisma.creditBalance.findUnique({ where: { companyId: company!.id } });
       expect(creditBalance).not.toBeNull();
