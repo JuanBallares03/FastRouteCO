@@ -1,39 +1,119 @@
 name: CI
-on: [push, pull_request]
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
 jobs:
-  backend:
+  test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter backend lint
-      - run: pnpm --filter backend test
-      - run: pnpm prisma:generate
-      - run: pnpm --filter backend build
 
-  web:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web lint
-      - run: pnpm --filter web test
-      - run: pnpm --filter web build
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fastrouteco
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
-  mobile:
-    runs-on: ubuntu-latest
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/password
+          NEO4J_PLUGINS: '["apoc"]'
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd="cypher-shell -u neo4j -p password 'RETURN 1'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter mobile lint
-      - run: pnpm --filter mobile test
-      - run: pnpm --filter mobile typecheck
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ./backend
+
+      - name: Generate Prisma Client
+        run: pnpm prisma:generate
+        working-directory: ./backend
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d fastrouteco -c "CREATE DATABASE fastrouteco_test;"
+        env:
+          PGPASSWORD: postgres
+
+      - name: Run migrations on test database
+        run: pnpm prisma migrate deploy
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastrouteco_test?schema=public
+
+      - name: Run lint
+        run: pnpm lint
+        working-directory: ./backend
+
+      - name: Run typecheck
+        run: pnpm typecheck
+        working-directory: ./backend
+
+      - name: Run tests
+        run: pnpm test
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fastrouteco_test?schema=public
+          REDIS_URL: redis://localhost:6379/1
+          NEO4J_URI: neo4j://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: password
+          JWT_SECRET: test-jwt-secret-key-for-testing-only
+          JWT_REFRESH_SECRET: test-jwt-refresh-secret-key-for-testing-only
+          RESEND_API_KEY: re_test_key
+          WOMPI_PUBLIC_KEY: pub_test_key
+          WOMPI_PRIVATE_KEY: prv_test_key
+          WOMPI_EVENTS_SECRET: evt_test_key
+          WOMPI_INTEGRITY_SECRET: int_test_key
+          CLOUDINARY_CLOUD_NAME: test_cloud
+          CLOUDINARY_API_KEY: test_key
+          CLOUDINARY_API_SECRET: test_secret
+          PORT: 3001
+          WEB_APP_URL: http://localhost:5173
+
+      - name: Build
+        run: pnpm build
+        working-directory: ./backend
