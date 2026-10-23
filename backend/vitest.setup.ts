@@ -1,0 +1,17 @@
+process.env.DATABASE_URL = 'postgresql://postgres:postgres@localhost:5433/fastrouteco?schema=public';
+process.env.REDIS_URL = 'redis://localhost:6379/1';
+process.env.NEO4J_URI = 'neo4j://localhost:7687';
+process.env.NEO4J_USER = 'neo4j';
+process.env.NEO4J_PASSWORD = 'password';
+process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
+process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-key-for-testing-only';
+process.env.RESEND_API_KEY = 're_test_key';
+process.env.WOMPI_PUBLIC_KEY = 'pub_test_key';
+process.env.WOMPI_PRIVATE_KEY = 'prv_test_key';
+process.env.WOMPI_EVENTS_SECRET = 'evt_test_key';
+process.env.WOMPI_INTEGRITY_SECRET = 'int_test_key';
+process.env.CLOUDINARY_CLOUD_NAME = 'test_cloud';
+process.env.CLOUDINARY_API_KEY = 'test_key';
+process.env.CLOUDINARY_API_SECRET = 'test_secret';
+process.env.PORT = '3001';
+process.env.WEB_APP_URL = 'http://localhost:5173';
