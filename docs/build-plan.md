@@ -124,9 +124,23 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 | Web components | shadcn/ui with Tailwind CSS, themed with `docs/design/DESIGN.md` |
 | Design references | `docs/design/phase-1` gives style and layout only; fields and actions come from the HU, RF and data model |
 | Out of scope | "Forgot password" is not in the user stories and is not built in Phase 1 |
-| Tests | Each step includes its own tests; multi-company isolation tests (RNF09) start with the company endpoints. Tests use their own configuration and never read `.env` |
+| Tests | Each step includes its own tests; multi-company isolation tests (RNF09) start with the company endpoints. Tests use their own configuration (`backend/.env.test`, test values only) and never read `.env` |
+| Test infrastructure | Dedicated database `fastrouteco_test` in the same PostgreSQL container (port 5433), migrations applied before the tests, test files run sequentially and data is cleaned between tests. CI runs with a PostgreSQL service and must be green before moving to the next step |
+| Business dates | All business dates (Free Trial expiration, renewals, route dates) are calculated in the `America/Bogota` time zone, not in UTC. Tests compare exact dates |
+| Shared code | Request validation with zod through the shared middleware `backend/src/middleware/validate.ts`. Emails through the shared service `backend/src/lib/email.ts` (Resend; mocked in tests). No duplicated validation or email logic per module |
+| Seed data | `pnpm db:seed` loads plans, modules, plan modules, credit packages and system settings with valid UUIDs and placeholder prices (prices are TO BE DEFINED). The Free Trial length lives only in `plans.trial_days` (7) |
 
-Steps: (1) backend authentication, (2) Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) seed data, (5) web design system, (6) login and set-password screens, (7–12) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
+Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
+
+Progress: steps 1 and 2 are finished (CI green). Next: step 3.
+
+Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
+- `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
+- `GET /companies` with filters (company status, subscription status, plan, search by legal name or NIT) and pagination (HU-20 CA01); `GET /companies/:id` with details, plan, subscription and administrators.
+- `PATCH /companies/:id/status` activates or deactivates; deactivating blocks login (HU-20 CA03), revokes refresh tokens and keeps the data (HU-20 CA04).
+- `GET` and `POST /companies/:id/admins` (HU-21, sends the invitation) and `PATCH /companies/:id/admins/:adminId/status`.
+- Not included on purpose: deleting companies, editing company data (Company Administrator, HU-24) and editing administrators.
+- Login errors: unknown email or wrong password return 401 with a generic message; correct credentials with an inactive user or company return 403 with the reason.
 
 - Login and role-based access for the four roles; the Company Administrator can also do everything the Logistics Supervisor does (RNF04, HU-04, CU-01).
 - Multi-company data isolation: each company only accesses its own data (RNF09).
