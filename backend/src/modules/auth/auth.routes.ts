@@ -13,9 +13,9 @@ import {
   acceptInvitationSchema,
   logoutSchema,
   resendInvitationSchema,
-  validate,
 } from './validation.middleware.js';
 import { authenticate } from '../../middleware/auth.js';
+import { validate } from '../../middleware/validate.js';
 
 const router: ExpressRouter = Router();
 
