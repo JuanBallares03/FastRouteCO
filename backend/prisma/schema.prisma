@@ -177,7 +177,7 @@ model User {
   role          UserRole
   fullName      String    @db.VarChar(150) @map("full_name")
   email         String    @unique @db.VarChar(150)
-  passwordHash  String    @db.VarChar(255) @map("password_hash")
+  passwordHash  String?   @db.VarChar(255) @map("password_hash")
   phone         String?   @db.VarChar(30)
   isActive      Boolean   @default(true) @map("is_active")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Date
@@ -186,6 +186,8 @@ model User {
   driver        Driver?
   sentMessages  IncidentMessage[] @relation("SentMessages")
   receivedNotifications Notification[] @relation("UserNotifications")
+  refreshTokens RefreshToken[]
+  invitations   UserInvitation[]
 
   @@map("users")
 }
@@ -586,4 +588,34 @@ model UsageCharge {
   routeOptimizations  RouteOptimization[]
 
   @@map("usage_charges")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid @map("user_id")
+  tokenHash   String   @unique @db.VarChar(64) @map("token_hash")
+  jti         String   @unique @db.Uuid @map("jti")
+  expiresAt   DateTime @map("expires_at") @db.Timestamp(0)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamp(0)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  replacedBy  String?  @db.Uuid @map("replaced_by")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model UserInvitation {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid @map("user_id")
+  tokenHash String   @unique @db.VarChar(64) @map("token_hash")
+  expiresAt DateTime @map("expires_at") @db.Timestamp(0)
+  usedAt    DateTime? @map("used_at") @db.Timestamp(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_invitations")
 }
