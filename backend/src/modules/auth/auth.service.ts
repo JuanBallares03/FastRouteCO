@@ -8,6 +8,7 @@ import {
   verifyRefreshToken,
 } from './jwt.js';
 import { prisma } from '../../lib/prisma.js';
+import { sendInvitationEmail } from '../../lib/email.js';
 
 type UserWithCompany = Prisma.UserGetPayload<{ include: { company: true } }>;
 
@@ -220,7 +221,7 @@ export async function acceptInvitation(
 export async function resendInvitation(userId: string): Promise<string | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { invitations: { where: { usedAt: null } } },
+    include: { company: true, invitations: { where: { usedAt: null } } },
   });
 
   if (!user) return null;
@@ -241,10 +242,25 @@ export async function resendInvitation(userId: string): Promise<string | null> {
     },
   });
 
-  return `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
+  const invitationUrl = `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
+  
+  if (user.company) {
+    await sendInvitationEmail(user.email, user.fullName, invitationUrl, user.company.legalName);
+  }
+
+  return invitationUrl;
 }
 
 export async function createInvitationForUser(userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { company: true },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
   const tokenRaw = generateSecureToken();
   const tokenHash = sha256Hex(tokenRaw);
 
@@ -256,7 +272,13 @@ export async function createInvitationForUser(userId: string): Promise<string> {
     },
   });
 
-  return `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
+  const invitationUrl = `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
+  
+  if (user.company) {
+    await sendInvitationEmail(user.email, user.fullName, invitationUrl, user.company.legalName);
+  }
+
+  return invitationUrl;
 }
 
 function mapToAuthUser(user: User & { company?: { status: CompanyStatus } | null }): AuthUser {
