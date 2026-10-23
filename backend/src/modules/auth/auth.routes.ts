@@ -8,21 +8,22 @@ import {
   resendInvitationHandler,
 } from './auth.controller.js';
 import {
-  loginValidation,
-  refreshValidation,
-  acceptInvitationValidation,
-  logoutValidation,
-  resendInvitationValidation,
+  loginSchema,
+  refreshSchema,
+  acceptInvitationSchema,
+  logoutSchema,
+  resendInvitationSchema,
+  validate,
 } from './validation.middleware.js';
 import { authenticate } from '../../middleware/auth.js';
 
 const router: ExpressRouter = Router();
 
-router.post('/login', loginValidation, login);
-router.post('/refresh', refreshValidation, refresh);
-router.post('/logout', logoutValidation, logout);
-router.post('/accept-invitation', acceptInvitationValidation, acceptInvitationHandler);
+router.post('/login', validate(loginSchema), login);
+router.post('/refresh', validate(refreshSchema), refresh);
+router.post('/logout', validate(logoutSchema), logout);
+router.post('/accept-invitation', validate(acceptInvitationSchema), acceptInvitationHandler);
 router.get('/me', authenticate, me);
-router.post('/resend-invitation/:userId', resendInvitationValidation, resendInvitationHandler);
+router.post('/resend-invitation/:userId', validate(resendInvitationSchema), resendInvitationHandler);
 
 export default router;

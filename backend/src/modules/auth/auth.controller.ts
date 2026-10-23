@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { validationResult } from 'express-validator';
 import {
   validateUserCredentials,
   rotateRefreshToken,
@@ -14,19 +13,8 @@ interface AuthenticatedRequest extends Request {
   user?: AuthUser;
 }
 
-function handleValidation(req: Request, res: Response): boolean {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
-    return false;
-  }
-  return true;
-}
-
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!handleValidation(req, res)) return;
-
     const { email, password } = req.body;
     const result = await validateUserCredentials(email, password);
 
@@ -52,8 +40,6 @@ export async function login(req: Request, res: Response, next: NextFunction) {
 
 export async function refresh(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!handleValidation(req, res)) return;
-
     const { refreshToken } = req.body;
     const tokens = await rotateRefreshToken(refreshToken);
 
@@ -77,8 +63,6 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
 
 export async function logout(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!handleValidation(req, res)) return;
-
     const { refreshToken } = req.body;
     if (refreshToken) {
       await revokeRefreshToken(refreshToken);
@@ -118,8 +102,6 @@ export async function me(req: AuthenticatedRequest, res: Response, next: NextFun
 
 export async function acceptInvitationHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    if (!handleValidation(req, res)) return;
-
     const { token, password } = req.body;
     const result = await acceptInvitation(token, password);
 
