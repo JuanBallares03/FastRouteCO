@@ -3,8 +3,6 @@ import { prisma } from '../../lib/prisma.js';
 import { sendCompanyConfirmationEmail } from '../../lib/email.js';
 import { createInvitationForUser } from '../auth/auth.service.js';
 
-const FREE_TRIAL_DAYS = 7;
-
 export async function createCompany(data: {
   legalName: string;
   taxId: string;
@@ -27,7 +25,7 @@ export async function createCompany(data: {
 
   const freeTrialPlan = await prisma.plan.findFirst({
     where: {
-      trialDays: { gte: FREE_TRIAL_DAYS },
+      trialDays: { gte: 7 },
       isActive: true,
     },
     orderBy: { trialDays: 'desc' },
@@ -39,7 +37,7 @@ export async function createCompany(data: {
 
   const now = new Date();
   const renewalDate = new Date(now);
-  renewalDate.setDate(renewalDate.getDate() + FREE_TRIAL_DAYS);
+  renewalDate.setDate(renewalDate.getDate() + (freeTrialPlan.trialDays ?? 7));
 
   const company = await prisma.$transaction(async (tx) => {
     const newCompany = await tx.company.create({
@@ -227,6 +225,7 @@ export async function listCompanyAdmins(companyId: string) {
       email: true,
       phone: true,
       isActive: true,
+      role: true,
       createdAt: true,
     },
     orderBy: { createdAt: 'desc' },

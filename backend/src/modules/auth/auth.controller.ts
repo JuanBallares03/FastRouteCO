@@ -7,6 +7,9 @@ import {
   resendInvitation,
   getUserProfile,
   AuthUser,
+  InvalidCredentialsError,
+  UserInactiveError,
+  CompanyInactiveError,
 } from './auth.service.js';
 
 interface AuthenticatedRequest extends Request {
@@ -17,11 +20,6 @@ export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password } = req.body;
     const result = await validateUserCredentials(email, password);
-
-    if (!result) {
-      res.status(401).json({ message: 'Credenciales inválidas' });
-      return;
-    }
 
     res.json({
       accessToken: result.tokens.accessToken,
@@ -34,6 +32,18 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       },
     });
   } catch (error) {
+    if (error instanceof InvalidCredentialsError) {
+      res.status(401).json({ message: error.message });
+      return;
+    }
+    if (error instanceof UserInactiveError) {
+      res.status(403).json({ message: error.message });
+      return;
+    }
+    if (error instanceof CompanyInactiveError) {
+      res.status(403).json({ message: error.message });
+      return;
+    }
     next(error);
   }
 }

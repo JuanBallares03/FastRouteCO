@@ -65,20 +65,51 @@ export async function findUserByEmail(email: string): Promise<UserWithCompany | 
   });
 }
 
+export class InvalidCredentialsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidCredentialsError';
+  }
+}
+
+export class UserInactiveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UserInactiveError';
+  }
+}
+
+export class CompanyInactiveError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CompanyInactiveError';
+  }
+}
+
 export async function validateUserCredentials(
   email: string,
   password: string
-): Promise<{ user: AuthUser; tokens: TokenPair } | null> {
+): Promise<{ user: AuthUser; tokens: TokenPair }> {
   const user = await findUserByEmail(email);
-  if (!user) return null;
+  if (!user) {
+    throw new InvalidCredentialsError('Credenciales inválidas');
+  }
 
-  if (!user.passwordHash) return null;
+  if (!user.passwordHash) {
+    throw new InvalidCredentialsError('Credenciales inválidas');
+  }
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) return null;
+  if (!valid) {
+    throw new InvalidCredentialsError('Credenciales inválidas');
+  }
 
-  if (!user.isActive) return null;
-  if (user.company && user.company.status === CompanyStatus.inactive) return null;
+  if (!user.isActive) {
+    throw new UserInactiveError('Usuario desactivado');
+  }
+  if (user.company && user.company.status === CompanyStatus.inactive) {
+    throw new CompanyInactiveError('Empresa desactivada');
+  }
 
   const tokens = await createTokenPair(user);
   return { user: mapToAuthUser(user), tokens };
