@@ -17,6 +17,9 @@ import {
   createInvitationForUser,
   getUserProfile,
   sha256Hex,
+  InvalidCredentialsError,
+  UserInactiveError,
+  CompanyInactiveError,
 } from '../auth.service.js';
 import { prisma } from '../../../lib/prisma.js';
 
@@ -29,11 +32,27 @@ const TEST_USER_ID = crypto.randomUUID();
 const TEST_PASSWORD = 'TestPass123!';
 const TEST_PASSWORD_HASH = await bcrypt.hash(TEST_PASSWORD, 12);
 
+let emailCounter = 0;
+function uniqueEmail(prefix: string) {
+  emailCounter++;
+  return `${prefix}${emailCounter}@company.com`;
+}
+
+let taxIdCounter = 0;
+function uniqueTaxId() {
+  taxIdCounter++;
+  const suite = String(Math.floor(taxIdCounter / 1000)).padStart(3, '0');
+  const num = String(taxIdCounter % 1000).padStart(3, '0');
+  return `900.${suite}.${num}-${num}`;
+}
+
 async function cleanup() {
   await prisma.refreshToken.deleteMany({ where: { userId: TEST_USER_ID } });
   await prisma.userInvitation.deleteMany({ where: { userId: TEST_USER_ID } });
   await prisma.user.deleteMany({ where: { id: TEST_USER_ID } });
   await prisma.company.deleteMany({ where: { id: TEST_COMPANY_ID } });
+  await prisma.user.deleteMany({ where: { email: { startsWith: 'auth-test-' } } });
+  await prisma.company.deleteMany({ where: { taxId: { startsWith: '900.001.' } } });
 }
 
 beforeAll(async () => {
@@ -69,6 +88,8 @@ afterAll(async () => {
 beforeEach(async () => {
   await prisma.refreshToken.deleteMany({ where: { userId: TEST_USER_ID } });
   await prisma.userInvitation.deleteMany({ where: { userId: TEST_USER_ID } });
+  emailCounter = 0;
+  taxIdCounter = 0;
 });
 
 describe('Auth Service', () => {
@@ -100,83 +121,82 @@ describe('Auth Service', () => {
     it('should return tokens for valid credentials', async () => {
       const result = await validateUserCredentials('test@company.com', TEST_PASSWORD);
       expect(result).not.toBeNull();
-      expect(result?.tokens).toHaveProperty('accessToken');
-      expect(result?.tokens).toHaveProperty('refreshToken');
-      expect(result?.user.email).toBe('test@company.com');
-      expect(result?.user.role).toBe(UserRole.company_admin);
+      expect(result.tokens).toHaveProperty('accessToken');
+      expect(result.tokens).toHaveProperty('refreshToken');
+      expect(result.user.email).toBe('test@company.com');
+      expect(result.user.role).toBe(UserRole.company_admin);
     });
 
-    it('should return null for wrong password', async () => {
-      const result = await validateUserCredentials('test@company.com', 'WrongPass123!');
-      expect(result).toBeNull();
+    it('should throw InvalidCredentialsError for wrong password', async () => {
+      await expect(validateUserCredentials('test@company.com', 'WrongPass123!')).rejects.toThrow(InvalidCredentialsError);
     });
 
-    it('should return null for non-existent user', async () => {
-      const result = await validateUserCredentials('nonexistent@company.com', TEST_PASSWORD);
-      expect(result).toBeNull();
+    it('should throw InvalidCredentialsError for non-existent user', async () => {
+      await expect(validateUserCredentials('nonexistent@company.com', TEST_PASSWORD)).rejects.toThrow(InvalidCredentialsError);
     });
 
-    it('should return null for user without password', async () => {
+    it('should throw InvalidCredentialsError for user without password', async () => {
       const userId = crypto.randomUUID();
+      const email = uniqueEmail('auth-test-nopass');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: TEST_COMPANY_ID,
           role: UserRole.driver,
           fullName: 'No Pass User',
-          email: 'nopass@company.com',
+          email,
           isActive: true,
         },
       });
-      const result = await validateUserCredentials('nopass@company.com', TEST_PASSWORD);
-      expect(result).toBeNull();
+      await expect(validateUserCredentials(email, TEST_PASSWORD)).rejects.toThrow(InvalidCredentialsError);
       await prisma.user.delete({ where: { id: userId } });
     });
 
-    it('should return null for inactive user', async () => {
+    it('should throw UserInactiveError for inactive user', async () => {
       const userId = crypto.randomUUID();
+      const email = uniqueEmail('auth-test-inactive');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: TEST_COMPANY_ID,
           role: UserRole.driver,
           fullName: 'Inactive User',
-          email: 'inactive@company.com',
+          email,
           passwordHash: TEST_PASSWORD_HASH,
           isActive: false,
         },
       });
-      const result = await validateUserCredentials('inactive@company.com', TEST_PASSWORD);
-      expect(result).toBeNull();
+      await expect(validateUserCredentials(email, TEST_PASSWORD)).rejects.toThrow(UserInactiveError);
       await prisma.user.delete({ where: { id: userId } });
     });
 
-    it('should return null for user in inactive company', async () => {
+    it('should throw CompanyInactiveError for user in inactive company', async () => {
       const inactiveCompanyId = crypto.randomUUID();
+      const companyTaxId = uniqueTaxId();
       await prisma.company.create({
         data: {
           id: inactiveCompanyId,
           legalName: 'Inactive Company',
-          taxId: '900.000.000-2',
-          email: 'inactive@company.com',
+          taxId: companyTaxId,
+          email: uniqueEmail('auth-test-inactive-company'),
           status: CompanyStatus.inactive,
           hasOwnFleet: true,
         },
       });
       const userId = crypto.randomUUID();
+      const userEmail = uniqueEmail('auth-test-user-inactive');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: inactiveCompanyId,
           role: UserRole.driver,
           fullName: 'User In Inactive',
-          email: 'userinactive@company.com',
+          email: userEmail,
           passwordHash: TEST_PASSWORD_HASH,
           isActive: true,
         },
       });
-      const result = await validateUserCredentials('userinactive@company.com', TEST_PASSWORD);
-      expect(result).toBeNull();
+      await expect(validateUserCredentials(userEmail, TEST_PASSWORD)).rejects.toThrow(CompanyInactiveError);
       await prisma.user.delete({ where: { id: userId } });
       await prisma.company.delete({ where: { id: inactiveCompanyId } });
     });
@@ -223,13 +243,14 @@ describe('Auth Service', () => {
   describe('acceptInvitation', () => {
     it('should accept valid invitation and set password', async () => {
       const userId = crypto.randomUUID();
+      const email = uniqueEmail('auth-test-invited');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: TEST_COMPANY_ID,
           role: UserRole.supervisor,
           fullName: 'Invited User',
-          email: 'invited@company.com',
+          email,
           isActive: true,
         },
       });
@@ -239,7 +260,7 @@ describe('Auth Service', () => {
       const result = await acceptInvitation(token, 'NewPass123!@#');
       expect(result).not.toBeNull();
       expect(result?.tokens).toHaveProperty('accessToken');
-      expect(result?.user.email).toBe('invited@company.com');
+      expect(result?.user.email).toBe(email);
 
       const user = await prisma.user.findUnique({ where: { id: userId } });
       expect(user?.passwordHash).not.toBeNull();
@@ -251,13 +272,14 @@ describe('Auth Service', () => {
 
     it('should reject used invitation', async () => {
       const userId = crypto.randomUUID();
+      const email = uniqueEmail('auth-test-invited2');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: TEST_COMPANY_ID,
           role: UserRole.supervisor,
           fullName: 'Invited User 2',
-          email: 'invited2@company.com',
+          email,
           isActive: true,
         },
       });
@@ -273,13 +295,14 @@ describe('Auth Service', () => {
 
     it('should reject expired invitation', async () => {
       const userId = crypto.randomUUID();
+      const email = uniqueEmail('auth-test-invited3');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: TEST_COMPANY_ID,
           role: UserRole.supervisor,
           fullName: 'Invited User 3',
-          email: 'invited3@company.com',
+          email,
           isActive: true,
         },
       });
@@ -437,13 +460,14 @@ describe('Auth API Endpoints', () => {
   describe('POST /api/v1/auth/accept-invitation', () => {
     it('should accept valid invitation', async () => {
       const userId = crypto.randomUUID();
+      const email = uniqueEmail('auth-test-api-invited');
       await prisma.user.create({
         data: {
           id: userId,
           companyId: TEST_COMPANY_ID,
           role: UserRole.supervisor,
           fullName: 'API Invited',
-          email: 'apiinvited@company.com',
+          email,
           isActive: true,
         },
       });
@@ -456,7 +480,7 @@ describe('Auth API Endpoints', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('accessToken');
-      expect(res.body.user.email).toBe('apiinvited@company.com');
+      expect(res.body.user.email).toBe(email);
 
       await prisma.user.delete({ where: { id: userId } });
     });
