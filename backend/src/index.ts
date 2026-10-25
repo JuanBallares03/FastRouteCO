@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import 'dotenv/config';
 import { env } from "./env.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import platformRoutes from "./modules/companies/companies.routes.js";
