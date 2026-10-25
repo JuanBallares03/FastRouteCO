@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { env } from "./env.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import platformRoutes from "./modules/companies/companies.routes.js";
 import companyRoutes from "./modules/company/company.routes.js";
@@ -9,7 +10,7 @@ const app = express();
 const PORT = process.env.PORT ?? 3000;
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
