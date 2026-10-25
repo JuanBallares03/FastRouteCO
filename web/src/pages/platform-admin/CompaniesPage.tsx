@@ -13,26 +13,17 @@ import { cn } from '@/lib/utils';
 
 interface Company {
   id: string;
-  legal_name: string;
-  nit: string;
+  legalName: string;
+  taxId: string;
   email: string;
-  phone: string;
-  address: string;
-  city: string;
-  plan: string;
-  status: 'active' | 'inactive';
-  subscription_status: 'active' | 'expired' | 'free_trial';
-  trial_days_remaining?: number;
-  created_at: string;
+  phone?: string;
+  address?: string;
+  planName: string;
+  isActive: boolean;
+  subscriptionStatus: string;
+  trialDaysRemaining?: number;
+  createdAt: string;
 }
-
-const PLAN_LABELS: Record<string, string> = {
-  'free-trial': 'Free Trial',
-  'basic': 'Básico',
-  'pro': 'Pro',
-  'premium': 'Premium',
-  'pay-per-use': 'Pago por uso',
-};
 
 const PLAN_BADGE_VARIANTS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
   'free-trial': 'info',
@@ -42,15 +33,16 @@ const PLAN_BADGE_VARIANTS: Record<string, 'success' | 'warning' | 'error' | 'inf
   'pay-per-use': 'warning',
 };
 
-const STATUS_BADGE_VARIANTS: Record<'active' | 'inactive', 'success' | 'error'> = {
-  active: 'success',
-  inactive: 'error',
+const STATUS_BADGE_VARIANTS: Record<string, 'success' | 'error'> = {
+  'true': 'success',
+  'false': 'error',
 };
 
-const SUBSCRIPTION_BADGE_VARIANTS: Record<'active' | 'expired' | 'free_trial', 'success' | 'error' | 'warning'> = {
+const SUBSCRIPTION_BADGE_VARIANTS: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
   active: 'success',
   expired: 'error',
   free_trial: 'warning',
+  inactive: 'neutral',
 };
 
 export function CompaniesPage() {
@@ -58,16 +50,16 @@ export function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [pageSize] = useState(20);
   const [filters, setFilters] = useState({
     search: '',
-    company_status: 'todas',
-    subscription_status: 'todas',
-    plan: 'todos',
+    company_status: 'all',
+    subscription_status: 'all',
+    planId: 'all',
   });
   const [showModal, setShowModal] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
-  const [modalAction, setModalAction] = useState<'activate' | 'deactivate' | 'extend' | 'convert'>('deactivate');
+  const [modalAction, setModalAction] = useState<'activate' | 'deactivate'>('deactivate');
   const [toast, setToast] = useState<{ show: boolean; message: string; variant: 'success' | 'error' }>({ show: false, message: '', variant: 'success' });
 
   const fetchCompanies = async () => {
@@ -75,15 +67,16 @@ export function CompaniesPage() {
     try {
       const params = {
         page,
-        limit,
+        pageSize,
         ...(filters.search && { search: filters.search }),
-        ...(filters.company_status !== 'todas' && { status: filters.company_status }),
-        ...(filters.subscription_status !== 'todas' && { subscription_status: filters.subscription_status }),
-        ...(filters.plan !== 'todos' && { plan: filters.plan }),
+        ...(filters.company_status !== 'all' && { companyStatus: filters.company_status }),
+        ...(filters.subscription_status !== 'all' && { subscriptionStatus: filters.subscription_status }),
+        ...(filters.planId !== 'all' && { planId: filters.planId }),
       };
       const response = await platformApi.getCompanies(params);
-      setCompanies(response.data.data || response.data);
-      setTotal(response.data.total || response.data.length);
+      const data = response.data;
+      setCompanies(data.data || data);
+      setTotal(data.total || data.data?.length || 0);
     } catch {
       console.error('Error fetching companies:');
       setToast({ show: true, message: 'Error al cargar las empresas', variant: 'error' });
@@ -110,7 +103,7 @@ export function CompaniesPage() {
   const confirmStatusChange = async () => {
     if (!selectedCompany) return;
     try {
-      await platformApi.updateCompanyStatus(selectedCompany.id, modalAction === 'activate' ? 'active' : 'inactive');
+      await platformApi.updateCompanyStatus(selectedCompany.id, modalAction === 'activate');
       setToast({ show: true, message: `Empresa ${modalAction === 'activate' ? 'activada' : 'desactivada'} correctamente`, variant: 'success' });
       fetchCompanies();
     } catch {
@@ -143,6 +136,13 @@ export function CompaniesPage() {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
     return colors[Math.abs(hash) % colors.length];
+  };
+
+  const formatSubscriptionStatus = (status: string, trialDays?: number) => {
+    if (status === 'free_trial' && trialDays !== undefined) {
+      return `Free Trial (${trialDays} días restantes)`;
+    }
+    return status === 'active' ? 'Activa' : status === 'expired' ? 'Vencida' : 'Inactiva';
   };
 
   return (
@@ -199,7 +199,7 @@ export function CompaniesPage() {
             </div>
             <div className="mt-2">
               <span className="font-headline-lg text-headline-lg text-on-surface">
-                {companies.filter(c => c.status === 'active').length}
+                {companies.filter(c => c.isActive).length}
               </span>
             </div>
           </CardContent>
@@ -214,7 +214,7 @@ export function CompaniesPage() {
             </div>
             <div className="mt-2">
               <span className="font-headline-lg text-headline-lg text-on-surface">
-                {companies.filter(c => c.subscription_status === 'free_trial').length}
+                {companies.filter(c => c.subscriptionStatus === 'free_trial').length}
               </span>
               <div className="flex items-center gap-1 mt-1 font-label-sm text-label-sm text-secondary">
                 <span>2 por vencer esta semana</span>
@@ -232,7 +232,7 @@ export function CompaniesPage() {
             </div>
             <div className="mt-2">
               <span className="font-headline-lg text-headline-lg text-error">
-                {companies.filter(c => c.subscription_status === 'expired').length}
+                {companies.filter(c => c.subscriptionStatus === 'expired').length}
               </span>
               <div className="flex items-center gap-1 mt-1 font-label-sm text-label-sm text-error">
                 <span>Atención de cobro requerida</span>
@@ -259,7 +259,7 @@ export function CompaniesPage() {
               value={filters.company_status}
               onChange={(e) => handleFilterChange('company_status', e.target.value)}
               options={[
-                { value: 'todas', label: 'Todas las empresas' },
+                { value: 'all', label: 'Todas las empresas' },
                 { value: 'active', label: 'Activa' },
                 { value: 'inactive', label: 'Inactiva' },
               ]}
@@ -271,20 +271,21 @@ export function CompaniesPage() {
               value={filters.subscription_status}
               onChange={(e) => handleFilterChange('subscription_status', e.target.value)}
               options={[
-                { value: 'todas', label: 'Todos los estados' },
+                { value: 'all', label: 'Todos los estados' },
                 { value: 'active', label: 'Activa' },
                 { value: 'expired', label: 'Vencida' },
                 { value: 'free_trial', label: 'Free Trial' },
+                { value: 'inactive', label: 'Inactiva' },
               ]}
             />
           </div>
           <div className="lg:col-span-2">
             <Select
               label="Plan contratado"
-              value={filters.plan}
-              onChange={(e) => handleFilterChange('plan', e.target.value)}
+              value={filters.planId}
+              onChange={(e) => handleFilterChange('planId', e.target.value)}
               options={[
-                { value: 'todos', label: 'Todos' },
+                { value: 'all', label: 'Todos' },
                 { value: 'free-trial', label: 'Free Trial' },
                 { value: 'basic', label: 'Básico' },
                 { value: 'pro', label: 'Pro' },
@@ -333,41 +334,35 @@ export function CompaniesPage() {
                   <TableRow key={company.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className={cn('w-10 h-10 rounded-lg font-headline-sm text-headline-sm flex items-center justify-center shrink-0', getColorFromName(company.legal_name))}>
-                          {getInitials(company.legal_name)}
+                        <div className={cn('w-10 h-10 rounded-lg font-headline-sm text-headline-sm flex items-center justify-center shrink-0', getColorFromName(company.legalName))}>
+                          {getInitials(company.legalName)}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="font-label-lg text-label-lg text-on-surface truncate">{company.legal_name}</span>
+                          <span className="font-label-lg text-label-lg text-on-surface truncate">{company.legalName}</span>
                           <div className="flex items-center gap-1 font-body-sm text-body-sm text-on-surface-variant">
                             <span className="material-symbols-outlined text-[14px] text-secondary">location_on</span>
-                            <span>{company.city}, Tolima</span>
+                            <span>{company.address || 'Sin ciudad'}, Tolima</span>
                           </div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <span className="font-code-tracking text-code-tracking px-2 py-1 rounded bg-surface-container text-on-surface">{company.nit}</span>
+                      <span className="font-code-tracking text-code-tracking px-2 py-1 rounded bg-surface-container text-on-surface">{company.taxId}</span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <Badge variant={PLAN_BADGE_VARIANTS[company.plan] || 'neutral'}>
-                        {PLAN_LABELS[company.plan] || company.plan}
+                      <Badge variant={PLAN_BADGE_VARIANTS[company.planName] || 'neutral'}>
+                        {company.planName}
                       </Badge>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <Badge variant={STATUS_BADGE_VARIANTS[company.status]}>
-                        {company.status === 'active' ? 'Activa' : 'Inactiva'}
+                      <Badge variant={STATUS_BADGE_VARIANTS[String(company.isActive)]}>
+                        {company.isActive ? 'Activa' : 'Inactiva'}
                       </Badge>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {company.subscription_status === 'free_trial' && company.trial_days_remaining !== undefined ? (
-                        <Badge variant="warning">
-                          Free Trial ({company.trial_days_remaining} días restantes)
-                        </Badge>
-                      ) : (
-                        <Badge variant={SUBSCRIPTION_BADGE_VARIANTS[company.subscription_status]}>
-                          {company.subscription_status === 'active' ? 'Activa' : company.subscription_status === 'expired' ? 'Vencida' : 'Free Trial'}
-                        </Badge>
-                      )}
+                      <Badge variant={SUBSCRIPTION_BADGE_VARIANTS[company.subscriptionStatus] || 'neutral'}>
+                        {formatSubscriptionStatus(company.subscriptionStatus, company.trialDaysRemaining)}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2 justify-end">
@@ -385,10 +380,10 @@ export function CompaniesPage() {
                               variant: 'default' 
                             },
                             { 
-                              label: company.status === 'active' ? 'Desactivar empresa' : 'Activar empresa', 
-                              onClick: () => handleStatusChange(company, company.status === 'active' ? 'deactivate' : 'activate'),
-                              icon: company.status === 'active' ? 'block' : 'check_circle',
-                              variant: company.status === 'active' ? 'destructive' : 'success'
+                              label: company.isActive ? 'Desactivar empresa' : 'Activar empresa', 
+                              onClick: () => handleStatusChange(company, company.isActive ? 'deactivate' : 'activate'),
+                              icon: company.isActive ? 'block' : 'check_circle',
+                              variant: company.isActive ? 'destructive' : 'success'
                             },
                           ]}
                         >
@@ -407,14 +402,14 @@ export function CompaniesPage() {
 
         <div className="px-4 py-3 bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-outline/50">
           <div className="font-body-sm text-body-sm text-on-surface-variant">
-            Mostrando <span className="font-semibold text-on-surface">{(page - 1) * limit + 1}</span> a <span className="font-semibold text-on-surface">{Math.min(page * limit, total)}</span> de <span className="font-semibold text-on-surface">{total}</span> empresas
+            Mostrando <span className="font-semibold text-on-surface">{(page - 1) * pageSize + 1}</span> a <span className="font-semibold text-on-surface">{Math.min(page * pageSize, total)}</span> de <span className="font-semibold text-on-surface">{total}</span> empresas
           </div>
           <div className="flex items-center gap-1">
             <Button variant="secondary" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>
               <span className="material-symbols-outlined text-[18px]">chevron_left</span>
               Anterior
             </Button>
-            {Array.from({ length: Math.ceil(total / limit) }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.min(Math.ceil(total / limit), page + 2)).map((p) => (
+            {Array.from({ length: Math.ceil(total / pageSize) }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.min(Math.ceil(total / pageSize), page + 2)).map((p) => (
               <Button
                 key={p}
                 variant={p === page ? 'primary' : 'secondary'}
@@ -425,7 +420,7 @@ export function CompaniesPage() {
                 {p}
               </Button>
             ))}
-            <Button variant="secondary" size="sm" disabled={page === Math.ceil(total / limit)} onClick={() => setPage(page + 1)}>
+            <Button variant="secondary" size="sm" disabled={page === Math.ceil(total / pageSize)} onClick={() => setPage(page + 1)}>
               Siguiente
               <span className="material-symbols-outlined text-[18px]">chevron_right</span>
             </Button>
@@ -437,7 +432,7 @@ export function CompaniesPage() {
         open={showModal}
         onClose={() => { setShowModal(false); setSelectedCompany(null); }}
         title="Confirmar acción de estado"
-        description={selectedCompany?.legal_name || ''}
+        description={selectedCompany?.legalName || ''}
         confirmLabel={modalAction === 'activate' ? 'Reactivar empresa' : 'Desactivar empresa'}
         confirmVariant={modalAction === 'activate' ? 'primary' : 'destructive'}
         onConfirm={confirmStatusChange}

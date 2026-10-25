@@ -16,7 +16,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  setPassword: (token: string, password: string) => Promise<void>;
+  acceptInvitation: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -37,7 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const response = await authApi.me();
-      setUser(response.data);
+      const data = response.data;
+      setUser({
+        id: data.id,
+        email: data.email,
+        full_name: data.email,
+        role: data.role,
+        company_id: data.companyId,
+        is_active: data.isActive,
+      });
     } catch {
       clearTokens();
       setUser(null);
@@ -52,19 +60,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await authApi.login(email, password);
-    const { access_token, refresh_token, user: userData } = response.data;
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('refresh_token', refresh_token);
-    setUser(userData);
+    const { accessToken, refreshToken, user: userData } = response.data;
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+    setUser({
+      id: userData.id,
+      email: userData.email,
+      full_name: userData.email,
+      role: userData.role,
+      company_id: userData.companyId,
+      is_active: true,
+    });
   };
 
-  const setPassword = async (token: string, password: string) => {
-    await authApi.setPassword(token, password);
+  const acceptInvitation = async (token: string, password: string) => {
+    const response = await authApi.acceptInvitation(token, password);
+    const { accessToken, refreshToken, user: userData } = response.data;
+    localStorage.setItem('access_token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+    setUser({
+      id: userData.id,
+      email: userData.email,
+      full_name: userData.email,
+      role: userData.role,
+      company_id: userData.companyId,
+      is_active: true,
+    });
   };
 
   const logout = async () => {
     try {
-      await authApi.logout();
+      const refreshToken = localStorage.getItem('refresh_token') ?? undefined;
+      await authApi.logout(refreshToken);
     } catch {
       console.error('Logout error:');
     } finally {
@@ -74,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, setPassword, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, acceptInvitation, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

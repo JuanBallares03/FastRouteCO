@@ -11,29 +11,29 @@ import { platformApi } from '@/services/api';
 
 interface Company {
   id: string;
-  legal_name: string;
-  nit: string;
+  legalName: string;
+  taxId: string;
   email: string;
-  phone: string;
-  address: string;
-  city: string;
-  plan: string;
-  status: 'active' | 'inactive';
-  subscription_status: 'active' | 'expired' | 'free_trial';
-  trial_days_remaining?: number;
-  created_at: string;
-  has_own_drivers: boolean;
+  phone?: string;
+  address?: string;
+  city?: string;
+  planName: string;
+  isActive: boolean;
+  subscriptionStatus: string;
+  trialDaysRemaining?: number;
+  createdAt: string;
+  hasOwnFleet: boolean;
   admins: Admin[];
 }
 
 interface Admin {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
-  phone: string;
+  phone?: string;
   role: string;
-  status: 'active' | 'inactive';
-  is_primary: boolean;
+  isActive: boolean;
+  isPrimary: boolean;
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -44,9 +44,9 @@ const PLAN_LABELS: Record<string, string> = {
   'pay-per-use': 'Pago por uso',
 };
 
-const STATUS_BADGE_VARIANTS: Record<'active' | 'inactive', 'success' | 'error'> = {
-  active: 'success',
-  inactive: 'error',
+const STATUS_BADGE_VARIANTS: Record<string, 'success' | 'error'> = {
+  'true': 'success',
+  'false': 'error',
 };
 
 export function CompanyDetailPage() {
@@ -54,7 +54,7 @@ export function CompanyDetailPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
-  const [adminForm, setAdminForm] = useState({ full_name: '', email: '', phone: '' });
+  const [adminForm, setAdminForm] = useState({ fullName: '', email: '', phone: '' });
   const [adminErrors, setAdminErrors] = useState<Record<string, string>>({});
   const [savingAdmin, setSavingAdmin] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -71,7 +71,7 @@ export function CompanyDetailPage() {
       const response = await platformApi.getCompany(id!);
       const data = response.data;
       setCompany(data);
-      setCompanyActive(data.status === 'active');
+      setCompanyActive(data.isActive);
     } catch {
       console.error('Error fetching company:');
       setToast({ show: true, message: 'Error al cargar la empresa', variant: 'error' });
@@ -110,9 +110,9 @@ export function CompanyDetailPage() {
   const confirmStatusChange = async () => {
     if (!company) return;
     try {
-      await platformApi.updateCompanyStatus(company.id, companyActive ? 'inactive' : 'active');
+      await platformApi.updateCompanyStatus(company.id, !companyActive);
       setCompanyActive(!companyActive);
-      setCompany((prev) => prev ? { ...prev, status: companyActive ? 'inactive' : 'active' } : null);
+      setCompany((prev) => prev ? { ...prev, isActive: !companyActive } : null);
       setToast({ show: true, message: `Empresa ${companyActive ? 'desactivada' : 'reactivada'} correctamente`, variant: 'success' });
     } catch {
       setToast({ show: true, message: `Error al ${companyActive ? 'desactivar' : 'reactivar'} la empresa`, variant: 'error' });
@@ -123,7 +123,7 @@ export function CompanyDetailPage() {
 
   const validateAdminField = (name: string, value: string): string => {
     switch (name) {
-      case 'full_name':
+      case 'fullName':
         if (!value.trim()) return 'El nombre completo es obligatorio';
         if (value.trim().length < 3) return 'El nombre debe tener al menos 3 caracteres';
         return '';
@@ -132,8 +132,7 @@ export function CompanyDetailPage() {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Formato de correo inválido';
         return '';
       case 'phone':
-        if (!value.trim()) return 'El teléfono móvil es obligatorio';
-        if (value.trim().length < 10) return 'Número de teléfono inválido';
+        if (value.trim() && value.trim().length < 10) return 'Número de teléfono inválido';
         return '';
       default:
         return '';
@@ -149,13 +148,13 @@ export function CompanyDetailPage() {
 
   const handleCreateAdmin = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     const newErrors: Record<string, string> = {};
     Object.keys(adminForm).forEach((key) => {
       const error = validateAdminField(key, adminForm[key as keyof typeof adminForm]);
       if (error) newErrors[key] = error;
     });
-    
+
     setAdminErrors(newErrors);
     if (Object.values(newErrors).some(Boolean)) return;
 
@@ -164,7 +163,7 @@ export function CompanyDetailPage() {
       await platformApi.createCompanyAdmin(company!.id, adminForm);
       setToast({ show: true, message: 'Administrador creado y acceso enviado por correo', variant: 'success' });
       setShowAdminForm(false);
-      setAdminForm({ full_name: '', email: '', phone: '' });
+      setAdminForm({ fullName: '', email: '', phone: '' });
       fetchCompany();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -177,12 +176,12 @@ export function CompanyDetailPage() {
 
   const handleAdminStatusChange = async (admin: Admin) => {
     try {
-      await platformApi.updateAdminStatus(company!.id, admin.id, admin.status === 'active' ? 'inactive' : 'active');
+      await platformApi.updateAdminStatus(company!.id, admin.id, !admin.isActive);
       setCompany((prev) => prev ? {
         ...prev,
-        admins: prev.admins.map(a => a.id === admin.id ? { ...a, status: admin.status === 'active' ? 'inactive' : 'active' } : a)
+        admins: prev.admins.map(a => a.id === admin.id ? { ...a, isActive: !admin.isActive } : a)
       } : null);
-      setToast({ show: true, message: `Administrador ${admin.status === 'active' ? 'desactivado' : 'reactivado'}`, variant: 'success' });
+      setToast({ show: true, message: `Administrador ${admin.isActive ? 'desactivado' : 'reactivado'}`, variant: 'success' });
     } catch {
       setToast({ show: true, message: 'Error al cambiar el estado del administrador', variant: 'error' });
     }
@@ -222,7 +221,7 @@ export function CompanyDetailPage() {
           <span>Empresas</span>
         </Link>
         <span className="material-symbols-outlined text-[14px] text-outline-variant">chevron_right</span>
-        <span className="text-on-surface font-label-lg text-label-lg truncate max-w-xs md:max-w-md">{company.legal_name}</span>
+        <span className="text-on-surface font-label-lg text-label-lg truncate max-w-xs md:max-w-md">{company.legalName}</span>
       </nav>
 
       <div className="relative bg-surface-container-lowest rounded-xl p-6 shadow-sm overflow-hidden">
@@ -235,23 +234,23 @@ export function CompanyDetailPage() {
             </div>
             <div className="flex flex-col min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">{company.legal_name}</h1>
+                <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">{company.legalName}</h1>
                 <Badge variant="success">Cuenta activa en red</Badge>
               </div>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-on-surface-variant font-label-md text-label-md">
                 <span className="flex items-center gap-1 text-on-surface font-semibold">
                   <span className="material-symbols-outlined text-[16px] text-secondary">badge</span>
-                  NIT: <span className="font-code-tracking text-code-tracking text-on-surface font-normal">{company.nit}</span>
+                  NIT: <span className="font-code-tracking text-code-tracking text-on-surface font-normal">{company.taxId}</span>
                 </span>
                 <span className="text-outline-variant">•</span>
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-[16px] text-primary">pin_drop</span>
-                  Sede {company.city}
+                  Sede {company.city || 'Sin ciudad'}
                 </span>
                 <span className="text-outline-variant">•</span>
                 <span className="flex items-center gap-1">
                   <span className="material-symbols-outlined text-[16px] text-tertiary">calendar_today</span>
-                  Vinculada: {formatDate(company.created_at)}
+                  Vinculada: {formatDate(company.createdAt)}
                 </span>
               </div>
             </div>
@@ -286,11 +285,11 @@ export function CompanyDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 divide-y divide-x divide-surface-container">
               <div className="p-4">
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Razón Social</span>
-                <span className="font-label-lg text-label-lg text-on-surface font-semibold block mt-1">{company.legal_name}</span>
+                <span className="font-label-lg text-label-lg text-on-surface font-semibold block mt-1">{company.legalName}</span>
               </div>
               <div className="p-4">
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Número de Identificación Tributaria</span>
-                <span className="font-code-tracking text-code-tracking text-primary font-semibold block mt-1">{company.nit}</span>
+                <span className="font-code-tracking text-code-tracking text-primary font-semibold block mt-1">{company.taxId}</span>
               </div>
               <div className="p-4">
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Correo Electrónico Oficial</span>
@@ -303,29 +302,29 @@ export function CompanyDetailPage() {
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Teléfonos de Despacho</span>
                 <span className="font-code-tracking text-code-tracking text-on-surface flex items-center gap-1.5 block mt-1">
                   <span className="material-symbols-outlined text-[16px] text-on-surface-variant">call</span>
-                  {company.phone}
+                  {company.phone || 'No registrado'}
                 </span>
               </div>
               <div className="md:col-span-2 p-4">
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Dirección de Operación Central</span>
                 <div className="flex items-center gap-1.5 text-on-surface font-body-md text-body-md mt-1">
                   <span className="material-symbols-outlined text-[18px] text-secondary">location_on</span>
-                  <span>{company.address}, {company.city}, Tolima</span>
+                  <span>{company.address || 'No registrada'}, {company.city || 'Sin ciudad'}, Tolima</span>
                 </div>
               </div>
               <div className="p-4">
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Estado en el Sistema</span>
                 <div className="flex items-center justify-between mt-1">
                   <span className="font-label-lg text-label-lg text-on-surface font-medium">Operatividad</span>
-                  <Badge variant={STATUS_BADGE_VARIANTS[company.status]}>
-                    {company.status === 'active' ? 'Activa' : 'Inactiva'}
+                  <Badge variant={STATUS_BADGE_VARIANTS[String(company.isActive)]}>
+                    {company.isActive ? 'Activa' : 'Inactiva'}
                   </Badge>
                 </div>
               </div>
               <div className="p-4">
                 <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Conductores Propios</span>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="font-label-lg text-label-lg text-on-surface font-medium">{company.has_own_drivers ? 'Habilitado y confirmado' : 'No habilitado'}</span>
+                  <span className="font-label-lg text-label-lg text-on-surface font-medium">{company.hasOwnFleet ? 'Habilitado y confirmado' : 'No habilitado'}</span>
                   <Avatar className="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary" name="verified">
                     <span className="material-symbols-outlined text-[18px]">verified_user</span>
                   </Avatar>
@@ -359,7 +358,7 @@ export function CompanyDetailPage() {
                   <span className="font-label-sm text-label-sm text-on-surface-variant">Renovación automática</span>
                 </div>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="font-headline-lg text-headline-lg text-primary tracking-tight font-bold">Plan {PLAN_LABELS[company.plan] || company.plan}</span>
+                  <span className="font-headline-lg text-headline-lg text-primary tracking-tight font-bold">Plan {PLAN_LABELS[company.planName] || company.planName}</span>
                   <span className="font-body-md text-body-md text-on-surface-variant">/ Hasta 10 conductores incluidos</span>
                 </div>
                 <div className="pt-2 mt-2 flex items-center justify-between border-t border-outline/50 text-on-surface">
@@ -409,10 +408,10 @@ export function CompanyDetailPage() {
                   <Input
                     label="Nombre completo"
                     placeholder="Ej. Carlos Alberto Gómez Pardo"
-                    name="full_name"
-                    value={adminForm.full_name}
+                    name="fullName"
+                    value={adminForm.fullName}
                     onChange={handleAdminChange}
-                    error={adminErrors.full_name}
+                    error={adminErrors.fullName}
                     required
                     icon="person"
                   />
@@ -435,7 +434,6 @@ export function CompanyDetailPage() {
                     value={adminForm.phone}
                     onChange={handleAdminChange}
                     error={adminErrors.phone}
-                    required
                     icon="smartphone"
                   />
                 </div>
@@ -473,13 +471,13 @@ export function CompanyDetailPage() {
                   </TableRow>
                 ) : (
                   company.admins.map((admin) => (
-                    <TableRow key={admin.id} className={admin.status === 'inactive' ? 'opacity-85' : ''}>
+                    <TableRow key={admin.id} className={!admin.isActive ? 'opacity-85' : ''}>
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <Avatar name={admin.full_name} size="md" className={getColorFromName(admin.full_name)} />
+                          <Avatar name={admin.fullName} size="md" className={getColorFromName(admin.fullName)} />
                           <div className="flex flex-col">
-                            <span className="font-label-lg text-label-lg text-on-surface font-semibold">{admin.full_name}</span>
-                            <span className="font-label-sm text-label-sm text-on-surface-variant">{admin.is_primary ? 'Administrador principal' : 'Administrador'}</span>
+                            <span className="font-label-lg text-label-lg text-on-surface font-semibold">{admin.fullName}</span>
+                            <span className="font-label-sm text-label-sm text-on-surface-variant">{admin.isPrimary ? 'Administrador principal' : 'Administrador'}</span>
                           </div>
                         </div>
                       </TableCell>
@@ -487,21 +485,21 @@ export function CompanyDetailPage() {
                         <span className="font-code-tracking text-code-tracking text-on-surface">{admin.email}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-code-tracking text-code-tracking text-on-surface-variant">{admin.phone}</span>
+                        <span className="font-code-tracking text-code-tracking text-on-surface-variant">{admin.phone || 'No registrado'}</span>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={admin.status === 'active' ? 'success' : 'error'}>
-                          {admin.status === 'active' ? 'Activo' : 'Inactivo'}
+                        <Badge variant={admin.isActive ? 'success' : 'error'}>
+                          {admin.isActive ? 'Activo' : 'Inactivo'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          variant={admin.status === 'active' ? 'secondary' : 'success'}
+                          variant={admin.isActive ? 'secondary' : 'success'}
                           size="sm"
                           onClick={() => handleAdminStatusChange(admin)}
                         >
-                          <span className="material-symbols-outlined text-[16px]">{admin.status === 'active' ? 'person_off' : 'how_to_reg'}</span>
-                          {admin.status === 'active' ? 'Desactivar' : 'Reactivar'}
+                          <span className="material-symbols-outlined text-[16px]">{admin.isActive ? 'person_off' : 'how_to_reg'}</span>
+                          {admin.isActive ? 'Desactivar' : 'Reactivar'}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -529,7 +527,7 @@ export function CompanyDetailPage() {
         open={showStatusModal}
         onClose={() => setShowStatusModal(false)}
         title="Confirmar acción de estado"
-        description={company.legal_name}
+        description={company.legalName}
         confirmLabel={companyActive ? 'Desactivar empresa' : 'Reactivar empresa'}
         confirmVariant={companyActive ? 'destructive' : 'primary'}
         onConfirm={confirmStatusChange}

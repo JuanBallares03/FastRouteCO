@@ -10,12 +10,12 @@ import { Toast } from '@/components/ui/Modal';
 
 export function RegisterCompanyPage() {
   const [formData, setFormData] = useState({
-    legal_name: '',
-    nit: '',
+    legalName: '',
+    taxId: '',
     email: '',
     phone: '',
     address: '',
-    has_own_drivers: true,
+    hasOwnFleet: true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -24,11 +24,11 @@ export function RegisterCompanyPage() {
 
   const validateField = (name: string, value: string): string => {
     switch (name) {
-      case 'legal_name':
+      case 'legalName':
         if (!value.trim()) return 'La razón social es obligatoria';
         if (value.trim().length < 3) return 'La razón social debe tener al menos 3 caracteres';
         return '';
-      case 'nit':
+      case 'taxId':
         if (!value.trim()) return 'El NIT es obligatorio';
         if (!/^\d{3}\.?\d{3}\.?\d{3}-?\d$/.test(value.replace(/\s/g, ''))) return 'Formato de NIT inválido (ej. 900.876.543-2)';
         return '';
@@ -37,12 +37,10 @@ export function RegisterCompanyPage() {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Formato de correo inválido';
         return '';
       case 'phone':
-        if (!value.trim()) return 'El teléfono es obligatorio';
-        if (value.trim().length < 10) return 'Número de teléfono inválido';
+        if (value.trim() && value.trim().length < 10) return 'Número de teléfono inválido';
         return '';
       case 'address':
-        if (!value.trim()) return 'La dirección es obligatoria';
-        if (value.trim().length < 10) return 'La dirección debe ser más específica';
+        if (value.trim() && value.trim().length < 10) return 'La dirección debe ser más específica';
         return '';
       default:
         return '';
@@ -68,10 +66,10 @@ export function RegisterCompanyPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     const newErrors: Record<string, string> = {};
     Object.keys(formData).forEach((key) => {
-      if (key !== 'has_own_drivers') {
+      if (key !== 'hasOwnFleet') {
         const value = formData[key as keyof typeof formData];
         if (typeof value === 'string') {
           const error = validateField(key, value);
@@ -79,23 +77,23 @@ export function RegisterCompanyPage() {
         }
       }
     });
-    
-    if (!formData.has_own_drivers) {
-      newErrors.has_own_drivers = 'La empresa debe tener conductores propios para usar FastRouteCO';
+
+    if (!formData.hasOwnFleet) {
+      newErrors.hasOwnFleet = 'La empresa debe tener conductores propios para usar FastRouteCO';
     }
-    
+
     setErrors(newErrors);
     if (Object.values(newErrors).some(Boolean)) return;
 
     setLoading(true);
     try {
       await platformApi.createCompany({
-        legal_name: formData.legal_name,
-        nit: formData.nit.replace(/\s/g, ''),
+        legalName: formData.legalName,
+        taxId: formData.taxId.replace(/\s/g, ''),
         email: formData.email,
         phone: formData.phone,
         address: formData.address,
-        has_own_drivers: formData.has_own_drivers,
+        hasOwnFleet: formData.hasOwnFleet,
       });
       setToast({ show: true, message: 'Empresa registrada exitosamente. Se envió el paquete de activación al correo indicado.', variant: 'success' });
       setTimeout(() => navigate('/platform/companies'), 3000);
@@ -164,10 +162,10 @@ export function RegisterCompanyPage() {
                     <Input
                       label="Razón social de la empresa"
                       placeholder="ej. Distribuidora del Tolima S.A.S."
-                      name="legal_name"
-                      value={formData.legal_name}
+                      name="legalName"
+                      value={formData.legalName}
                       onChange={handleChange}
-                      error={errors.legal_name}
+                      error={errors.legalName}
                       required
                     />
                   </div>
@@ -175,10 +173,10 @@ export function RegisterCompanyPage() {
                     <Input
                       label="NIT"
                       placeholder="ej. 900.876.543-2"
-                      name="nit"
-                      value={formData.nit}
+                      name="taxId"
+                      value={formData.taxId}
                       onChange={handleChange}
-                      error={errors.nit}
+                      error={errors.taxId}
                       required
                     />
                   </div>
@@ -215,7 +213,6 @@ export function RegisterCompanyPage() {
                     value={formData.phone}
                     onChange={handleChange}
                     error={errors.phone}
-                    required
                     helperText="Línea móvil para verificaciones SMS y soporte de tráfico."
                   />
                 </div>
@@ -226,7 +223,6 @@ export function RegisterCompanyPage() {
                   value={formData.address}
                   onChange={handleChange}
                   error={errors.address}
-                  required
                   icon="pin_drop"
                   helperText="Georreferenciada"
                 />
@@ -244,10 +240,10 @@ export function RegisterCompanyPage() {
                 </div>
                 <Checkbox
                   label="La empresa tiene conductores propios"
-                  name="has_own_drivers"
-                  checked={formData.has_own_drivers}
+                  name="hasOwnFleet"
+                  checked={formData.hasOwnFleet}
                   onChange={handleCheckboxChange}
-                  error={errors.has_own_drivers}
+                  error={errors.hasOwnFleet}
                   description="Requisito de habilitación para el uso de la aplicación móvil de reparto de FastRouteCO."
                   required
                 />

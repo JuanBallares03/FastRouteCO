@@ -85,13 +85,13 @@ api.interceptors.response.use(
       }
 
       try {
-        const response = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken });
-        const { access_token, refresh_token } = response.data;
-        setTokens(access_token, refresh_token);
-        processQueue(null, access_token);
-        
+        const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        setTokens(accessToken, newRefreshToken);
+        processQueue(null, accessToken);
+
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${accessToken}`;
         }
         return api(originalRequest);
       } catch (refreshError) {
@@ -109,72 +109,68 @@ api.interceptors.response.use(
 );
 
 export const authApi = {
-  login: (email: string, password: string) => 
+  login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }),
-  
-  setPassword: (token: string, password: string) => 
-    api.post('/auth/set-password', { token, password }),
-  
-  refresh: (refreshToken: string) => 
-    api.post('/auth/refresh', { refresh_token: refreshToken }),
-  
-  logout: () => 
-    api.post('/auth/logout'),
-  
-  me: () => 
+
+  acceptInvitation: (token: string, password: string) =>
+    api.post('/auth/accept-invitation', { token, password }),
+
+  refresh: (refreshToken: string) =>
+    api.post('/auth/refresh', { refreshToken }),
+
+  logout: (refreshToken?: string) =>
+    api.post('/auth/logout', { refreshToken }),
+
+  me: () =>
     api.get('/auth/me'),
 };
 
 export const platformApi = {
-  getCompanies: (params?: { page?: number; limit?: number; status?: string; subscription_status?: string; plan?: string; search?: string }) =>
-    api.get('/platform/companies', { params }),
-  
+  getCompanies: (params?: {
+    page?: number;
+    pageSize?: number;
+    companyStatus?: string;
+    subscriptionStatus?: string;
+    planId?: string;
+    search?: string;
+  }) => api.get('/platform/companies', { params }),
+
   getCompany: (id: string) =>
     api.get(`/platform/companies/${id}`),
-  
+
   createCompany: (data: {
-    legal_name: string;
-    nit: string;
+    legalName: string;
+    taxId: string;
     email: string;
-    phone: string;
-    address: string;
-    has_own_drivers: boolean;
+    phone?: string;
+    address?: string;
+    hasOwnFleet: boolean;
   }) => api.post('/platform/companies', data),
-  
-  updateCompanyStatus: (id: string, status: 'active' | 'inactive') =>
-    api.patch(`/platform/companies/${id}/status`, { status }),
-  
+
+  updateCompanyStatus: (id: string, isActive: boolean) =>
+    api.patch(`/platform/companies/${id}/status`, { isActive }),
+
   getCompanyAdmins: (companyId: string) =>
     api.get(`/platform/companies/${companyId}/admins`),
-  
+
   createCompanyAdmin: (companyId: string, data: {
-    full_name: string;
+    fullName: string;
     email: string;
-    phone: string;
+    phone?: string;
   }) => api.post(`/platform/companies/${companyId}/admins`, data),
-  
-  updateAdminStatus: (companyId: string, adminId: string, status: 'active' | 'inactive') =>
-    api.patch(`/platform/companies/${companyId}/admins/${adminId}/status`, { status }),
+
+  updateAdminStatus: (companyId: string, adminId: string, isActive: boolean) =>
+    api.patch(`/platform/companies/${companyId}/admins/${adminId}/status`, { isActive }),
 };
 
 export const companyApi = {
-  getProfile: () => api.get('/company/profile'),
-  updateProfile: (data: Record<string, unknown>) => api.patch('/company/profile', data),
-  getSubscription: () => api.get('/company/subscription'),
-  getCredits: () => api.get('/company/credits'),
-  getBranches: () => api.get('/company/branches'),
-  createBranch: (data: Record<string, unknown>) => api.post('/company/branches', data),
-  getSupervisors: () => api.get('/company/supervisors'),
-  createSupervisor: (data: Record<string, unknown>) => api.post('/company/supervisors', data),
-  getDrivers: () => api.get('/company/drivers'),
-  createDriver: (data: Record<string, unknown>) => api.post('/company/drivers', data),
-};
-
-export const supervisorApi = {
-  getDashboard: () => api.get('/supervisor/dashboard'),
-  getDrivers: () => api.get('/supervisor/drivers'),
-  getOrders: () => api.get('/supervisor/orders'),
-  getRoutes: () => api.get('/supervisor/routes'),
+  getProfile: () => api.get('/company'),
+  updateProfile: (data: {
+    email?: string;
+    phone?: string;
+    address?: string;
+    settings?: Record<string, unknown>;
+  }) => api.patch('/company', data),
 };
 
 export { clearTokens, getAccessToken, getRefreshToken };

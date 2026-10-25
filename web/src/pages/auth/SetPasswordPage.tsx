@@ -15,7 +15,7 @@ export function SetPasswordPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [toast, setToast] = useState<{ show: boolean; message: string; variant: 'success' | 'error' }>({ show: false, message: '', variant: 'success' });
-  const { setPassword: setPasswordApi } = useAuth();
+  const { acceptInvitation } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export function SetPasswordPage() {
     setLoading(true);
 
     try {
-      await setPasswordApi(token, password);
+      await acceptInvitation(token, password);
       setSuccess(true);
       setToast({ show: true, message: 'Contraseña definida correctamente. Redirigiendo al inicio de sesión...', variant: 'success' });
       setTimeout(() => navigate('/login'), 3000);
