@@ -108,9 +108,9 @@ function AppRoutes() {
 
       <Route path="/dashboard" element={
         <ProtectedRoute allowedRoles={[]}>
-          <Navigate to="/login" replace />
+          <RoleRedirect />
         </ProtectedRoute>
-      } />
+      }/>
 
       <Route path="/unauthorized" element={
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -125,6 +125,17 @@ function AppRoutes() {
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
+}
+
+function RoleRedirect() {
+  const { user } = useAuth();
+  const homeByRole: Record<string, string> = {
+    platform_admin: '/platform/companies',
+    company_admin: '/company/dashboard',
+    supervisor: '/supervisor/dashboard',
+  };
+  const target = user ? homeByRole[user.role] : undefined;
+  return <Navigate to={target ?? '/unauthorized'} replace />;
 }
 
 function App() {
