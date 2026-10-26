@@ -20,8 +20,10 @@ export interface TokenPair {
 export interface AuthUser {
   id: string;
   email: string;
+  fullName: string;
   role: UserRole;
   companyId: string | null;
+  companyName: string | null;
   isActive: boolean;
   companyStatus?: CompanyStatus;
 }
@@ -312,12 +314,16 @@ export async function createInvitationForUser(userId: string): Promise<string> {
   return invitationUrl;
 }
 
-function mapToAuthUser(user: User & { company?: { status: CompanyStatus } | null }): AuthUser {
+function mapToAuthUser(
+  user: User & { company?: { status: CompanyStatus; legalName: string } | null }
+): AuthUser {
   return {
     id: user.id,
     email: user.email,
+    fullName: user.fullName,
     role: user.role,
     companyId: user.companyId,
+    companyName: user.company?.legalName ?? null,
     isActive: user.isActive,
     companyStatus: user.company?.status,
   };

@@ -27,8 +27,10 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       user: {
         id: result.user.id,
         email: result.user.email,
+        fullName: result.user.fullName,
         role: result.user.role,
         companyId: result.user.companyId,
+        companyName: result.user.companyName,
       },
     });
   } catch (error) {
@@ -101,8 +103,10 @@ export async function me(req: AuthenticatedRequest, res: Response, next: NextFun
     res.json({
       id: profile.id,
       email: profile.email,
+      fullName: profile.fullName,
       role: profile.role,
       companyId: profile.companyId,
+      companyName: profile.companyName,
       isActive: profile.isActive,
     });
   } catch (error) {
@@ -126,8 +130,10 @@ export async function acceptInvitationHandler(req: Request, res: Response, next:
       user: {
         id: result.user.id,
         email: result.user.email,
+        fullName: result.user.fullName,
         role: result.user.role,
         companyId: result.user.companyId,
+        companyName: result.user.companyName,
       },
     });
   } catch (error) {

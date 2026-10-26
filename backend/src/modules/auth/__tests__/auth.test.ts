@@ -375,6 +375,8 @@ describe('Auth API Endpoints', () => {
       expect(res.body).toHaveProperty('accessToken');
       expect(res.body).toHaveProperty('refreshToken');
       expect(res.body.user.email).toBe('test@company.com');
+      expect(res.body.user.fullName).toBe('Test User');
+      expect(res.body.user.companyName).toBe('Test Company');
     });
 
     it('should reject invalid email format', async () => {
@@ -513,6 +515,8 @@ describe('Auth API Endpoints', () => {
       expect(res.status).toBe(200);
       expect(res.body.id).toBe(TEST_USER_ID);
       expect(res.body.email).toBe('test@company.com');
+      expect(res.body.fullName).toBe('Test User');
+      expect(res.body.companyName).toBe('Test Company');
     });
 
     it('should reject missing token', async () => {
