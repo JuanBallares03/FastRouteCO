@@ -1,0 +1,6 @@
+name: geofence_check
+version: 0.1.0
+description: Checks whether the driver's GPS position is inside the geofence of a stop (RF14, HU-15 CA04)
+input_schema: {stop_lat: number, stop_lng: number, device_lat: number, device_lng: number, radius_m: number}
+output_schema: {inside: boolean, distance_m: number}
+permissions: []

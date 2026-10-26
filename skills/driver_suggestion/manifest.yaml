@@ -1,0 +1,6 @@
+name: driver_suggestion
+version: 0.1.0
+description: Suggests the most suitable driver for an order based on availability and distance (RF05, HU-29 CA01)
+input_schema: {order_lat: number, order_lng: number, drivers: array}
+output_schema: {suggested_driver_id: string, candidates: array}
+permissions: []

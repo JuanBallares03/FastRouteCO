@@ -1,0 +1,6 @@
+name: commit_message_check
+version: 0.1.0
+description: Validates a commit message against the Conventional Commits rules agreed for FastRouteCO
+input_schema: {message: string}
+output_schema: {valid: boolean, type: string, scope: string, errors: array}
+permissions: []

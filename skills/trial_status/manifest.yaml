@@ -1,0 +1,6 @@
+name: trial_status
+version: 0.1.0
+description: Computes the Free Trial status of a company - days remaining, expiration and the two-day notice (RF19, HU-16 CA06-CA07)
+input_schema: {renewal_date: string, today: string}
+output_schema: {days_remaining: integer, expired: boolean, notify_expiration: boolean}
+permissions: []

@@ -1,0 +1,6 @@
+name: usage_charge_calculator
+version: 0.1.0
+description: Calculates the accumulated pay-per-use charge of a period, the early charge trigger and the spending limit alerts (RF29-RF31, HU-37, HU-38, HU-39)
+input_schema: {successful_optimizations: integer, price_per_optimization: number, active_drivers: integer, included_drivers: integer, price_per_additional_driver: number, early_charge_threshold: number, spending_limit: number}
+output_schema: {additional_drivers: integer, amount: number, early_charge_due: boolean, limit_alert: boolean, limit_reached: boolean}
+permissions: []

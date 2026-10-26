@@ -3,3 +3,15 @@ active_skills:
   - code_executor
   - db_query
   - document_generator
+  # FastRouteCO domain skills
+  - geofence_check
+  - credit_consumption
+  - usage_charge_calculator
+  - plan_limit_check
+  - driver_suggestion
+  - trial_status
+  # FastRouteCO development skills
+  - traceability_check
+  - commit_message_check
+  - api_contract_extract
+  - env_keys_check

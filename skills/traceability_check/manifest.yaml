@@ -1,0 +1,6 @@
+name: traceability_check
+version: 0.1.0
+description: Finds HU, RF, RNF and CU references in a text and validates them against the FastRouteCO ranges
+input_schema: {text: string}
+output_schema: {references: array, invalid: array, has_traceability: boolean}
+permissions: []

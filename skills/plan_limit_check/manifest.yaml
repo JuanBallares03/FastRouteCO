@@ -1,0 +1,6 @@
+name: plan_limit_check
+version: 0.1.0
+description: Decides whether a company can add one more branch or driver under its plan limits (HU-26 CA03, HU-27 CA04)
+input_schema: {resource: string, current_count: integer, max_allowed: integer, modality: string, included_drivers: integer}
+output_schema: {allowed: boolean, is_additional: boolean, reason: string}
+permissions: []
