@@ -1,6 +1,0 @@
-name: credit_consumption
-version: 0.1.0
-description: Applies the credit rules of subscription plans to one optimization - plan credits first, then purchased credits, failed optimizations are free (RF20, HU-16)
-input_schema: {plan_credits: integer, extra_credits: integer, monthly_credits: integer, optimization_successful: boolean}
-output_schema: {allowed: boolean, consumed_from: string, plan_credits: integer, extra_credits: integer, low_balance_alert: boolean, blocked: boolean}
-permissions: []

@@ -1,0 +1,6 @@
+name: task_precheck
+version: 0.1.0
+description: Reviews what already exists before executing a new instruction - files in the related paths, recent commits that touched them and uncommitted changes - so work is continued instead of redone
+input_schema: {paths: array}
+output_schema: {existing_files: array, recent_commits: array, uncommitted_changes: array, missing_paths: array}
+permissions: [fs_read, git_read]

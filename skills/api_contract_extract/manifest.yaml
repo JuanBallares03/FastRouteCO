@@ -1,6 +1,0 @@
-name: api_contract_extract
-version: 0.1.0
-description: Lists the endpoints of a backend routes file (method, path, roles and validation) so clients use the real API contract
-input_schema: {routes_file: string}
-output_schema: {endpoints: array}
-permissions: [fs_read]

@@ -1,0 +1,6 @@
+name: session_context
+version: 0.1.0
+description: Loads the FastRouteCO context at the start of a new session - sources of truth to read, current progress from docs/build-plan.md, uncommitted changes and recent commits
+input_schema: {}
+output_schema: {sources_of_truth: array, missing_sources: array, progress: array, uncommitted_changes: array, recent_commits: array}
+permissions: [fs_read, git_read]

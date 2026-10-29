@@ -1,0 +1,6 @@
+name: commit_changes
+version: 0.1.0
+description: Commits the given files with a Conventional Commits message in English (type(scope) description), refusing invalid messages, .env files and empty commits. It never pushes; pushing stays a user decision
+input_schema: {message: string, files: array}
+output_schema: {committed: boolean, commit: string, errors: array}
+permissions: [git_write]

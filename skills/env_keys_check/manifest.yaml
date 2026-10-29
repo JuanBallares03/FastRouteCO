@@ -1,6 +1,0 @@
-name: env_keys_check
-version: 0.1.0
-description: Compares the variable names of a .env file with its .env.example and reports missing or empty keys without ever returning values
-input_schema: {example_file: string, env_file: string}
-output_schema: {missing_keys: array, empty_keys: array, extra_keys: array}
-permissions: [fs_read]
