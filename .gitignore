@@ -12,3 +12,4 @@ coverage/
 .vercel
 .turbo
 .pytest_cache/
+osm-data/

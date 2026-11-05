@@ -30,8 +30,27 @@ services:
       test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
       interval: 10s
 
+  nominatim:
+    image: mediagis/nominatim:5.3
+    profiles: ["geocoding"]
+    environment:
+      PBF_PATH: /nominatim/data/tolima.osm.pbf
+      IMPORT_STYLE: full
+      THREADS: 4
+      POSTGRES_SHARED_BUFFERS: 512MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 1GB
+      POSTGRES_WORK_MEM: 32MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      NOMINATIM_PASSWORD: nominatim
+    ports: ["8080:8080"]
+    volumes:
+      - ./osm-data:/nominatim/data
+      - nominatimdata:/var/lib/postgresql/16/main
+    shm_size: 1g
+
 volumes:
   pgdata:
   redisdata:
   neo4jdata:
   neo4jlogs:
+  nominatimdata:

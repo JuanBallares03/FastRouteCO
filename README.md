@@ -337,6 +337,29 @@ docker compose up -d
 pnpm db:migrate
 ```
 
+### Geocoding and road network (development)
+
+The backend geocodes addresses with a self-hosted Nominatim instance and
+calculates routes with Neo4j. Both need OpenStreetMap data for Tolima:
+
+```bash
+# 1. Build the Tolima extract once (requires osmium-tool)
+mkdir osm-data
+osmium extract -b -76.1,3.1,-74.65,5.1 colombia-latest.osm.pbf -o osm-data/tolima.osm.pbf
+
+# 2. Start Nominatim; the first start imports the extract and takes a while
+docker compose --profile geocoding up -d nominatim
+
+# 3. Load the Ibagué road network into Neo4j
+pnpm --filter backend osm:import
+```
+
+`OSM_BBOX` (south,west,north,east) changes the road network area. When
+Nominatim or Neo4j are unavailable the backend keeps working with the last
+available data: orders are stored without coordinates and route distances use
+an approximate straight line (RNF08). The production geocoding and map tile
+providers are decided with hosting in Phase 7.
+
 ### Development (3 terminals)
 
 ```bash
