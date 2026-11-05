@@ -91,7 +91,7 @@ export function CompanyDashboardPage() {
               <a href="/company/orders" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-secondary block mb-2">inventory</span>
                 <span className="font-label-md text-label-md text-on-surface">Pedidos</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Gestionar</span>
               </a>
             </div>
           </CardContent>

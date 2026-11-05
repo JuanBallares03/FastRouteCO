@@ -91,23 +91,23 @@ export function SupervisorDashboardPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <a href="/supervisor/drivers" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-tertiary block mb-2">person_add</span>
-                <span className="font-label-md text-label-md text-on-surface">Iniciar turno</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-md text-label-md text-on-surface">Conductores</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Gestionar</span>
               </a>
               <a href="/supervisor/orders" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-primary block mb-2">add_circle</span>
                 <span className="font-label-md text-label-md text-on-surface">Crear pedido</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Pedidos</span>
               </a>
               <a href="/supervisor/routes" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-secondary block mb-2">route</span>
                 <span className="font-label-md text-label-md text-on-surface">Crear ruta</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Rutas</span>
               </a>
               <a href="/supervisor/live-map" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-primary block mb-2">map</span>
                 <span className="font-label-md text-label-md text-on-surface">Ver mapa</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Disponible pronto</span>
               </a>
             </div>
           </CardContent>

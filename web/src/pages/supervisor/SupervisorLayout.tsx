@@ -4,9 +4,9 @@ import { Outlet } from 'react-router-dom';
 
 const SUPERVISOR_NAV = [
   { label: 'Inicio', path: '/supervisor/dashboard', icon: 'dashboard' },
-  { label: 'Conductores', path: '/supervisor/drivers', icon: 'directions_car', comingSoon: true },
-  { label: 'Pedidos', path: '/supervisor/orders', icon: 'inventory', comingSoon: true },
-  { label: 'Rutas', path: '/supervisor/routes', icon: 'route', comingSoon: true },
+  { label: 'Conductores', path: '/supervisor/drivers', icon: 'directions_car' },
+  { label: 'Pedidos', path: '/supervisor/orders', icon: 'inventory' },
+  { label: 'Rutas', path: '/supervisor/routes', icon: 'route' },
   { label: 'Mapa en vivo', path: '/supervisor/live-map', icon: 'map', comingSoon: true },
   { label: 'Incidencias', path: '/supervisor/incidents', icon: 'report_problem', comingSoon: true },
   { label: 'Reportes', path: '/supervisor/reports', icon: 'analytics', comingSoon: true },
