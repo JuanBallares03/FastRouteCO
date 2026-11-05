@@ -76,17 +76,17 @@ export function CompanyDashboardPage() {
               <a href="/company/branches" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-primary block mb-2">location_city</span>
                 <span className="font-label-md text-label-md text-on-surface">Sedes</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Gestionar</span>
               </a>
               <a href="/company/supervisors" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-secondary block mb-2">supervisor_account</span>
                 <span className="font-label-md text-label-md text-on-surface">Supervisores</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Gestionar</span>
               </a>
               <a href="/company/drivers" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-tertiary block mb-2">directions_car</span>
                 <span className="font-label-md text-label-md text-on-surface">Conductores</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Próximamente</span>
+                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Gestionar</span>
               </a>
               <a href="/company/orders" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
                 <span className="material-symbols-outlined text-[28px] text-secondary block mb-2">inventory</span>

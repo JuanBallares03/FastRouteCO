@@ -3,10 +3,11 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Outlet } from 'react-router-dom';
 
 const COMPANY_ADMIN_NAV = [
-  { label: 'Mi empresa', path: '/company/dashboard', icon: 'dashboard' },
-  { label: 'Sedes', path: '/company/branches', icon: 'location_city', comingSoon: true },
-  { label: 'Supervisores', path: '/company/supervisors', icon: 'supervisor_account', comingSoon: true },
-  { label: 'Conductores', path: '/company/drivers', icon: 'directions_car', comingSoon: true },
+  { label: 'Inicio', path: '/company/dashboard', icon: 'dashboard' },
+  { label: 'Mi empresa', path: '/company/profile', icon: 'domain' },
+  { label: 'Sedes', path: '/company/branches', icon: 'location_city' },
+  { label: 'Supervisores', path: '/company/supervisors', icon: 'supervisor_account' },
+  { label: 'Conductores', path: '/company/drivers', icon: 'directions_car' },
   { label: 'Pedidos', path: '/company/orders', icon: 'inventory', comingSoon: true },
   { label: 'Rutas', path: '/company/routes', icon: 'route', comingSoon: true },
   { label: 'Reportes', path: '/company/reports', icon: 'analytics', comingSoon: true },

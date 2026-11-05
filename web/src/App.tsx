@@ -8,6 +8,10 @@ import { RegisterCompanyPage } from '@/pages/platform-admin/RegisterCompanyPage'
 import { CompanyDetailPage } from '@/pages/platform-admin/CompanyDetailPage';
 import { CompanyAdminLayout } from '@/pages/company-admin/CompanyAdminLayout';
 import { CompanyDashboardPage } from '@/pages/company-admin/CompanyDashboardPage';
+import { MyCompanyPage } from '@/pages/company-admin/MyCompanyPage';
+import { BranchesPage } from '@/pages/company-admin/BranchesPage';
+import { SupervisorsPage } from '@/pages/company-admin/SupervisorsPage';
+import { DriversPage } from '@/pages/company-admin/DriversPage';
 import { SupervisorLayout } from '@/pages/supervisor/SupervisorLayout';
 import { SupervisorDashboardPage } from '@/pages/supervisor/SupervisorDashboardPage';
 
@@ -95,6 +99,10 @@ function AppRoutes() {
       }>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<CompanyDashboardPage />} />
+        <Route path="profile" element={<MyCompanyPage />} />
+        <Route path="branches" element={<BranchesPage />} />
+        <Route path="supervisors" element={<SupervisorsPage />} />
+        <Route path="drivers" element={<DriversPage />} />
       </Route>
 
       <Route path="/supervisor/*" element={

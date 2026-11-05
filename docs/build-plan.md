@@ -132,7 +132,15 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: steps 1, 2 and 3 are finished (CI green). Next: step 4.
+Progress: Phase 1 is finished (steps 1-11, CI green). Next: Phase 2.
+
+### Progress log
+
+| Date | Step | Result | Commit |
+|---|---|---|---|
+| 2026-11-05 | Phase 1, step 3 | Company Administrator backend: company data, branches, supervisors and drivers with plan limits and multi-company isolation | `c51ec39` |
+| 2026-11-05 | Phase 1, steps 4-5 | Web design system and login/set-password screens verified (already present) | — |
+| 2026-11-05 | Phase 1, steps 6-11 | Web screens: companies and company detail (already present), my company, branches, supervisors and drivers | pending |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
