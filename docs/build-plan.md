@@ -223,3 +223,17 @@ These are backend variables. Web and mobile use `VITE_*` and `EXPO_PUBLIC_*` var
 ## First task
 
 Read the sources of truth and summarize in a few lines what you understood about the project. Then continue with the first phase that is not finished, showing the plan for that phase before creating files.
+
+## Working mode (continuous build)
+- Work continuously through all phases and steps in order, without waiting for approval between steps or phases.
+- Every step includes its tests. Lint, typecheck, test and build must pass locally before each commit, and CI must stay green.
+- One Conventional Commit per logical change. Stable versions only. Never push without asking.
+- Stop and ask only when:
+  1. an item is marked [TO BE DEFINED], or a business rule is not defined in the README, the user stories or the data model;
+  2. the project documents contradict each other;
+  3. a real secret, API key or .env file is needed;
+  4. a new dependency outside the confirmed tech stack is needed;
+  5. an action would delete data, drop tables, rewrite Git history, or touch files outside the repository or inside evaluations/;
+  6. an error or a red CI cannot be fixed after three attempts.
+- When stopping, ask one specific question with options and a recommendation. After the answer, record the decision in this file and continue without further confirmation.
+- After each step, update the progress log in this file.
