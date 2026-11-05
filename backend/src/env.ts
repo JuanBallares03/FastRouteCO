@@ -40,6 +40,9 @@ export const env = {
   CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET!,
   PORT: parseInt(process.env.PORT ?? '3000', 10),
   WEB_APP_URL: process.env.WEB_APP_URL ?? 'http://localhost:5173',
+  NOMINATIM_URL: process.env.NOMINATIM_URL ?? 'http://localhost:8080',
+  NOMINATIM_USER_AGENT: process.env.NOMINATIM_USER_AGENT ?? 'FastRouteCO/1.0',
+  OVERPASS_URL: process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter',
 } as const;
 
 export type Env = typeof env;

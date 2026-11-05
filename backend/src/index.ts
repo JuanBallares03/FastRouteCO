@@ -6,6 +6,7 @@ import { env } from "./env.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import platformRoutes from "./modules/companies/companies.routes.js";
 import companyRoutes from "./modules/company/company.routes.js";
+import orderRoutes from "./modules/orders/orders.routes.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -21,6 +22,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/platform", platformRoutes);
 app.use("/api/v1/company", companyRoutes);
+app.use("/api/v1/orders", orderRoutes);
 
 app.listen(PORT, () => {
   console.log(`🚀 Backend running on http://localhost:${PORT}`);
