@@ -132,7 +132,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 1 is finished (steps 1-11, CI green). Next: Phase 2.
+Progress: Phase 2 backend and web screens are finished except route optimization (algorithm `[TO BE DEFINED]`). Next: decide the optimization algorithm.
 
 ### Progress log
 
@@ -141,6 +141,11 @@ Progress: Phase 1 is finished (steps 1-11, CI green). Next: Phase 2.
 | 2026-11-05 | Phase 1, step 3 | Company Administrator backend: company data, branches, supervisors and drivers with plan limits and multi-company isolation | `c51ec39` |
 | 2026-11-05 | Phase 1, steps 4-5 | Web design system and login/set-password screens verified (already present) | — |
 | 2026-11-05 | Phase 1, steps 6-11 | Web screens: companies and company detail (already present), my company, branches, supervisors and drivers | `b04492b` |
+| 2026-11-05 | Phase 2 | Orders registration, geocoding and management (HU-28) | `85fa47c` |
+| 2026-11-05 | Phase 2 | Driver suggestions, order assignment and route creation (HU-29, HU-06) | `7d9477a` |
+| 2026-11-05 | Phase 2 | Route paths with Neo4j Dijkstra and approximate fallback (RF15) | `2cc147d` |
+| 2026-11-05 | Phase 2 | Local Nominatim and road-network import tooling | `8008fa4` |
+| 2026-11-05 | Phase 2 | Web screens: orders, routes and route detail with map (HU-28, HU-29, HU-06, HU-08) | `4b6cdb8` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
