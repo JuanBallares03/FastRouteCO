@@ -13,6 +13,11 @@ import {
   listOrdersSchema,
   updateOrderSchema,
 } from './validation.js';
+import {
+  assignOrderHandler,
+  suggestDriversHandler,
+} from '../routes/routes.controller.js';
+import { assignOrderSchema, suggestDriversSchema } from '../routes/validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 
@@ -49,6 +54,18 @@ router.post(
   authorize('company_admin', 'supervisor'),
   validate(cancelOrderSchema),
   cancelOrderHandler
+);
+router.get(
+  '/:id/driver-suggestions',
+  authorize('company_admin', 'supervisor'),
+  validate(suggestDriversSchema),
+  suggestDriversHandler
+);
+router.post(
+  '/:id/assign',
+  authorize('company_admin', 'supervisor'),
+  validate(assignOrderSchema),
+  assignOrderHandler
 );
 
 export default router;
