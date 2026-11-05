@@ -66,7 +66,7 @@ FastRouteCO/
 - Stop-order optimization algorithm `[TO BE DEFINED]`.
 - Mobile local storage for offline mode `[TO BE DEFINED]`.
 - Hosting `[TO BE DEFINED]`.
-- Geocoding service on OpenStreetMap data and its usage limits `[TO BE DEFINED]`. Decide before Phase 2.
+- Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract for development. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code. The production provider and its usage limits remain `[TO BE DEFINED]` and are decided with hosting in Phase 7.
 - Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development; decide together with hosting.
 - Prices of plans, pay-per-use, credit packages and the school module `[TO BE DEFINED]`. Seed data uses placeholder values clearly marked as such.
 
@@ -140,7 +140,7 @@ Progress: Phase 1 is finished (steps 1-11, CI green). Next: Phase 2.
 |---|---|---|---|
 | 2026-11-05 | Phase 1, step 3 | Company Administrator backend: company data, branches, supervisors and drivers with plan limits and multi-company isolation | `c51ec39` |
 | 2026-11-05 | Phase 1, steps 4-5 | Web design system and login/set-password screens verified (already present) | — |
-| 2026-11-05 | Phase 1, steps 6-11 | Web screens: companies and company detail (already present), my company, branches, supervisors and drivers | pending |
+| 2026-11-05 | Phase 1, steps 6-11 | Web screens: companies and company detail (already present), my company, branches, supervisors and drivers | `b04492b` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -157,6 +157,18 @@ Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - Transactional emails with Resend (RF27).
 
 ### Phase 2 — Orders, routes and routing engine
+
+Decisions taken:
+
+| Area | Decision |
+|---|---|
+| Geocoding | Self-hosted Nominatim in Docker Compose, importing the Tolima extract for development. Backend access goes through `backend/src/lib/geocoding.ts`; the production provider is decided with hosting (Phase 7). |
+| Address fallback | A failed geocoding request does not block order registration when the service is unreachable (RNF08): the order is stored without coordinates and reported as not geocoded. An address with no result in Nominatim is rejected as invalid (HU-28 R01). |
+| Order assignment | An order is assigned by adding it to a driver's route for a date (`route_stops`), the only driver relation available in the data model. The order becomes `assigned`; cancelling it removes the stop and renumbers the route. |
+| Driver suggestion | Only active, available drivers of the company are suggested, ranked by distance from their last known route location to the order address, then by fewest pending stops, then by name. |
+| Routing engine | Neo4j with APOC Dijkstra over the imported Ibagué road network. If Neo4j is unavailable or no path exists, the backend falls back to an approximate straight-line distance (RNF08). |
+| Road network import | A backend script downloads the Ibagué bounding box from the Overpass API and loads the drivable ways into Neo4j; runtime routing never calls external services. |
+| Optimization algorithm | `[TO BE DEFINED]`: options are proposed before implementing the optimization endpoint. |
 
 - Order registration with OpenStreetMap geocoding (RF04, RF15, HU-28).
 - Driver suggestion and order assignment (RF05, HU-29).
