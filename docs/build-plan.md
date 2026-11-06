@@ -63,7 +63,8 @@ FastRouteCO/
 
 ### Still to be defined
 
-- Stop-order optimization algorithm `[TO BE DEFINED]`.
+- Maximum number of orders per route `[TO BE DEFINED]`: the limit is not defined in the requirements, so no limit is enforced.
+- Urgent order priority influence on optimization `[TO BE DEFINED]`: the algorithm does not prioritize urgent orders yet.
 - Mobile local storage for offline mode `[TO BE DEFINED]`.
 - Hosting `[TO BE DEFINED]`.
 - Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract for development. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code. The production provider and its usage limits remain `[TO BE DEFINED]` and are decided with hosting in Phase 7.
@@ -132,7 +133,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 2 backend and web screens are finished except route optimization (algorithm `[TO BE DEFINED]`). Next: decide the optimization algorithm.
+Progress: Phase 2 is finished. Next: Phase 3.
 
 ### Progress log
 
@@ -146,6 +147,9 @@ Progress: Phase 2 backend and web screens are finished except route optimization
 | 2026-11-05 | Phase 2 | Route paths with Neo4j Dijkstra and approximate fallback (RF15) | `2cc147d` |
 | 2026-11-05 | Phase 2 | Local Nominatim and road-network import tooling | `8008fa4` |
 | 2026-11-05 | Phase 2 | Web screens: orders, routes and route detail with map (HU-28, HU-29, HU-06, HU-08) | `4b6cdb8` |
+| 2026-11-05 | Phase 2 | Route optimization with nearest neighbor and 2-opt, metrics in `route_optimizations` (RF06, RNF01, HU-07, HU-08) | `b35f495` |
+| 2026-11-05 | Phase 2 | Optimize action in the route detail screen | `15a824c` |
+| 2026-11-05 | Fix | Free trial renewal stored as a Bogotá business date | `28cb501` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -173,13 +177,13 @@ Decisions taken:
 | Driver suggestion | Only active, available drivers of the company are suggested, ranked by distance from their last known route location to the order address, then by fewest pending stops, then by name. |
 | Routing engine | Neo4j with APOC Dijkstra over the imported Ibagué road network. If Neo4j is unavailable or no path exists, the backend falls back to an approximate straight-line distance (RNF08). |
 | Road network import | A backend script downloads the Ibagué bounding box from the Overpass API and loads the drivable ways into Neo4j; runtime routing never calls external services. |
-| Optimization algorithm | `[TO BE DEFINED]`: options are proposed before implementing the optimization endpoint. |
+| Optimization algorithm | Deterministic nearest-neighbor construction followed by 2-opt improvement. The matrix is built from each point to all the others with one Neo4j Dijkstra call per source, so it is asymmetric (one-way streets); 2-opt recalculates the full cost of the reversed segment. The path starts at the driver start point and ends at the last stop, without returning to the start. Processing time (matrix plus algorithm) is measured against RNF01 and stored with total distance and estimated duration in `route_optimizations`. Urgent priority and the maximum number of orders per route remain `[TO BE DEFINED]`. |
 
 - Order registration with OpenStreetMap geocoding (RF04, RF15, HU-28).
 - Driver suggestion and order assignment (RF05, HU-29).
 - Route creation per driver and day (RF01, HU-06).
 - Load the Ibagué road network from OpenStreetMap into Neo4j and calculate paths with Dijkstra (RF15).
-- Route optimization from the driver's starting point, within 10 seconds (RF06, RNF01, HU-07, HU-08). The stop-order algorithm is `[TO BE DEFINED]`: propose options before implementing.
+- Route optimization from the driver's starting point, within 10 seconds (RF06, RNF01, HU-07, HU-08), with nearest neighbor plus 2-opt and metrics stored in `route_optimizations`.
 - Keep working with the last available data when the map service is down (RNF08).
 
 ### Phase 3 — Plans, credits and payments
