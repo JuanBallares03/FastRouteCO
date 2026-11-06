@@ -4,7 +4,7 @@ import { Outlet } from 'react-router-dom';
 
 const PLATFORM_ADMIN_NAV = [
   { label: 'Empresas vinculadas', path: '/platform/companies', icon: 'apartment' },
-  { label: 'Planes y módulos', path: '/platform/plans', icon: 'workspace_premium', comingSoon: true },
+  { label: 'Planes y módulos', path: '/platform/plans', icon: 'workspace_premium' },
   { label: 'Cobros y pagos', path: '/platform/billing', icon: 'payments', comingSoon: true },
   { label: 'Soporte técnico', path: '/platform/support', icon: 'support_agent', comingSoon: true },
   { label: 'Configuración global', path: '/platform/settings', icon: 'settings', comingSoon: true },

@@ -6,12 +6,14 @@ import { PlatformAdminLayout } from '@/pages/platform-admin/PlatformAdminLayout'
 import { CompaniesPage } from '@/pages/platform-admin/CompaniesPage';
 import { RegisterCompanyPage } from '@/pages/platform-admin/RegisterCompanyPage';
 import { CompanyDetailPage } from '@/pages/platform-admin/CompanyDetailPage';
+import { PlansPage } from '@/pages/platform-admin/PlansPage';
 import { CompanyAdminLayout } from '@/pages/company-admin/CompanyAdminLayout';
 import { CompanyDashboardPage } from '@/pages/company-admin/CompanyDashboardPage';
 import { MyCompanyPage } from '@/pages/company-admin/MyCompanyPage';
 import { BranchesPage } from '@/pages/company-admin/BranchesPage';
 import { SupervisorsPage } from '@/pages/company-admin/SupervisorsPage';
 import { DriversPage } from '@/pages/company-admin/DriversPage';
+import { BillingPage } from '@/pages/company-admin/BillingPage';
 import { SupervisorLayout } from '@/pages/supervisor/SupervisorLayout';
 import { SupervisorDashboardPage } from '@/pages/supervisor/SupervisorDashboardPage';
 import { OrdersPage } from '@/pages/orders/OrdersPage';
@@ -93,6 +95,7 @@ function AppRoutes() {
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="companies/new" element={<RegisterCompanyPage />} />
         <Route path="companies/:id" element={<CompanyDetailPage />} />
+        <Route path="plans" element={<PlansPage />} />
       </Route>
 
       <Route path="/company/*" element={
@@ -109,6 +112,7 @@ function AppRoutes() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="routes" element={<RoutesPage />} />
         <Route path="routes/:id" element={<RouteDetailPage />} />
+        <Route path="billing" element={<BillingPage />} />
       </Route>
 
       <Route path="/supervisor/*" element={

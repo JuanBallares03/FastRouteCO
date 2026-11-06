@@ -1,6 +1,6 @@
 import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequestConfig } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -161,6 +161,27 @@ export const platformApi = {
 
   updateAdminStatus: (companyId: string, adminId: string, isActive: boolean) =>
     api.patch(`/platform/companies/${companyId}/admins/${adminId}/status`, { isActive }),
+
+  getPlans: (includeInactive = true) =>
+    api.get('/platform/plans', { params: { includeInactive: String(includeInactive) } }),
+  createPlan: (data: Record<string, unknown>) => api.post('/platform/plans', data),
+  updatePlan: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/platform/plans/${id}`, data),
+
+  getModules: (includeInactive = true) =>
+    api.get('/platform/modules', { params: { includeInactive: String(includeInactive) } }),
+  createModule: (data: Record<string, unknown>) => api.post('/platform/modules', data),
+  updateModule: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/platform/modules/${id}`, data),
+
+  getCreditPackages: (includeInactive = true) =>
+    api.get('/platform/credit-packages', {
+      params: { includeInactive: String(includeInactive) },
+    }),
+  createCreditPackage: (data: Record<string, unknown>) =>
+    api.post('/platform/credit-packages', data),
+  updateCreditPackage: (id: string, data: Record<string, unknown>) =>
+    api.patch(`/platform/credit-packages/${id}`, data),
 };
 
 export const companyApi = {
@@ -245,6 +266,27 @@ export const routeApi = {
     api.post('/routes', data),
 
   optimizeRoute: (id: string) => api.post(`/routes/${id}/optimize`),
+};
+
+export const billingApi = {
+  getBilling: () => api.get('/company/billing'),
+  getOfferings: () => api.get('/company/billing/offerings'),
+  getUsage: () => api.get('/company/billing/usage'),
+  getTransactions: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/company/billing/transactions', { params }),
+  getPayments: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/company/billing/payments', { params }),
+  getUsageCharges: (params?: { page?: number; pageSize?: number }) =>
+    api.get('/company/billing/usage-charges', { params }),
+  subscribe: (planId: string, billingCycle: 'monthly' | 'annual') =>
+    api.post('/company/billing/subscription', { planId, billingCycle }),
+  purchaseCredits: (packageId: string) =>
+    api.post('/company/billing/credits/purchase', { packageId }),
+  purchaseModule: (moduleId: string) =>
+    api.post('/company/billing/modules/purchase', { moduleId }),
+  createCardSetup: () => api.post('/company/billing/pay-per-use/setup'),
+  updateSpendingLimit: (limit: number | null) =>
+    api.patch('/company/billing/spending-limit', { limit }),
 };
 
 export { clearTokens, getAccessToken, getRefreshToken };

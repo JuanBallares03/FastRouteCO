@@ -11,8 +11,7 @@ const COMPANY_ADMIN_NAV = [
   { label: 'Pedidos', path: '/company/orders', icon: 'inventory' },
   { label: 'Rutas', path: '/company/routes', icon: 'route' },
   { label: 'Reportes', path: '/company/reports', icon: 'analytics', comingSoon: true },
-  { label: 'Suscripción', path: '/company/subscription', icon: 'workspace_premium', comingSoon: true },
-  { label: 'Créditos', path: '/company/credits', icon: 'account_balance_wallet', comingSoon: true },
+  { label: 'Suscripción y créditos', path: '/company/billing', icon: 'workspace_premium' },
   { label: 'Configuración', path: '/company/settings', icon: 'settings', comingSoon: true },
 ];
 
