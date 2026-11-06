@@ -1,17 +1,16 @@
 import { Prisma, CompanyStatus, SubscriptionStatus, UserRole } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { sendCompanyConfirmationEmail } from '../../lib/email.js';
+import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { createInvitationForUser } from '../auth/auth.service.js';
 
 function getColombiaDate(): Date {
-  const now = new Date();
-  const colombiaTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-  return colombiaTime;
+  return parseBusinessDate(todayInBogota());
 }
 
 function addDaysColombia(date: Date, days: number): Date {
   const result = new Date(date);
-  result.setDate(result.getDate() + days);
+  result.setUTCDate(result.getUTCDate() + days);
   return result;
 }
 
