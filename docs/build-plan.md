@@ -133,7 +133,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 2 is finished. Next: Phase 3.
+Progress: Phase 3 is implemented. Next: Phase 4.
 
 ### Progress log
 
@@ -150,6 +150,8 @@ Progress: Phase 2 is finished. Next: Phase 3.
 | 2026-11-05 | Phase 2 | Route optimization with nearest neighbor and 2-opt, metrics in `route_optimizations` (RF06, RNF01, HU-07, HU-08) | `b35f495` |
 | 2026-11-05 | Phase 2 | Optimize action in the route detail screen | `15a824c` |
 | 2026-11-05 | Fix | Free trial renewal stored as a Bogotá business date | `28cb501` |
+| 2026-11-05 | Phase 3 | Plans, credit balances, consumption, Wompi checkout and webhook, card registration and pay-per-use (RF18-RF22, RF28-RF31, HU-16 to HU-18, HU-22, HU-33, HU-37 to HU-39) | `a7f0e91` |
+| 2026-11-05 | Phase 3 | Platform plans/modules/packages screen and company subscription/credits/history screen | `be3ddef` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -188,6 +190,21 @@ Decisions taken:
 
 ### Phase 3 — Plans, credits and payments
 
+Decisions taken:
+
+| Area | Decision |
+|---|---|
+| Wompi checkout | Hosted checkout at `https://checkout.wompi.co/p/` with the integrity signature `SHA-256(reference + amount_in_cents + currency + WOMPI_INTEGRITY_SECRET)`. Subscription, credit package, module and pay-per-use membership purchases return a checkout URL. |
+| Payment reference | Wompi receives `payment.id` as the reference prefix because `payments` has no metadata column: `<paymentId>\|subscription\|<planId>\|<cycle>`, `<paymentId>\|pay_per_use\|<planId>`, `<paymentId>\|credit_package\|<packageId>`, `<paymentId>\|module\|<moduleId>` and `<paymentId>\|usage\|<usageChargeId>`. The webhook verifies the event checksum, the reference and the amount before applying the purchase. |
+| Webhook | Public `POST /api/v1/payments/wompi/events` verifies the `signature.properties` values plus the timestamp with `WOMPI_EVENTS_SECRET`, then applies the payment only while it is pending (idempotent for repeated events). |
+| Card registration | The web uses the Wompi widget in tokenization mode. The backend issues a short-lived signed setup token, the form posts `payment_source_token` to `POST /api/v1/payments/wompi/card`, and the backend creates the payment source with the private key. Only the Wompi payment source id is stored in `companies.card_reference` (RNF11). |
+| Pay-per-use | The accumulated amount is `optimization_count × price_per_optimization + additional_drivers × price_per_additional_driver`. The driver component is monthly, so it is recalculated instead of added on each optimization. A pending charge locks the usage record to prevent duplicate charges. Previous-month usage is charged lazily on the next billing check or optimization. |
+| Spending limit | `companies.monthly_spending_limit` is a fixed COP amount. A null value means unlimited; zero blocks all spending. Warning notification at 80% and blocking at 100%. |
+| Early charge threshold | `plans.early_charge_threshold` is a fixed COP amount, not a ratio. Seed values are `0` (disabled) until prices are defined, so no nonsensical early charge triggers. |
+| Module eligibility | Add-on modules can be bought on the `Pro` plan or in pay-per-use; modules included in the current plan cannot be bought again. Plan/credit/module prices remain `[TO BE DEFINED]`. |
+| Billing dates | Credit resets, renewals and usage periods use Bogotá business dates. Annual plans reset credits monthly; monthly and trial plans do not reset until renewal. |
+| Expiration | A trial, subscription or pay-per-use membership expires when its renewal date passes; optimizations are blocked and the Company Administrator is notified. A rejected usage charge expires the pay-per-use subscription and keeps the company data. |
+
 - Plans, pay-per-use rates, credit packages and add-on modules (RF18, RF22, HU-22).
 - Credit balance, consumption per successful optimization and monthly reset (RF20, HU-16).
 - Credit package purchases (RF21, HU-17, HU-18).
@@ -195,6 +212,11 @@ Decisions taken:
 - Pay-per-use: card registration, accumulated charges and spending limit (RF29, RF30, RF31, HU-37, HU-38, HU-39).
 - Blocking rules when the Free Trial ends, a plan expires or a charge is rejected (RF19).
 - No card data is stored; only the gateway reference (RNF11).
+
+Endpoints:
+- Platform Administrator: `GET/POST/PATCH /api/v1/platform/plans`, `/modules` and `/credit-packages`.
+- Company Administrator: `GET /api/v1/company/billing`, `/billing/offerings`, `/billing/usage`, `/billing/transactions`, `/billing/payments`, `/billing/usage-charges`; `POST /billing/subscription`, `/billing/credits/purchase`, `/billing/modules/purchase`, `/billing/pay-per-use/setup`, `/billing/pay-per-use/card`; `PATCH /billing/spending-limit`.
+- Public Wompi: `POST /api/v1/payments/wompi/events` and `POST /api/v1/payments/wompi/card` (signed setup token).
 
 ### Phase 4 — Driver mobile app
 
@@ -247,7 +269,7 @@ CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
 
-These are backend variables. Web and mobile use `VITE_*` and `EXPO_PUBLIC_*` variables for the API URL, real-time URL and map style URL.
+These are backend variables. Web and mobile use `VITE_*` and `EXPO_PUBLIC_*` variables for the API URL, real-time URL, map style URL and the Wompi public key (`VITE_WOMPI_PUBLIC_KEY`).
 
 ## First task
 
