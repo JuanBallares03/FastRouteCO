@@ -35,7 +35,7 @@ const PLANS = [
     includedDrivers: 5,
     pricePerOptimization: 5000,
     pricePerAdditionalDriver: 50000,
-    earlyChargeThreshold: 0.8,
+    earlyChargeThreshold: 0,
     isActive: true,
   },
   {
@@ -51,7 +51,7 @@ const PLANS = [
     includedDrivers: 20,
     pricePerOptimization: 3000,
     pricePerAdditionalDriver: 35000,
-    earlyChargeThreshold: 0.8,
+    earlyChargeThreshold: 0,
     isActive: true,
   },
   {
@@ -67,7 +67,7 @@ const PLANS = [
     includedDrivers: 100,
     pricePerOptimization: 2000,
     pricePerAdditionalDriver: 25000,
-    earlyChargeThreshold: 0.9,
+    earlyChargeThreshold: 0,
     isActive: true,
   },
   {
@@ -83,7 +83,7 @@ const PLANS = [
     includedDrivers: 0,
     pricePerOptimization: 8000,
     pricePerAdditionalDriver: 0,
-    earlyChargeThreshold: 0.8,
+    earlyChargeThreshold: 0,
     isActive: true,
   },
 ];

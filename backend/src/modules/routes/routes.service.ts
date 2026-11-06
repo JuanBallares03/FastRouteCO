@@ -18,6 +18,13 @@ import {
 import { getRoutingEngine } from '../../lib/routing.js';
 import type { Coordinates } from '../../lib/geocoding.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
+import {
+  applyOptimizationBilling,
+  assertOptimizationAllowed,
+  checkSpendingWarning,
+  processClosingUsageCharges,
+  processUsageCharge,
+} from '../billing/billing.service.js';
 
 const ACTIVE_ROUTE_STATUSES: RouteStatus[] = [
   RouteStatus.created,
@@ -438,6 +445,9 @@ export async function optimizeRoute(companyId: string, routeId: string) {
     );
   }
 
+  await assertOptimizationAllowed(companyId);
+  await processClosingUsageCharges(companyId);
+
   const stops = route.stops.map((stop) => ({
     id: stop.id,
     order: stop.order as NonNullable<typeof stop.order>,
@@ -461,7 +471,7 @@ export async function optimizeRoute(companyId: string, routeId: string) {
   const estimatedDurationS = Math.round(totalPathDuration(matrix.durations, order));
   const processingTimeMs = Math.round(performance.now() - startedAt);
 
-  const optimization = await prisma.$transaction(async (tx) => {
+  const { optimization, billing } = await prisma.$transaction(async (tx) => {
     for (let index = 0; index < route.stops.length; index += 1) {
       await tx.routeStop.update({
         where: { id: route.stops[index].id },
@@ -485,7 +495,7 @@ export async function optimizeRoute(companyId: string, routeId: string) {
       },
     });
 
-    return tx.routeOptimization.create({
+    const created = await tx.routeOptimization.create({
       data: {
         routeId: route.id,
         totalDistanceM,
@@ -494,11 +504,27 @@ export async function optimizeRoute(companyId: string, routeId: string) {
         isSuccessful: true,
       },
     });
+    const billingResult = await applyOptimizationBilling(tx, companyId, created.id);
+
+    return { optimization: created, billing: billingResult };
   });
+
+  if (billing.mode === 'pay_per_use') {
+    try {
+      await checkSpendingWarning(companyId, billing.amount);
+      const threshold = billing.earlyChargeThreshold;
+      if (threshold !== null && threshold > 0 && billing.amount >= threshold) {
+        await processUsageCharge(companyId, billing.usageChargeId);
+      }
+    } catch (error) {
+      console.error('[billing] No se pudo procesar el cobro de pago por uso:', error);
+    }
+  }
 
   return {
     ...(await getRouteById(companyId, route.id)),
     optimization,
     approximate: matrix.approximate,
+    billing,
   };
 }

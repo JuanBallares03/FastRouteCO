@@ -27,3 +27,29 @@ export function parseBusinessDate(value: string): Date {
 export function formatBusinessDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+export function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  const day = result.getUTCDate();
+  result.setUTCDate(1);
+  result.setUTCMonth(result.getUTCMonth() + months);
+  const lastDay = new Date(
+    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  result.setUTCDate(Math.min(day, lastDay));
+  return result;
+}
+
+export function startOfMonth(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+export function daysBetween(from: Date, to: Date): number {
+  return Math.ceil((to.getTime() - from.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+export function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + days);
+  return result;
+}

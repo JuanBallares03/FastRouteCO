@@ -9,6 +9,7 @@ import {
   OrderStatus,
   OrderType,
   RouteStatus,
+  SubscriptionStatus,
   UserRole,
 } from '@prisma/client';
 import routeRoutes from '../routes.routes.js';
@@ -46,6 +47,15 @@ function authHeader(token: string) {
 }
 
 async function cleanup() {
+  await prisma.creditTransaction.deleteMany({
+    where: { companyId: { in: companyIds } },
+  });
+  await prisma.creditBalance.deleteMany({
+    where: { companyId: { in: companyIds } },
+  });
+  await prisma.subscription.deleteMany({
+    where: { companyId: { in: companyIds } },
+  });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -54,6 +64,7 @@ async function cleanup() {
   await prisma.userInvitation.deleteMany({ where: { user: { companyId: { in: companyIds } } } });
   await prisma.user.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.company.deleteMany({ where: { id: { in: companyIds } } });
+  await prisma.plan.deleteMany({ where: { name: { startsWith: 'Routes Plan ' } } });
 }
 
 let orderCounter = 0;
@@ -86,6 +97,32 @@ beforeAll(async () => {
         status: CompanyStatus.active,
         hasOwnFleet: true,
       },
+    });
+  }
+
+  const plan = await prisma.plan.create({
+    data: {
+      name: `Routes Plan ${COMPANY_ID}`,
+      modality: 'subscription',
+      trialDays: 0,
+      monthlyCredits: 100,
+      monthlyPrice: 100000,
+      isActive: true,
+    },
+  });
+
+  for (const companyId of companyIds) {
+    await prisma.subscription.create({
+      data: {
+        companyId,
+        planId: plan.id,
+        status: SubscriptionStatus.active,
+        startDate: new Date('2026-11-01T00:00:00.000Z'),
+        renewalDate: new Date('2027-11-01T00:00:00.000Z'),
+      },
+    });
+    await prisma.creditBalance.create({
+      data: { companyId, planCredits: 100, extraCredits: 0 },
     });
   }
 
@@ -163,6 +200,13 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await prisma.creditTransaction.deleteMany({
+    where: { companyId: { in: companyIds } },
+  });
+  await prisma.creditBalance.updateMany({
+    where: { companyId: { in: companyIds } },
+    data: { planCredits: 100, extraCredits: 0 },
+  });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
