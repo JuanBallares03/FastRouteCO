@@ -17,7 +17,6 @@ export const createRouteSchema = z.object({
     orderIds: z
       .array(z.string().uuid({ message: 'ID de pedido inválido' }))
       .min(1, { message: 'La ruta debe incluir al menos un pedido' })
-      .max(50, { message: 'La ruta admite máximo 50 pedidos' })
       .refine((ids) => new Set(ids).size === ids.length, {
         message: 'La ruta no puede repetir pedidos',
       }),
@@ -39,6 +38,8 @@ export const getRouteSchema = z.object({
     id: z.string().uuid({ message: 'ID de ruta inválido' }),
   }),
 });
+
+export const optimizeRouteSchema = getRouteSchema;
 
 export const suggestDriversSchema = z.object({
   params: z.object({

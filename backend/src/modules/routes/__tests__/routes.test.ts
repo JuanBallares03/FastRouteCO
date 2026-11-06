@@ -15,6 +15,11 @@ import routeRoutes from '../routes.routes.js';
 import orderRoutes from '../../orders/orders.routes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { hashPassword, createTokenPair } from '../../auth/auth.service.js';
+import {
+  approximatePath,
+  resetRoutingEngine,
+  setRoutingEngine,
+} from '../../../lib/routing.js';
 
 const app = express();
 app.use(express.json());
@@ -58,7 +63,7 @@ async function createOrder(companyId = COMPANY_ID, overrides: Record<string, unk
     data: {
       companyId,
       type: OrderType.delivery,
-      address: `Calle ${orderCounter} # 1-2, Ibagué`,
+      address: `Calle ${orderCounter} # 1-2, IbaguÃ©`,
       latitude: 4.4389,
       longitude: -75.2322,
       priority: OrderPriority.normal,
@@ -436,3 +441,100 @@ describe('Route listing', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('Route optimization', () => {
+  const fakeEngine = {
+    shortestPath: async (
+      from: { latitude: number; longitude: number },
+      to: { latitude: number; longitude: number }
+    ) => approximatePath(from, to),
+    distanceMatrix: async (
+      points: Array<{ latitude: number; longitude: number }>
+    ) => {
+      const distances = points.map((from) =>
+        points.map((to) => Math.round(Math.abs(from.longitude - to.longitude) * 100000))
+      );
+      return {
+        distances,
+        durations: distances.map((row) => row.map((distance) => distance / 10)),
+        approximate: false,
+      };
+    },
+  };
+
+  beforeEach(() => {
+    setRoutingEngine(fakeEngine);
+  });
+
+  afterAll(() => {
+    resetRoutingEngine();
+  });
+
+  it('orders stops from the driver start and persists the optimization', async () => {
+    const far = await createOrder(COMPANY_ID, { longitude: -75.2312 });
+    const near = await createOrder(COMPANY_ID, { longitude: -75.2322 });
+    const farthest = await createOrder(COMPANY_ID, { longitude: -75.2302 });
+
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE, orderIds: [far.id, near.id, farthest.id] });
+
+    await prisma.route.update({
+      where: { id: created.body.id },
+      data: { startLatitude: 4.4389, startLongitude: -75.2332 },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${created.body.id}/optimize`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe(RouteStatus.optimized);
+    expect(
+      res.body.stops.map((stop: { order: { id: string } }) => stop.order.id)
+    ).toEqual([near.id, far.id, farthest.id]);
+    expect(res.body.stops.map((stop: { sequence: number }) => stop.sequence)).toEqual([1, 2, 3]);
+    expect(res.body.optimization.totalDistanceM).toBe(300);
+    expect(res.body.optimization.estimatedDurationS).toBe(30);
+    expect(res.body.optimization.processingTimeMs).toBeGreaterThanOrEqual(0);
+    expect(res.body.startLatitude).toBeCloseTo(4.4389);
+    expect(res.body.startLongitude).toBeCloseTo(-75.2332);
+
+    const stored = await prisma.routeOptimization.findFirst({
+      where: { routeId: created.body.id },
+    });
+    expect(stored?.isSuccessful).toBe(true);
+    expect(stored?.totalDistanceM).toBe(300);
+  });
+
+  it('rejects routes with stops without coordinates', async () => {
+    const order = await createOrder(COMPANY_ID, { latitude: null, longitude: null });
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE, orderIds: [order.id] });
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${created.body.id}/optimize`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ROUTE_STOPS_WITHOUT_COORDINATES');
+  });
+
+  it('does not optimize routes from another company', async () => {
+    const order = await createOrder();
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE, orderIds: [order.id] });
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${created.body.id}/optimize`)
+      .set(authHeader(otherAdminToken));
+
+    expect(res.status).toBe(404);
+  });
+});
+

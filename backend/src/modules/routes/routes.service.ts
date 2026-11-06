@@ -6,9 +6,17 @@ import {
   StopStatus,
   UserRole,
 } from '@prisma/client';
+import { performance } from 'node:perf_hooks';
 import { prisma } from '../../lib/prisma.js';
 import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { haversineMeters } from '../../lib/geo.js';
+import {
+  optimizeStopOrder,
+  totalPathDistance,
+  totalPathDuration,
+} from '../../lib/optimization.js';
+import { getRoutingEngine } from '../../lib/routing.js';
+import type { Coordinates } from '../../lib/geocoding.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
 
 const ACTIVE_ROUTE_STATUSES: RouteStatus[] = [
@@ -363,4 +371,134 @@ export async function getRouteById(companyId: string, routeId: string) {
   }
 
   return serializeRoute(route);
+}
+
+async function resolveStartPoint(
+  companyId: string,
+  route: { driverId: string; startLatitude: Prisma.Decimal | null; startLongitude: Prisma.Decimal | null },
+  firstStop: Coordinates
+): Promise<Coordinates> {
+  if (route.startLatitude !== null && route.startLongitude !== null) {
+    return {
+      latitude: Number(route.startLatitude),
+      longitude: Number(route.startLongitude),
+    };
+  }
+
+  const lastLocation = await prisma.routeLocation.findFirst({
+    where: { route: { driverId: route.driverId, companyId } },
+    orderBy: { capturedAt: 'desc' },
+    select: { latitude: true, longitude: true },
+  });
+
+  if (lastLocation) {
+    return {
+      latitude: Number(lastLocation.latitude),
+      longitude: Number(lastLocation.longitude),
+    };
+  }
+
+  return firstStop;
+}
+
+export async function optimizeRoute(companyId: string, routeId: string) {
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, companyId },
+    include: {
+      stops: {
+        include: { order: true },
+        orderBy: { sequence: 'asc' },
+      },
+    },
+  });
+
+  if (!route) {
+    throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
+  }
+
+  if (route.status !== RouteStatus.created && route.status !== RouteStatus.optimized) {
+    throw new ConflictError('La ruta ya no se puede optimizar', 'ROUTE_NOT_OPTIMIZABLE');
+  }
+
+  if (route.stops.length === 0) {
+    throw new ConflictError('La ruta no tiene paradas para optimizar', 'ROUTE_WITHOUT_STOPS');
+  }
+
+  const unlocated = route.stops.filter(
+    (stop) =>
+      !stop.order ||
+      stop.order.latitude === null ||
+      stop.order.longitude === null
+  );
+
+  if (unlocated.length > 0) {
+    throw new ConflictError(
+      'Todas las paradas deben tener coordenadas para optimizar la ruta',
+      'ROUTE_STOPS_WITHOUT_COORDINATES'
+    );
+  }
+
+  const stops = route.stops.map((stop) => ({
+    id: stop.id,
+    order: stop.order as NonNullable<typeof stop.order>,
+    latitude: Number(stop.order!.latitude),
+    longitude: Number(stop.order!.longitude),
+  }));
+
+  const start = await resolveStartPoint(companyId, route, {
+    latitude: stops[0].latitude,
+    longitude: stops[0].longitude,
+  });
+
+  const startedAt = performance.now();
+  const matrix = await getRoutingEngine().distanceMatrix([
+    start,
+    ...stops.map((stop) => ({ latitude: stop.latitude, longitude: stop.longitude })),
+  ]);
+
+  const order = optimizeStopOrder(matrix.distances, stops.length);
+  const totalDistanceM = Math.round(totalPathDistance(matrix.distances, order));
+  const estimatedDurationS = Math.round(totalPathDuration(matrix.durations, order));
+  const processingTimeMs = Math.round(performance.now() - startedAt);
+
+  const optimization = await prisma.$transaction(async (tx) => {
+    for (let index = 0; index < route.stops.length; index += 1) {
+      await tx.routeStop.update({
+        where: { id: route.stops[index].id },
+        data: { sequence: -(index + 1) },
+      });
+    }
+
+    for (let index = 0; index < order.length; index += 1) {
+      await tx.routeStop.update({
+        where: { id: stops[order[index]].id },
+        data: { sequence: index + 1 },
+      });
+    }
+
+    await tx.route.update({
+      where: { id: route.id },
+      data: {
+        status: RouteStatus.optimized,
+        startLatitude: route.startLatitude ?? start.latitude,
+        startLongitude: route.startLongitude ?? start.longitude,
+      },
+    });
+
+    return tx.routeOptimization.create({
+      data: {
+        routeId: route.id,
+        totalDistanceM,
+        estimatedDurationS,
+        processingTimeMs,
+        isSuccessful: true,
+      },
+    });
+  });
+
+  return {
+    ...(await getRouteById(companyId, route.id)),
+    optimization,
+    approximate: matrix.approximate,
+  };
 }

@@ -13,8 +13,15 @@ export interface RoutePath {
   provider: 'neo4j' | 'fallback';
 }
 
+export interface DistanceMatrix {
+  distances: number[][];
+  durations: number[][];
+  approximate: boolean;
+}
+
 export interface RoutingEngine {
   shortestPath(from: Coordinates, to: Coordinates): Promise<RoutePath>;
+  distanceMatrix(points: Coordinates[]): Promise<DistanceMatrix>;
 }
 
 const MAX_NEAREST_NODE_DISTANCE_M = 3000;
@@ -22,6 +29,18 @@ const MAX_NEAREST_NODE_DISTANCE_M = 3000;
 function durationSeconds(distanceMeters: number): number {
   const speedMetersPerSecond = (env.ROUTING_AVG_SPEED_KMH * 1000) / 3600;
   return Math.round(distanceMeters / speedMetersPerSecond);
+}
+
+export function approximateMatrix(points: Coordinates[]): DistanceMatrix {
+  const distances = points.map((from) =>
+    points.map((to) => (from === to ? 0 : approximatePath(from, to).distanceMeters))
+  );
+
+  return {
+    distances,
+    durations: distances.map((row) => row.map(durationSeconds)),
+    approximate: true,
+  };
 }
 
 export function approximatePath(from: Coordinates, to: Coordinates): RoutePath {
@@ -101,6 +120,101 @@ export class Neo4jRoutingEngine implements RoutingEngine {
     } finally {
       await session.close();
     }
+  }
+
+  async distanceMatrix(points: Coordinates[]): Promise<DistanceMatrix> {
+    if (points.length === 0) {
+      return { distances: [], durations: [], approximate: false };
+    }
+
+    const fallback = approximateMatrix(points);
+    const session = this.getDriver().session();
+
+    try {
+      const nearest = await this.nearestNodes(session, points);
+      if (nearest.some((node) => node === null)) {
+        return fallback;
+      }
+
+      const osmIds = nearest.map((node) => (node as { osmId: number }).osmId);
+      const distances = fallback.distances.map((row) => [...row]);
+      let approximate = false;
+
+      for (let index = 0; index < points.length; index += 1) {
+        const targetIds = osmIds.filter((_, targetIndex) => targetIndex !== index);
+        if (targetIds.length === 0) continue;
+
+        const result = await session.run(
+          `MATCH (start:Intersection {osmId: $startId})
+           UNWIND $targetIds AS targetId
+           MATCH (end:Intersection {osmId: targetId})
+           CALL apoc.algo.dijkstra(start, end, 'ROAD>', 'lengthM') YIELD weight
+           RETURN targetId AS targetId, weight AS weight`,
+          { startId: osmIds[index], targetIds }
+        );
+
+        const row = new Map<number, number>();
+        for (const record of result.records) {
+          const targetId = toNumber(record.get('targetId'));
+          const weight = toNumber(record.get('weight'));
+          if (Number.isFinite(weight)) {
+            row.set(targetId, Math.round(weight));
+          }
+        }
+
+        for (let targetIndex = 0; targetIndex < points.length; targetIndex += 1) {
+          if (targetIndex === index) continue;
+          const value = row.get(osmIds[targetIndex]);
+          if (value === undefined) {
+            approximate = true;
+          } else {
+            distances[index][targetIndex] = value;
+          }
+        }
+        distances[index][index] = 0;
+      }
+
+      return {
+        distances,
+        durations: distances.map((row) => row.map(durationSeconds)),
+        approximate,
+      };
+    } catch (error) {
+      console.warn('[routing] Neo4j matrix unavailable, using approximate distances', error);
+      return fallback;
+    } finally {
+      await session.close();
+    }
+  }
+
+  private async nearestNodes(
+    session: ReturnType<Driver['session']>,
+    points: Coordinates[]
+  ): Promise<Array<{ osmId: number; distance: number } | null>> {
+    const result = await session.run(
+      `UNWIND range(0, size($points) - 1) AS idx
+       WITH idx, $points[idx] AS p
+       MATCH (n:Intersection)
+       WHERE n.location IS NOT NULL
+       WITH idx, n, point.distance(n.location, point({srid: 4326, x: p.longitude, y: p.latitude})) AS distance
+       ORDER BY idx, distance ASC
+       WITH idx, collect({ osmId: n.osmId, distance: distance })[0] AS nearest
+       RETURN idx AS idx, nearest.osmId AS osmId, nearest.distance AS distance
+       ORDER BY idx ASC`,
+      { points }
+    );
+
+    const nodes: Array<{ osmId: number; distance: number } | null> = points.map(() => null);
+
+    for (const record of result.records) {
+      const index = toNumber(record.get('idx'));
+      const distance = toNumber(record.get('distance'));
+      if (index < 0 || index >= points.length) continue;
+      if (!Number.isFinite(distance) || distance > MAX_NEAREST_NODE_DISTANCE_M) continue;
+      nodes[index] = { osmId: toNumber(record.get('osmId')), distance };
+    }
+
+    return nodes;
   }
 
   private async nearestNode(
