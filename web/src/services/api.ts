@@ -243,6 +243,8 @@ export const routeApi = {
 
   createRoute: (data: { driverId: string; routeDate: string; orderIds: string[] }) =>
     api.post('/routes', data),
+
+  optimizeRoute: (id: string) => api.post(`/routes/${id}/optimize`),
 };
 
 export { clearTokens, getAccessToken, getRefreshToken };

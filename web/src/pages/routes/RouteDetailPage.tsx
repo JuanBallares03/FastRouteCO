@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Toast } from '@/components/ui/Modal';
 import { RouteMap, type RouteMapStop } from '@/components/map/RouteMap';
 import { routeApi } from '@/services/api';
@@ -55,7 +56,12 @@ export function RouteDetailPage() {
   const basePath = location.pathname.replace(/\/[^/]+$/, '');
   const [route, setRoute] = useState<RouteDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [optimizing, setOptimizing] = useState(false);
+  const [toast, setToast] = useState<{
+    show: boolean;
+    message: string;
+    variant: 'success' | 'error' | 'info';
+  }>({ show: false, message: '', variant: 'error' });
 
   const fetchRoute = useCallback(async () => {
     if (!id) return;
@@ -63,7 +69,7 @@ export function RouteDetailPage() {
       const response = await routeApi.getRoute(id);
       setRoute(response.data);
     } catch {
-      setToast({ show: true, message: 'No se pudo cargar la ruta' });
+      setToast({ show: true, message: 'No se pudo cargar la ruta', variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -72,6 +78,31 @@ export function RouteDetailPage() {
   useEffect(() => {
     fetchRoute();
   }, [fetchRoute]);
+
+  const handleOptimize = async () => {
+    if (!id) return;
+    setOptimizing(true);
+    try {
+      const response = await routeApi.optimizeRoute(id);
+      const optimization = response.data?.optimization;
+      const prefix = response.data?.approximate ? 'Ruta optimizada con distancias aproximadas' : 'Ruta optimizada';
+      setToast({
+        show: true,
+        message: `${prefix}: ${formatDistance(optimization?.totalDistanceM)}, ${formatDuration(optimization?.estimatedDurationS)}`,
+        variant: 'success',
+      });
+      await fetchRoute();
+    } catch (error) {
+      const candidate = error as { response?: { data?: { message?: string } } };
+      setToast({
+        show: true,
+        message: candidate.response?.data?.message ?? 'No se pudo optimizar la ruta',
+        variant: 'error',
+      });
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const mapStops = useMemo<RouteMapStop[]>(
     () =>
@@ -120,9 +151,17 @@ export function RouteDetailPage() {
             {route.routeDate.slice(0, 10)} · {route.stops.length} paradas · {completedStops} completadas
           </p>
         </div>
-        <Badge variant={routeStatusVariant(route.status)}>
-          {ROUTE_STATUS_LABELS[route.status] ?? route.status}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant={routeStatusVariant(route.status)}>
+            {ROUTE_STATUS_LABELS[route.status] ?? route.status}
+          </Badge>
+          {(route.status === 'created' || route.status === 'optimized') && route.stops.length > 0 && (
+            <Button onClick={handleOptimize} loading={optimizing}>
+              <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
+              Optimizar ruta
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -208,9 +247,9 @@ export function RouteDetailPage() {
 
       <Toast
         show={toast.show}
-        onClose={() => setToast({ show: false, message: '' })}
+        onClose={() => setToast({ ...toast, show: false })}
         title={toast.message}
-        variant="error"
+        variant={toast.variant}
       />
     </div>
   );
