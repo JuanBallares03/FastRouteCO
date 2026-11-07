@@ -511,7 +511,7 @@ export async function optimizeRoute(companyId: string, routeId: string) {
 
   if (billing.mode === 'pay_per_use') {
     try {
-      await checkSpendingWarning(companyId, billing.amount);
+      await checkSpendingWarning(companyId);
       const threshold = billing.earlyChargeThreshold;
       if (threshold !== null && threshold > 0 && billing.amount >= threshold) {
         await processUsageCharge(companyId, billing.usageChargeId);

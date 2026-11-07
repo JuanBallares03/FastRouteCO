@@ -274,15 +274,22 @@ export async function syncCompanySubscription(companyId: string) {
   return findActiveSubscription(companyId);
 }
 
-async function currentUsage(companyId: string, client: BillingClient | typeof prisma = prisma) {
-  return client.usageCharge.findFirst({
+async function currentMonthUsageCharges(
+  companyId: string,
+  client: BillingClient | typeof prisma = prisma
+) {
+  return client.usageCharge.findMany({
     where: {
       companyId,
       periodStartDate: startOfMonth(today()),
-      status: UsageChargeStatus.open,
+      status: { in: [UsageChargeStatus.open, UsageChargeStatus.charged] },
     },
     orderBy: { periodStartDate: 'desc' },
   });
+}
+
+function sumUsageAmount(charges: Array<{ amount: Prisma.Decimal }>): number {
+  return charges.reduce((total, charge) => total + Number(charge.amount), 0);
 }
 
 export async function assertOptimizationAllowed(companyId: string) {
@@ -302,11 +309,11 @@ export async function assertOptimizationAllowed(companyId: string) {
         'PAYMENT_METHOD_REQUIRED'
       );
     }
-    const usage = await currentUsage(companyId);
+    const usageCharges = await currentMonthUsageCharges(companyId);
     const limit = company.monthlySpendingLimit;
-    if (limit !== null && (limit.lte(0) || (usage && usage.amount.gte(limit)))) {
+    if (limit !== null && (limit.lte(0) || sumUsageAmount(usageCharges) >= Number(limit))) {
       throw new ForbiddenError(
-        'Alcanzaste el l��mite mensual de gasto. Aumenta el l��mite o espera al pr��ximo mes.',
+        'Alcanzaste el límite mensual de gasto. Aumenta el límite o espera al próximo mes.',
         'SPENDING_LIMIT_REACHED'
       );
     }
@@ -506,7 +513,11 @@ export async function getBillingOverview(companyId: string) {
   });
   if (!company) throw new NotFoundError('Empresa no encontrada', 'COMPANY_NOT_FOUND');
 
-  const usage = await currentUsage(companyId);
+  const periodCharges = await currentMonthUsageCharges(companyId);
+  const openCharge = periodCharges.find(
+    (charge) => charge.status === UsageChargeStatus.open
+  );
+  const usage = periodCharges[0];
   const balance = company.creditBalance ?? { planCredits: 0, extraCredits: 0 };
 
   let nextCreditResetDate: Date | null = null;
@@ -559,13 +570,17 @@ export async function getBillingOverview(companyId: string) {
     },
     usage: usage
       ? {
-          id: usage.id,
+          id: openCharge?.id ?? usage.id,
           periodStartDate: usage.periodStartDate,
-          periodEndDate: usage.periodEndDate,
-          optimizationCount: usage.optimizationCount,
-          additionalDrivers: usage.additionalDrivers,
-          amount: Number(usage.amount),
-          status: usage.status,
+          periodEndDate: openCharge?.periodEndDate ?? usage.periodEndDate,
+          optimizationCount: periodCharges.reduce(
+            (total, charge) => total + charge.optimizationCount,
+            0
+          ),
+          additionalDrivers:
+            openCharge?.additionalDrivers ?? usage.additionalDrivers,
+          amount: sumUsageAmount(periodCharges),
+          status: openCharge ? UsageChargeStatus.open : UsageChargeStatus.charged,
           nextChargeDate: addMonths(startOfMonth(today()), 1),
           earlyChargeAmount: subscription
             ? numberOrNull(subscription.plan.earlyChargeThreshold)
@@ -708,17 +723,18 @@ export async function updateSpendingLimit(companyId: string, limit: number | nul
   };
 }
 
-export async function checkSpendingWarning(companyId: string, amount: number) {
+export async function checkSpendingWarning(companyId: string) {
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company || company.monthlySpendingLimit === null) return;
   const limit = Number(company.monthlySpendingLimit);
   if (limit <= 0) return;
-  if (amount >= limit * SPENDING_WARNING_RATIO) {
+  const spent = sumUsageAmount(await currentMonthUsageCharges(companyId));
+  if (spent >= limit * SPENDING_WARNING_RATIO) {
     await notifyOnceToday(
       prisma,
       companyId,
       'spending_limit_warning',
-      amount >= limit
+      spent >= limit
         ? `Alcanzaste tu límite mensual de gasto de ${limit.toLocaleString('es-CO')} COP.`
         : `Usaste el 80% de tu límite mensual de gasto de ${limit.toLocaleString('es-CO')} COP.`
     );

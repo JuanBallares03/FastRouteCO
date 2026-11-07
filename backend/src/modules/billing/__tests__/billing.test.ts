@@ -490,6 +490,7 @@ describe('Company billing', () => {
         companyId: COMPANY_ID,
         periodStartDate: new Date('2026-11-01T00:00:00.000Z'),
         amount: 1500,
+        status: 'charged',
       },
     });
 
