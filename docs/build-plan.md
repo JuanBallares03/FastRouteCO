@@ -69,7 +69,7 @@ FastRouteCO/
 - Hosting `[TO BE DEFINED]`.
 - Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract for development. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code. The production provider and its usage limits remain `[TO BE DEFINED]` and are decided with hosting in Phase 7.
 - Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development; decide together with hosting.
-- Prices of plans, pay-per-use, credit packages and the school module `[TO BE DEFINED]`. Seed data uses placeholder values clearly marked as such.
+- Prices of plans, pay-per-use, credit packages and the school module `[TO BE DEFINED]`. Seed data uses placeholder values, none of them approved: Basic 129,900, Pro 349,900 and Premium 899,900 COP per month; pay-per-use membership 59,900 COP, 2 included drivers, 29,900 COP per additional driver and 700 COP per optimization. Annual plan prices remain undefined (`null`). The school module keeps its 499,000 COP placeholder until it is decided whether it is charged once or per period.
 
 ## Development tools
 
@@ -153,6 +153,8 @@ Progress: Phase 3 is implemented. Next: Phase 4.
 | 2026-11-05 | Phase 3 | Plans, credit balances, consumption, Wompi checkout and webhook, card registration and pay-per-use (RF18-RF22, RF28-RF31, HU-16 to HU-18, HU-22, HU-33, HU-37 to HU-39) | `a7f0e91` |
 | 2026-11-05 | Phase 3 | Platform plans/modules/packages screen and company subscription/credits/history screen | `be3ddef` |
 | 2026-11-05 | Fix | Monthly pay-per-use spending limit aggregates early and open charges | `f564a34` |
+| 2026-11-05 | Fix | Plan seed limits and provisional prices aligned with the README | `c4eb557` |
+| 2026-11-05 | Test | Subscription plans use credits only and never pay-per-use rates | `87ed71d` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -201,10 +203,26 @@ Decisions taken:
 | Card registration | The web uses the Wompi widget in tokenization mode. The backend issues a short-lived signed setup token, the form posts `payment_source_token` to `POST /api/v1/payments/wompi/card`, and the backend creates the payment source with the private key. Only the Wompi payment source id is stored in `companies.card_reference` (RNF11). |
 | Pay-per-use | The accumulated amount is `optimization_count × price_per_optimization + additional_drivers × price_per_additional_driver`. The driver component is monthly, so it is recalculated instead of added on each optimization. A pending charge locks the usage record to prevent duplicate charges. Previous-month usage is charged lazily on the next billing check or optimization. |
 | Spending limit | `companies.monthly_spending_limit` is a fixed COP amount. A null value means unlimited; zero blocks all spending. Warning notification at 80% and blocking at 100%. |
-| Early charge threshold | `plans.early_charge_threshold` is a fixed COP amount, not a ratio. Seed values are `0` (disabled) until prices are defined, so no nonsensical early charge triggers. |
+| Early charge threshold | `plans.early_charge_threshold` is a fixed COP amount, not a ratio. Seed value is `null` (not defined and therefore disabled) for every plan until the pay-per-use amount is approved. Subscription plans never charge per optimization or per additional driver. |
 | Module eligibility | Add-on modules can be bought on the `Pro` plan or in pay-per-use; modules included in the current plan cannot be bought again. Plan/credit/module prices remain `[TO BE DEFINED]`. |
 | Billing dates | Credit resets, renewals and usage periods use Bogotá business dates. Annual plans reset credits monthly; monthly and trial plans do not reset until renewal. |
 | Expiration | A trial, subscription or pay-per-use membership expires when its renewal date passes; optimizations are blocked and the Company Administrator is notified. A rejected usage charge expires the pay-per-use subscription and keeps the company data. |
+
+Provisional seed values (all `[TO BE DEFINED]`, not approved):
+
+| Plan | Max drivers | Max branches | Monthly price | Per optimization | Per additional driver | Included drivers | Early charge |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Free Trial | 3 | 1 | 0 | null | null | null | null |
+| Basic | 3 | 1 | 129,900 | null | null | null | null |
+| Pro | 10 | 5 | 349,900 | null | null | null | null |
+| Premium | null (unlimited) | null (unlimited) | 899,900 | null | null | null | null |
+| Pay-per-use | null (not defined) | null (not defined) | 59,900 | 700 | 29,900 | 2 | null (disabled) |
+
+- Annual prices for Basic, Pro and Premium remain `null` until defined.
+- Only pay-per-use uses `price_per_optimization`, `price_per_additional_driver` and `included_drivers`; subscription plans consume credits and are never charged per optimization or per additional driver.
+- Pay-per-use branches and driver caps remain `[TO BE DEFINED]`; the provisional values above only define its billing components.
+- The school module price remains 499,000 COP. Whether it is charged once or per period remains `[TO BE DEFINED]`; the current purchase logic is unchanged.
+- `seedPlans` keeps `update: {}` on purpose so running the seed does not overwrite values edited by the Platform Administrator. Existing databases keep their old values until an explicit data correction is run.
 
 - Plans, pay-per-use rates, credit packages and add-on modules (RF18, RF22, HU-22).
 - Credit balance, consumption per successful optimization and monthly reset (RF20, HU-16).
