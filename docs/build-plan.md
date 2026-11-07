@@ -220,7 +220,7 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 
 - Annual prices for Basic, Pro and Premium remain `null` until defined.
 - Only pay-per-use uses `price_per_optimization`, `price_per_additional_driver` and `included_drivers`; subscription plans consume credits and are never charged per optimization or per additional driver.
-- Pay-per-use branches and driver caps remain `[TO BE DEFINED]`; the provisional values above only define its billing components.
+- Pay-per-use branches and driver caps remain `[TO BE DEFINED]`; the provisional values above only define its billing components. In pay-per-use, `max_branches = null` provisionally means unlimited branches; the final rule remains `[TO BE DEFINED]`.
 - The school module price remains 499,000 COP. Whether it is charged once or per period remains `[TO BE DEFINED]`; the current purchase logic is unchanged.
 - `seedPlans` keeps `update: {}` on purpose so running the seed does not overwrite values edited by the Platform Administrator. Existing databases keep their old values until an explicit data correction is run.
 
