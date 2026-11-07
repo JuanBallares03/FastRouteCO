@@ -467,6 +467,71 @@ describe('Company billing', () => {
     expect(Number(charge.amount)).toBe(6000);
   });
 
+  it('uses credits only for subscription plans, never per optimization or driver', async () => {
+    await prisma.plan.update({
+      where: { id: planId },
+      data: {
+        includedDrivers: 1,
+        pricePerOptimization: 9999,
+        pricePerAdditionalDriver: 9999,
+        earlyChargeThreshold: 1000,
+      },
+    });
+
+    try {
+      const driver = await prisma.user.create({
+        data: {
+          companyId: COMPANY_ID,
+          role: UserRole.driver,
+          fullName: 'Subscription Driver',
+          email: `billing-subscription-driver-${randomUUID()}@test.com`,
+          passwordHash: await hashPassword(PASSWORD),
+          isActive: true,
+          driver: { create: { status: 'available' } },
+        },
+      });
+      const route = await prisma.route.create({
+        data: {
+          companyId: COMPANY_ID,
+          driverId: driver.id,
+          routeDate: new Date('2026-11-05T00:00:00.000Z'),
+          status: 'created',
+        },
+      });
+      const optimization = await prisma.routeOptimization.create({
+        data: {
+          routeId: route.id,
+          totalDistanceM: 1000,
+          estimatedDurationS: 100,
+          processingTimeMs: 10,
+          isSuccessful: true,
+        },
+      });
+
+      const { applyOptimizationBilling } = await import('../billing.service.js');
+      let billing: Awaited<ReturnType<typeof applyOptimizationBilling>> | undefined;
+      await prisma.$transaction(async (tx) => {
+        billing = await applyOptimizationBilling(tx, COMPANY_ID, optimization.id);
+      });
+
+      expect(billing).toMatchObject({ mode: 'credits', remainingCredits: 9 });
+      expect(
+        await prisma.usageCharge.count({ where: { companyId: COMPANY_ID } })
+      ).toBe(0);
+      expect(await prisma.payment.count({ where: { companyId: COMPANY_ID } })).toBe(0);
+    } finally {
+      await prisma.plan.update({
+        where: { id: planId },
+        data: {
+          includedDrivers: null,
+          pricePerOptimization: null,
+          pricePerAdditionalDriver: null,
+          earlyChargeThreshold: null,
+        },
+      });
+    }
+  });
+
   it('blocks optimizations when credits are exhausted', async () => {
     await prisma.creditBalance.update({
       where: { companyId: COMPANY_ID },
