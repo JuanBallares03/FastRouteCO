@@ -1,5 +1,4 @@
 import { isAxiosError } from 'axios';
-import { File, Paths } from 'expo-file-system';
 import {
   getApiErrorMessage,
   isOfflineError,
@@ -7,6 +6,7 @@ import {
 } from '@/services/routes-api';
 import { uploadEvidencePhoto } from './cloudinary';
 import { deleteEvidencePhoto } from './evidence-files';
+import { getOfflineDatabase } from './offline-db';
 import type { Coordinates, LocationSample } from './types';
 
 interface PendingActionBase {
@@ -60,7 +60,6 @@ export interface FlushResult {
   lastError: string | null;
 }
 
-const queueFile = new File(Paths.document, 'fastrouteco-offline-queue.json');
 let serialOperation: Promise<unknown> = Promise.resolve();
 
 function withLock<T>(operation: () => Promise<T>): Promise<T> {
@@ -72,24 +71,30 @@ function withLock<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-async function readQueue(): Promise<PendingAction[]> {
-  if (!queueFile.exists) return [];
-
+function parseAction(payload: string): PendingAction | null {
   try {
-    const content = await queueFile.text();
-    const parsed: unknown = JSON.parse(content);
-    return Array.isArray(parsed) ? (parsed as PendingAction[]) : [];
+    const parsed = JSON.parse(payload) as PendingAction;
+    return parsed && typeof parsed.id === 'string' ? parsed : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
-async function writeQueue(queue: PendingAction[]): Promise<void> {
-  if (!queueFile.exists) {
-    queueFile.create({ intermediates: true });
-  }
+async function readQueue(): Promise<PendingAction[]> {
+  const db = await getOfflineDatabase();
+  const rows = await db.getAllAsync<{ payload: string }>(
+    'SELECT payload FROM offline_queue ORDER BY created_at ASC, rowid ASC'
+  );
 
-  await queueFile.write(JSON.stringify(queue));
+  return rows.flatMap((row) => {
+    const action = parseAction(row.payload);
+    return action ? [action] : [];
+  });
+}
+
+async function removeAction(actionId: string): Promise<void> {
+  const db = await getOfflineDatabase();
+  await db.runAsync('DELETE FROM offline_queue WHERE id = ?', actionId);
 }
 
 function createActionId(): string {
@@ -163,13 +168,13 @@ async function runFlush(): Promise<FlushResult> {
     try {
       await executeAction(action);
       synced += 1;
-      await writeQueue(queue.slice(index + 1));
+      await removeAction(action.id);
     } catch (error) {
       if (shouldDrop(error)) {
         failed += 1;
         lastError = getApiErrorMessage(error);
         cleanupActionFiles(action);
-        await writeQueue(queue.slice(index + 1));
+        await removeAction(action.id);
         continue;
       }
 
@@ -182,15 +187,18 @@ async function runFlush(): Promise<FlushResult> {
     }
   }
 
-  await writeQueue([]);
   return { synced, pending: 0, failed, lastError };
 }
 
 export function enqueueAction(action: NewPendingAction): Promise<void> {
   return withLock(async () => {
-    const queue = await readQueue();
-    queue.push({ ...action, id: createActionId() } as PendingAction);
-    await writeQueue(queue);
+    const db = await getOfflineDatabase();
+    await db.runAsync(
+      'INSERT INTO offline_queue (id, payload, created_at) VALUES (?, ?, ?)',
+      createActionId(),
+      JSON.stringify(action),
+      Date.now()
+    );
   });
 }
 
@@ -199,7 +207,13 @@ export function flushOfflineQueue(): Promise<FlushResult> {
 }
 
 export function getPendingActionCount(): Promise<number> {
-  return withLock(async () => (await readQueue()).length);
+  return withLock(async () => {
+    const db = await getOfflineDatabase();
+    const row = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) AS count FROM offline_queue'
+    );
+    return row?.count ?? 0;
+  });
 }
 
 export function enqueueLocation(routeId: string, location: LocationSample): Promise<void> {
