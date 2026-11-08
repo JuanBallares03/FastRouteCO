@@ -262,10 +262,63 @@ export const routeApi = {
 
   getRoute: (id: string) => api.get(`/routes/${id}`),
 
+  getLatestLocation: (id: string) => api.get(`/routes/${id}/locations/latest`),
+
   createRoute: (data: { driverId: string; routeDate: string; orderIds: string[] }) =>
     api.post('/routes', data),
 
   optimizeRoute: (id: string) => api.post(`/routes/${id}/optimize`),
+
+  reassignRoute: (id: string, driverId: string) =>
+    api.patch(`/routes/${id}/driver`, { driverId }),
+
+  reassignStop: (id: string, stopId: string, driverId: string) =>
+    api.post(`/routes/${id}/stops/${stopId}/reassign`, { driverId }),
+};
+
+export interface IncidentMessagePayload {
+  id: string;
+  incidentId: string;
+  senderId: string;
+  message: string;
+  sentAt: string;
+  sender?: { id: string; fullName: string; role: string } | null;
+}
+
+export interface IncidentPayload {
+  id: string;
+  routeId: string;
+  stopId: string | null;
+  category: 'incident' | 'question';
+  description: string;
+  status: 'open' | 'in_progress' | 'resolved';
+  resolutionNotes: string | null;
+  reportedAt: string;
+  resolvedAt: string | null;
+  route: {
+    id: string;
+    routeDate: string;
+    status: string;
+    driver?: { user?: { id: string; fullName: string; phone?: string | null } | null } | null;
+  };
+  stop?: { id: string; sequence: number; status: string } | null;
+  messages: IncidentMessagePayload[];
+}
+
+export const incidentApi = {
+  list: (params?: { routeId?: string; status?: string; category?: string }) =>
+    api.get<IncidentPayload[]>('/incidents', { params }),
+
+  get: (id: string) => api.get<IncidentPayload>(`/incidents/${id}`),
+
+  addMessage: (id: string, message: string) =>
+    api.post<{ message: IncidentMessagePayload; incident: IncidentPayload }>(
+      `/incidents/${id}/messages`,
+      { message }
+    ),
+
+  update: (id: string, data: { status?: string; resolutionNotes?: string }) =>
+    api.patch<IncidentPayload>(`/incidents/${id}`, data),
 };
 
 export const billingApi = {

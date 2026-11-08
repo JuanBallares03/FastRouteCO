@@ -10,15 +10,21 @@ export interface RouteMapStop {
   label: string;
 }
 
+export interface DriverLocation {
+  latitude: number;
+  longitude: number;
+}
+
 interface RouteMapProps {
   stops: RouteMapStop[];
+  driverLocation?: DriverLocation | null;
   className?: string;
 }
 
 const MAP_STYLE = import.meta.env.VITE_MAP_STYLE_URL || 'https://tiles.openfreemap.org/styles/liberty';
 const DEFAULT_CENTER: [number, number] = [-75.2322, 4.4389];
 
-export function RouteMap({ stops, className }: RouteMapProps) {
+export function RouteMap({ stops, driverLocation, className }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markersRef = useRef<Marker[]>([]);
@@ -53,9 +59,9 @@ export function RouteMap({ stops, className }: RouteMapProps) {
     const validStops = stops.filter(
       (stop) => stop.latitude !== null && stop.longitude !== null
     );
-    if (validStops.length === 0) return;
 
     const bounds = new LngLatBounds();
+    let coordinateCount = 0;
 
     validStops.forEach((stop, index) => {
       const element = document.createElement('div');
@@ -69,15 +75,33 @@ export function RouteMap({ stops, className }: RouteMapProps) {
         .addTo(map);
       markersRef.current.push(marker);
       bounds.extend([stop.longitude as number, stop.latitude as number]);
+      coordinateCount += 1;
     });
 
-    if (validStops.length === 1) {
-      map.setCenter([validStops[0].longitude as number, validStops[0].latitude as number]);
+    if (driverLocation) {
+      const element = document.createElement('div');
+      element.className =
+        'flex items-center justify-center w-9 h-9 rounded-full bg-emerald-600 text-white font-label-lg border-2 border-white shadow-lg';
+      element.textContent = 'C';
+      element.title = 'Ubicación del conductor';
+
+      const marker = new Marker({ element })
+        .setLngLat([driverLocation.longitude, driverLocation.latitude])
+        .addTo(map);
+      markersRef.current.push(marker);
+      bounds.extend([driverLocation.longitude, driverLocation.latitude]);
+      coordinateCount += 1;
+    }
+
+    if (coordinateCount === 0) return;
+
+    if (coordinateCount === 1) {
+      map.setCenter(bounds.getCenter());
       map.setZoom(14);
     } else {
       map.fitBounds(bounds, { padding: 70, maxZoom: 14 });
     }
-  }, [stops]);
+  }, [stops, driverLocation]);
 
   return <div ref={containerRef} className={className ?? 'w-full h-80 rounded-xl overflow-hidden'} />;
 }
