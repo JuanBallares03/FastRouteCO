@@ -65,8 +65,8 @@ FastRouteCO/
 
 - Maximum number of orders per route `[TO BE DEFINED]`: the limit is not defined in the requirements, so no limit is enforced.
 - Urgent order priority influence on optimization `[TO BE DEFINED]`: the algorithm does not prioritize urgent orders yet.
-- Mobile local storage for offline mode `[TO BE DEFINED]`, pending approval. Current implementation: `expo-file-system` with JSON files in the app documents directory (`fastrouteco-offline-queue.json` for the pending-action queue and `fastrouteco-route-cache.json` for the cached route) plus an `evidence/` folder for photos not yet uploaded.
-- Geofence radius `[TO BE DEFINED]`: the current implementation uses 100 m on backend and mobile, but no HU, RF or RNF defines this value. Pending approval.
+- Mobile local storage for offline mode `[TO BE DEFINED]`. Current implementation: `expo-sqlite` database `fastrouteco.db` with an `offline_queue` table for pending actions and a `route_cache` table for the cached route. Evidence photos stay in the `evidence/` folder because they are files, not records. On first start, legacy `fastrouteco-offline-queue.json` and `fastrouteco-route-cache.json` files are imported and removed.
+- Geofence radius `[TO BE DEFINED]`: 100 m is a provisional value on backend and mobile, with no HU, RF or RNF defining it. It must be validated with field tests before delivery.
 - Hosting `[TO BE DEFINED]`.
 - Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract for development. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code. The production provider and its usage limits remain `[TO BE DEFINED]` and are decided with hosting in Phase 7.
 - Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development; decide together with hosting.
@@ -134,7 +134,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 5 is implemented. Next: Phase 6.
+Progress: Phase 5 is implemented and its offline storage decision is applied. Next: Phase 6.
 
 ### Progress log
 
@@ -163,6 +163,8 @@ Progress: Phase 5 is implemented. Next: Phase 6.
 | 2026-11-07 | Phase 5 | Latest driver location endpoint for the live map | `c085c59` |
 | 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
+| 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
+| 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -258,10 +260,10 @@ Endpoints:
 As built:
 - Driver endpoints under `/api/v1/routes/driver/*`: today's route, route detail, start, finish, location batches, geofence or manual arrival, signed Cloudinary evidence and stop completion with at least one photo (backend rejects fewer).
 - The driver can only operate their own route, only one route can be in progress at a time, and starting a route requires an active subscription or trial.
-- The geofence radius is 100 m on both backend and mobile `[TO BE DEFINED]`, pending approval. Outside that radius the driver can still mark the arrival manually.
+- The geofence radius is a provisional 100 m on both backend and mobile `[TO BE DEFINED]`; it must be validated with field tests. Outside that radius the driver can still mark the arrival manually.
 - The mobile app requests foreground location permission, sends a GPS sample every 5 seconds and keeps the full trail in `route_locations`.
-- When the API is unreachable, start, finish, arrival, completion and location actions are stored in an on-device queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
-- The last route is cached locally so the driver can still see it offline.
+- When the API is unreachable, start, finish, arrival, completion and location actions are stored in the on-device SQLite queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
+- The last route is cached in SQLite so the driver can still see it offline.
 
 ### Phase 5 — Real-time tracking, incidents and reassignment
 
