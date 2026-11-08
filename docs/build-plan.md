@@ -65,7 +65,8 @@ FastRouteCO/
 
 - Maximum number of orders per route `[TO BE DEFINED]`: the limit is not defined in the requirements, so no limit is enforced.
 - Urgent order priority influence on optimization `[TO BE DEFINED]`: the algorithm does not prioritize urgent orders yet.
-- Mobile local storage for offline mode `[TO BE DEFINED]`.
+- Mobile local storage for offline mode `[TO BE DEFINED]`, pending approval. Current implementation: `expo-file-system` with JSON files in the app documents directory (`fastrouteco-offline-queue.json` for the pending-action queue and `fastrouteco-route-cache.json` for the cached route) plus an `evidence/` folder for photos not yet uploaded.
+- Geofence radius `[TO BE DEFINED]`: the current implementation uses 100 m on backend and mobile, but no HU, RF or RNF defines this value. Pending approval.
 - Hosting `[TO BE DEFINED]`.
 - Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract for development. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code. The production provider and its usage limits remain `[TO BE DEFINED]` and are decided with hosting in Phase 7.
 - Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development; decide together with hosting.
@@ -253,7 +254,7 @@ Endpoints:
 As built:
 - Driver endpoints under `/api/v1/routes/driver/*`: today's route, route detail, start, finish, location batches, geofence or manual arrival, signed Cloudinary evidence and stop completion with at least one photo (backend rejects fewer).
 - The driver can only operate their own route, only one route can be in progress at a time, and starting a route requires an active subscription or trial.
-- The geofence radius is 100 m on both backend and mobile. Outside that radius the driver can still mark the arrival manually.
+- The geofence radius is 100 m on both backend and mobile `[TO BE DEFINED]`, pending approval. Outside that radius the driver can still mark the arrival manually.
 - The mobile app requests foreground location permission, sends a GPS sample every 5 seconds and keeps the full trail in `route_locations`.
 - When the API is unreachable, start, finish, arrival, completion and location actions are stored in an on-device queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
 - The last route is cached locally so the driver can still see it offline.
