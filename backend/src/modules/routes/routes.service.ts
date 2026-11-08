@@ -7,6 +7,7 @@ import {
   UserRole,
 } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
+import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../lib/prisma.js';
 import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { haversineMeters } from '../../lib/geo.js';
@@ -17,13 +18,15 @@ import {
 } from '../../lib/optimization.js';
 import { getRoutingEngine } from '../../lib/routing.js';
 import type { Coordinates } from '../../lib/geocoding.js';
-import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors.js';
+import { env } from '../../env.js';
 import {
   applyOptimizationBilling,
   assertOptimizationAllowed,
   checkSpendingWarning,
   processClosingUsageCharges,
   processUsageCharge,
+  syncCompanySubscription,
 } from '../billing/billing.service.js';
 
 const ACTIVE_ROUTE_STATUSES: RouteStatus[] = [
@@ -32,13 +35,22 @@ const ACTIVE_ROUTE_STATUSES: RouteStatus[] = [
   RouteStatus.in_progress,
 ];
 
+const GEOFENCE_RADIUS_M = 100;
+
+const routePriority: Record<string, number> = {
+  [RouteStatus.in_progress]: 0,
+  [RouteStatus.optimized]: 1,
+  [RouteStatus.created]: 2,
+};
+
 const routeInclude = {
   stops: {
     include: {
       order: true,
       student: true,
+      evidencePhotos: { orderBy: { capturedAt: 'asc' as const } },
     },
-    orderBy: { sequence: 'asc' },
+    orderBy: { sequence: 'asc' as const },
   },
   driver: {
     include: {
@@ -378,6 +390,381 @@ export async function getRouteById(companyId: string, routeId: string) {
   }
 
   return serializeRoute(route);
+}
+
+async function findDriverRoute(companyId: string, driverId: string, routeId: string) {
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, companyId, driverId },
+    include: routeInclude,
+  });
+
+  if (!route) {
+    throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
+  }
+
+  return route;
+}
+
+export async function getDriverTodayRoute(companyId: string, driverId: string) {
+  const routeDate = parseBusinessDate(todayInBogota());
+  const routes = await prisma.route.findMany({
+    where: {
+      companyId,
+      driverId,
+      routeDate,
+      status: { in: ACTIVE_ROUTE_STATUSES },
+    },
+    include: routeInclude,
+  });
+
+  if (routes.length === 0) {
+    return { route: null };
+  }
+
+  routes.sort((left, right) => {
+    const priority = (routePriority[left.status] ?? 99) - (routePriority[right.status] ?? 99);
+    if (priority !== 0) return priority;
+    return left.id.localeCompare(right.id);
+  });
+
+  return { route: serializeRoute(routes[0]) };
+}
+
+export async function getDriverRoute(companyId: string, driverId: string, routeId: string) {
+  return serializeRoute(await findDriverRoute(companyId, driverId, routeId));
+}
+
+function assertBothCoordinates(value: { latitude?: number; longitude?: number }) {
+  if ((value.latitude === undefined) !== (value.longitude === undefined)) {
+    throw new BadRequestError('Debes enviar latitud y longitud juntas', 'INVALID_COORDINATES');
+  }
+}
+
+export async function startDriverRoute(
+  companyId: string,
+  driverId: string,
+  routeId: string,
+  data: { latitude?: number; longitude?: number }
+) {
+  const route = await findDriverRoute(companyId, driverId, routeId);
+  assertBothCoordinates(data);
+
+  if (route.status === RouteStatus.in_progress) {
+    return serializeRoute(route);
+  }
+
+  if (route.status !== RouteStatus.created && route.status !== RouteStatus.optimized) {
+    throw new ConflictError('La ruta ya no se puede iniciar', 'ROUTE_NOT_STARTABLE');
+  }
+
+  const activeRoute = await prisma.route.findFirst({
+    where: {
+      companyId,
+      driverId,
+      status: RouteStatus.in_progress,
+      id: { not: route.id },
+    },
+    select: { id: true },
+  });
+
+  if (activeRoute) {
+    throw new ConflictError('Ya tienes otra ruta en curso', 'DRIVER_HAS_ACTIVE_ROUTE');
+  }
+
+  const subscription = await syncCompanySubscription(companyId);
+  if (!subscription) {
+    throw new ForbiddenError(
+      'La suscripción o el periodo de prueba no está activo.',
+      'SUBSCRIPTION_INACTIVE'
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.route.update({
+      where: { id: route.id },
+      data: {
+        status: RouteStatus.in_progress,
+        startedAt: route.startedAt ?? new Date(),
+        startLatitude: data.latitude ?? route.startLatitude,
+        startLongitude: data.longitude ?? route.startLongitude,
+      },
+    }),
+    prisma.driver.update({
+      where: { userId: driverId },
+      data: { status: DriverStatus.on_route },
+    }),
+  ]);
+
+  return getDriverRoute(companyId, driverId, route.id);
+}
+
+export async function finishDriverRoute(companyId: string, driverId: string, routeId: string) {
+  const route = await findDriverRoute(companyId, driverId, routeId);
+
+  if (route.status === RouteStatus.completed) {
+    return serializeRoute(route);
+  }
+
+  if (route.status !== RouteStatus.in_progress) {
+    throw new ConflictError('La ruta no está en curso', 'ROUTE_NOT_IN_PROGRESS');
+  }
+
+  const pendingStops = route.stops.filter((stop) => stop.status !== StopStatus.completed);
+  if (pendingStops.length > 0) {
+    throw new ConflictError(
+      'Todavía hay paradas pendientes por completar',
+      'ROUTE_HAS_PENDING_STOPS'
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.route.update({
+      where: { id: route.id },
+      data: { status: RouteStatus.completed, endedAt: new Date() },
+    }),
+    prisma.driver.update({
+      where: { userId: driverId },
+      data: { status: DriverStatus.available },
+    }),
+  ]);
+
+  return getDriverRoute(companyId, driverId, route.id);
+}
+
+function toDate(value: Date | string): Date {
+  return value instanceof Date ? value : new Date(value);
+}
+
+export async function recordRouteLocations(
+  companyId: string,
+  driverId: string,
+  routeId: string,
+  locations: Array<{
+    latitude: number;
+    longitude: number;
+    capturedAt: Date | string;
+    isOffline: boolean;
+  }>
+) {
+  const route = await findDriverRoute(companyId, driverId, routeId);
+
+  if (route.status !== RouteStatus.in_progress) {
+    throw new ConflictError('La ruta no está en curso', 'ROUTE_NOT_IN_PROGRESS');
+  }
+
+  const uniqueLocations = new Map<
+    string,
+    { latitude: number; longitude: number; capturedAt: Date; isOffline: boolean }
+  >();
+  for (const location of locations) {
+    const capturedAt = toDate(location.capturedAt);
+    uniqueLocations.set(capturedAt.toISOString(), { ...location, capturedAt });
+  }
+
+  const capturedDates = [...uniqueLocations.keys()].map((value) => new Date(value));
+  const existing = await prisma.routeLocation.findMany({
+    where: { routeId: route.id, capturedAt: { in: capturedDates } },
+    select: { capturedAt: true },
+  });
+  const existingDates = new Set(existing.map((item) => item.capturedAt.toISOString()));
+
+  const pending = [...uniqueLocations.entries()]
+    .filter(([key]) => !existingDates.has(key))
+    .map(([, location]) => ({
+      routeId: route.id,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      capturedAt: location.capturedAt,
+      isOffline: location.isOffline,
+    }));
+
+  if (pending.length > 0) {
+    await prisma.routeLocation.createMany({ data: pending });
+  }
+
+  return { accepted: locations.length, inserted: pending.length };
+}
+
+function stopTargetCoordinates(stop: RouteWithRelations['stops'][number]) {
+  const source = stop.order ?? stop.student;
+  if (!source || source.latitude === null || source.longitude === null) {
+    return null;
+  }
+
+  return {
+    latitude: Number(source.latitude),
+    longitude: Number(source.longitude),
+  };
+}
+
+export async function arriveAtStop(
+  companyId: string,
+  driverId: string,
+  routeId: string,
+  stopId: string,
+  data: { latitude?: number; longitude?: number; method: 'geofence' | 'manual' }
+) {
+  const route = await findDriverRoute(companyId, driverId, routeId);
+
+  if (route.status !== RouteStatus.in_progress) {
+    throw new ConflictError('La ruta no está en curso', 'ROUTE_NOT_IN_PROGRESS');
+  }
+
+  const stop = route.stops.find((item) => item.id === stopId);
+  if (!stop) {
+    throw new NotFoundError('Parada no encontrada', 'STOP_NOT_FOUND');
+  }
+
+  if (stop.status === StopStatus.completed) {
+    throw new ConflictError('La parada ya fue completada', 'STOP_ALREADY_COMPLETED');
+  }
+
+  if (stop.status === StopStatus.arrived) {
+    return serializeRoute(route);
+  }
+
+  assertBothCoordinates(data);
+  let isGeofenceVerified = false;
+
+  if (data.method === 'geofence') {
+    if (data.latitude === undefined || data.longitude === undefined) {
+      throw new BadRequestError(
+        'La latitud y longitud son obligatorias para verificar la geocerca',
+        'COORDINATES_REQUIRED'
+      );
+    }
+
+    const target = stopTargetCoordinates(stop);
+    if (!target) {
+      throw new ConflictError(
+        'La parada no tiene coordenadas para verificar la geocerca',
+        'STOP_WITHOUT_COORDINATES'
+      );
+    }
+
+    const distanceMeters = haversineMeters(
+      { latitude: data.latitude, longitude: data.longitude },
+      target
+    );
+
+    if (distanceMeters > GEOFENCE_RADIUS_M) {
+      throw new ConflictError(
+        'Estás fuera del radio permitido para marcar la llegada',
+        'OUTSIDE_GEOFENCE'
+      );
+    }
+
+    isGeofenceVerified = true;
+  }
+
+  await prisma.routeStop.update({
+    where: { id: stop.id },
+    data: {
+      status: StopStatus.arrived,
+      arrivedAt: new Date(),
+      isGeofenceVerified,
+      syncedAt: new Date(),
+    },
+  });
+
+  return getDriverRoute(companyId, driverId, route.id);
+}
+
+export async function completeDriverStop(
+  companyId: string,
+  driverId: string,
+  routeId: string,
+  stopId: string,
+  data: {
+    evidence: Array<{ photoUrl: string; capturedAt?: Date | string }>;
+    notes?: string;
+    recipientName?: string;
+  }
+) {
+  const route = await findDriverRoute(companyId, driverId, routeId);
+
+  if (route.status !== RouteStatus.in_progress) {
+    throw new ConflictError('La ruta no está en curso', 'ROUTE_NOT_IN_PROGRESS');
+  }
+
+  const stop = route.stops.find((item) => item.id === stopId);
+  if (!stop) {
+    throw new NotFoundError('Parada no encontrada', 'STOP_NOT_FOUND');
+  }
+
+  if (stop.status === StopStatus.completed) {
+    return serializeRoute(route);
+  }
+
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.evidencePhoto.createMany({
+      data: data.evidence.map((photo) => ({
+        stopId: stop.id,
+        photoUrl: photo.photoUrl,
+        capturedAt: photo.capturedAt ? toDate(photo.capturedAt) : now,
+      })),
+    });
+
+    await tx.routeStop.update({
+      where: { id: stop.id },
+      data: {
+        status: StopStatus.completed,
+        arrivedAt: stop.arrivedAt ?? now,
+        confirmedAt: now,
+        syncedAt: now,
+        notes: data.notes,
+        recipientName: data.recipientName,
+      },
+    });
+
+    if (stop.orderId) {
+      await tx.order.update({
+        where: { id: stop.orderId },
+        data: { status: OrderStatus.completed },
+      });
+    }
+  });
+
+  return getDriverRoute(companyId, driverId, route.id);
+}
+
+export async function createEvidenceSignature(
+  companyId: string,
+  driverId: string,
+  routeId: string,
+  stopId: string
+) {
+  const route = await findDriverRoute(companyId, driverId, routeId);
+
+  if (route.status !== RouteStatus.in_progress) {
+    throw new ConflictError('La ruta no está en curso', 'ROUTE_NOT_IN_PROGRESS');
+  }
+
+  const stop = route.stops.find((item) => item.id === stopId);
+  if (!stop) {
+    throw new NotFoundError('Parada no encontrada', 'STOP_NOT_FOUND');
+  }
+
+  if (stop.status === StopStatus.completed) {
+    throw new ConflictError('La parada ya fue completada', 'STOP_ALREADY_COMPLETED');
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const folder = `fastrouteco/evidence/${companyId}/${routeId}/${stopId}`;
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder },
+    env.CLOUDINARY_API_SECRET
+  );
+
+  return {
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
+    apiKey: env.CLOUDINARY_API_KEY,
+    timestamp,
+    folder,
+    signature,
+  };
 }
 
 async function resolveStartPoint(

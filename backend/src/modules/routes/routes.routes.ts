@@ -1,15 +1,30 @@
 import { Router, type Router as ExpressRouter } from 'express';
 import {
+  arriveAtStopHandler,
+  completeStopHandler,
+  createEvidenceSignatureHandler,
   createRouteHandler,
+  finishDriverRouteHandler,
+  getDriverRouteHandler,
+  getDriverTodayRouteHandler,
   getRouteHandler,
   listRoutesHandler,
   optimizeRouteHandler,
+  recordRouteLocationsHandler,
+  startDriverRouteHandler,
 } from './routes.controller.js';
 import {
+  arriveAtStopSchema,
+  completeStopSchema,
   createRouteSchema,
+  driverRouteSchema,
+  finishRouteSchema,
   getRouteSchema,
   listRoutesSchema,
   optimizeRouteSchema,
+  routeLocationsSchema,
+  startRouteSchema,
+  stopParamsSchema,
 } from './validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -17,6 +32,50 @@ import { validate } from '../../middleware/validate.js';
 const router: ExpressRouter = Router();
 
 router.use(authenticate);
+
+router.get('/driver/today', authorize('driver'), getDriverTodayRouteHandler);
+router.get(
+  '/driver/:id',
+  authorize('driver'),
+  validate(driverRouteSchema),
+  getDriverRouteHandler
+);
+router.post(
+  '/driver/:id/start',
+  authorize('driver'),
+  validate(startRouteSchema),
+  startDriverRouteHandler
+);
+router.post(
+  '/driver/:id/finish',
+  authorize('driver'),
+  validate(finishRouteSchema),
+  finishDriverRouteHandler
+);
+router.post(
+  '/driver/:id/locations',
+  authorize('driver'),
+  validate(routeLocationsSchema),
+  recordRouteLocationsHandler
+);
+router.post(
+  '/driver/:id/stops/:stopId/arrive',
+  authorize('driver'),
+  validate(arriveAtStopSchema),
+  arriveAtStopHandler
+);
+router.post(
+  '/driver/:id/stops/:stopId/complete',
+  authorize('driver'),
+  validate(completeStopSchema),
+  completeStopHandler
+);
+router.post(
+  '/driver/:id/stops/:stopId/evidence-signature',
+  authorize('driver'),
+  validate(stopParamsSchema),
+  createEvidenceSignatureHandler
+);
 
 router.post(
   '/',

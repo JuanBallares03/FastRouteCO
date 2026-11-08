@@ -1,14 +1,29 @@
 import type { NextFunction, Request, Response } from 'express';
 import { RouteStatus } from '@prisma/client';
 import {
+  arriveAtStop,
   assignOrder,
+  completeDriverStop,
+  createEvidenceSignature,
   createRoute,
+  finishDriverRoute,
+  getDriverRoute,
+  getDriverTodayRoute,
   getRouteById,
   listRoutes,
   optimizeRoute,
+  recordRouteLocations,
+  startDriverRoute,
   suggestDrivers,
 } from './routes.service.js';
-import type { AssignOrderInput, CreateRouteInput } from './validation.js';
+import type {
+  ArriveAtStopInput,
+  AssignOrderInput,
+  CompleteStopInput,
+  CreateRouteInput,
+  RouteLocationsInput,
+  StartRouteInput,
+} from './validation.js';
 import { respondWithError } from '../../middleware/error-handler.js';
 
 interface AuthenticatedRequest extends Request {
@@ -141,6 +156,171 @@ export async function optimizeRouteHandler(
 
     const { id } = req.params as { id: string };
     res.json(await optimizeRoute(companyId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+function requireDriverId(req: AuthenticatedRequest, res: Response): string | null {
+  const driverId = req.user?.id;
+  if (!driverId) {
+    res.status(403).json({ message: 'Sin conductor asociado' });
+    return null;
+  }
+  return driverId;
+}
+
+export async function getDriverTodayRouteHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    res.json(await getDriverTodayRoute(companyId, driverId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function getDriverRouteHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await getDriverRoute(companyId, driverId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function startDriverRouteHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await startDriverRoute(companyId, driverId, id, req.body as StartRouteInput));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function finishDriverRouteHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await finishDriverRoute(companyId, driverId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function recordRouteLocationsHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id } = req.params as { id: string };
+    const { locations } = req.body as RouteLocationsInput;
+    res.json(await recordRouteLocations(companyId, driverId, id, locations));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function arriveAtStopHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id, stopId } = req.params as { id: string; stopId: string };
+    res.json(
+      await arriveAtStop(companyId, driverId, id, stopId, req.body as ArriveAtStopInput)
+    );
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function completeStopHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id, stopId } = req.params as { id: string; stopId: string };
+    res.json(
+      await completeDriverStop(companyId, driverId, id, stopId, req.body as CompleteStopInput)
+    );
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function createEvidenceSignatureHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const { id, stopId } = req.params as { id: string; stopId: string };
+    res.json(await createEvidenceSignature(companyId, driverId, id, stopId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

@@ -9,6 +9,7 @@ import {
   OrderStatus,
   OrderType,
   RouteStatus,
+  StopStatus,
   SubscriptionStatus,
   UserRole,
 } from '@prisma/client';
@@ -21,6 +22,7 @@ import {
   resetRoutingEngine,
   setRoutingEngine,
 } from '../../../lib/routing.js';
+import { todayInBogota } from '../../../lib/dates.js';
 
 const app = express();
 app.use(express.json());
@@ -39,6 +41,8 @@ const ROUTE_DATE = '2026-11-06';
 
 let adminToken: string;
 let otherAdminToken: string;
+let driverAToken: string;
+let driverBToken: string;
 
 const companyIds = [COMPANY_ID, OTHER_COMPANY_ID];
 
@@ -152,7 +156,7 @@ beforeAll(async () => {
     },
   });
 
-  await prisma.user.create({
+  const driverA = await prisma.user.create({
     data: {
       id: DRIVER_A_ID,
       companyId: COMPANY_ID,
@@ -165,7 +169,7 @@ beforeAll(async () => {
     },
   });
 
-  await prisma.user.create({
+  const driverB = await prisma.user.create({
     data: {
       id: DRIVER_B_ID,
       companyId: COMPANY_ID,
@@ -193,6 +197,8 @@ beforeAll(async () => {
 
   adminToken = (await createTokenPair(admin)).accessToken;
   otherAdminToken = (await createTokenPair(otherAdmin)).accessToken;
+  driverAToken = (await createTokenPair(driverA)).accessToken;
+  driverBToken = (await createTokenPair(driverB)).accessToken;
 });
 
 afterAll(async () => {
@@ -210,6 +216,10 @@ beforeEach(async () => {
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.driver.updateMany({
+    where: { userId: { in: [DRIVER_A_ID, DRIVER_B_ID] } },
+    data: { status: DriverStatus.available },
+  });
 });
 
 async function createTrackedRoute(driverId: string, lat: number, lon: number) {
@@ -579,6 +589,274 @@ describe('Route optimization', () => {
       .set(authHeader(otherAdminToken));
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('Driver route execution', () => {
+  async function createDriverRoute(
+    driverId = DRIVER_A_ID,
+    orderIds?: string[],
+    routeDate = todayInBogota()
+  ) {
+    const ids = orderIds ?? [(await createOrder()).id];
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId, routeDate, orderIds: ids });
+
+    expect(created.status).toBe(201);
+    return created.body as {
+      id: string;
+      stops: Array<{ id: string; order: { id: string } }>;
+    };
+  }
+
+  it('returns the route assigned to the authenticated driver for today', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .get('/api/v1/routes/driver/today')
+      .set(authHeader(driverAToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.route.id).toBe(route.id);
+
+    const other = await request(app)
+      .get('/api/v1/routes/driver/today')
+      .set(authHeader(driverBToken));
+
+    expect(other.status).toBe(200);
+    expect(other.body.route).toBeNull();
+  });
+
+  it('does not expose another driver route', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .get(`/api/v1/routes/driver/${route.id}`)
+      .set(authHeader(driverBToken));
+
+    expect(res.status).toBe(404);
+  });
+
+  it('starts the route once and marks the driver as on route', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe(RouteStatus.in_progress);
+    expect(res.body.startedAt).not.toBeNull();
+    expect(res.body.startLatitude).toBeCloseTo(4.4389);
+    expect(res.body.startLongitude).toBeCloseTo(-75.2322);
+
+    const driver = await prisma.driver.findUnique({ where: { userId: DRIVER_A_ID } });
+    expect(driver?.status).toBe(DriverStatus.on_route);
+
+    const repeated = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({});
+
+    expect(repeated.status).toBe(200);
+    expect(repeated.body.status).toBe(RouteStatus.in_progress);
+  });
+
+  it('rejects route start for administrators', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(adminToken))
+      .send({});
+
+    expect(res.status).toBe(403);
+  });
+
+  it('verifies geofence arrivals and allows manual marking', async () => {
+    const near = await createOrder(COMPANY_ID, { latitude: 4.4389, longitude: -75.2322 });
+    const far = await createOrder(COMPANY_ID, { latitude: 4.5, longitude: -75.3 });
+    const route = await createDriverRoute(DRIVER_A_ID, [near.id, far.id]);
+
+    await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322 });
+
+    const verified = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/arrive`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2321, method: 'geofence' });
+
+    expect(verified.status).toBe(200);
+    expect(verified.body.stops[0].status).toBe(StopStatus.arrived);
+    expect(verified.body.stops[0].isGeofenceVerified).toBe(true);
+
+    const outside = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[1].id}/arrive`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2321, method: 'geofence' });
+
+    expect(outside.status).toBe(409);
+    expect(outside.body.code).toBe('OUTSIDE_GEOFENCE');
+
+    const manual = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[1].id}/arrive`)
+      .set(authHeader(driverAToken))
+      .send({ method: 'manual' });
+
+    expect(manual.status).toBe(200);
+    expect(manual.body.stops[1].status).toBe(StopStatus.arrived);
+    expect(manual.body.stops[1].isGeofenceVerified).toBe(false);
+  });
+
+  it('completes a stop only with photo evidence', async () => {
+    const route = await createDriverRoute();
+    await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({});
+
+    const missing = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/complete`)
+      .set(authHeader(driverAToken))
+      .send({ evidence: [] });
+
+    expect(missing.status).toBe(400);
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/complete`)
+      .set(authHeader(driverAToken))
+      .send({
+        evidence: [
+          {
+            photoUrl: 'https://res.cloudinary.com/demo/image/upload/evidence.jpg',
+            capturedAt: '2026-11-06T12:00:00.000Z',
+          },
+        ],
+        notes: 'Entregado en portería',
+        recipientName: 'Recepción',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.stops[0].status).toBe(StopStatus.completed);
+    expect(res.body.stops[0].evidencePhotos).toHaveLength(1);
+    expect(res.body.stops[0].evidencePhotos[0].photoUrl).toContain('evidence.jpg');
+    expect(res.body.stops[0].recipientName).toBe('Recepción');
+
+    const order = await prisma.order.findUnique({ where: { id: route.stops[0].order.id } });
+    expect(order?.status).toBe(OrderStatus.completed);
+
+    const repeated = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/complete`)
+      .set(authHeader(driverAToken))
+      .send({
+        evidence: [{ photoUrl: 'https://res.cloudinary.com/demo/image/upload/another.jpg' }],
+      });
+
+    expect(repeated.status).toBe(200);
+    const evidenceCount = await prisma.evidencePhoto.count({
+      where: { stopId: route.stops[0].id },
+    });
+    expect(evidenceCount).toBe(1);
+  });
+
+  it('finishes the route after all stops are completed', async () => {
+    const route = await createDriverRoute();
+    await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({});
+
+    const pending = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/finish`)
+      .set(authHeader(driverAToken));
+
+    expect(pending.status).toBe(409);
+    expect(pending.body.code).toBe('ROUTE_HAS_PENDING_STOPS');
+
+    await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/complete`)
+      .set(authHeader(driverAToken))
+      .send({
+        evidence: [{ photoUrl: 'https://res.cloudinary.com/demo/image/upload/evidence.jpg' }],
+      });
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/finish`)
+      .set(authHeader(driverAToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe(RouteStatus.completed);
+    expect(res.body.endedAt).not.toBeNull();
+
+    const driver = await prisma.driver.findUnique({ where: { userId: DRIVER_A_ID } });
+    expect(driver?.status).toBe(DriverStatus.available);
+  });
+
+  it('stores offline GPS batches without duplicating captured points', async () => {
+    const route = await createDriverRoute();
+    await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({});
+
+    const payload = {
+      locations: [
+        {
+          latitude: 4.4389,
+          longitude: -75.2322,
+          capturedAt: '2026-11-06T12:00:00.000Z',
+          isOffline: true,
+        },
+        {
+          latitude: 4.4391,
+          longitude: -75.2324,
+          capturedAt: '2026-11-06T12:00:05.000Z',
+          isOffline: true,
+        },
+      ],
+    };
+
+    const first = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/locations`)
+      .set(authHeader(driverAToken))
+      .send(payload);
+
+    expect(first.status).toBe(200);
+    expect(first.body.inserted).toBe(2);
+
+    const repeated = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/locations`)
+      .set(authHeader(driverAToken))
+      .send(payload);
+
+    expect(repeated.status).toBe(200);
+    expect(repeated.body.inserted).toBe(0);
+
+    const count = await prisma.routeLocation.count({ where: { routeId: route.id } });
+    expect(count).toBe(2);
+  });
+
+  it('returns a signed Cloudinary upload payload for evidence', async () => {
+    const route = await createDriverRoute();
+    await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({});
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/evidence-signature`)
+      .set(authHeader(driverAToken));
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.timestamp).toBe('number');
+    expect(typeof res.body.signature).toBe('string');
+    expect(res.body.folder).toContain(route.id);
+    expect(res.body.folder).toContain(route.stops[0].id);
   });
 });
 
