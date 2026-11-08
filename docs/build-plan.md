@@ -134,7 +134,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 4 is implemented. Next: Phase 5.
+Progress: Phase 5 is implemented. Next: Phase 6.
 
 ### Progress log
 
@@ -159,6 +159,10 @@ Progress: Phase 4 is implemented. Next: Phase 5.
 | 2026-11-06 | Phase 4 | Driver route execution endpoints, GPS trail, geofence arrival, evidence signature and stop completion (RF09, RF10, RF13, RF14, RF16, RF24) | `2f900e4` |
 | 2026-11-06 | Phase 4 | Driver mobile app: today's route, start and finish, GPS every 5 seconds, geofence, photo evidence and offline queue (RF09, RF10, RF13, RF14, RF16, RF17, RF24) | `6cb03e6` |
 | 2026-11-06 | Fix | Demo seed script loads the backend environment variables | `8fe8112` |
+| 2026-11-07 | Phase 5 | Socket.IO server, realtime route events, incident chat endpoints and route/stop reassignment (RF07, RF08, RF25, HU-09 to HU-11, HU-31) | `ae28612` |
+| 2026-11-07 | Phase 5 | Latest driver location endpoint for the live map | `c085c59` |
+| 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
+| 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -264,6 +268,15 @@ As built:
 - Live driver locations and route status on the map (RF08, HU-09, HU-10).
 - Incidents and questions, with driver–supervisor chat (RF25, HU-11, HU-31).
 - Order and route reassignment (RF07, HU-10).
+
+As built:
+- Socket.IO runs on the same HTTP server as the API. Connections authenticate with the access token, and each socket joins a company room and a user room. The backend emits `route:status`, `route:location`, `route:stop-status`, `route:reassigned`, `route:stop-reassigned`, `incident:created`, `incident:updated` and `incident:message`.
+- Web route detail shows the driver marker with the latest location and updates it in real time. Supervisors and Company Administrators can reassign the whole route or a single stop to an active driver of the same company.
+- The mobile incidents tab lets a driver report an incident or question on an in-progress route, optionally attached to a stop, and chat with the office. Reassignment events refresh the driver's route.
+- `GET /api/v1/routes/:id/locations/latest` returns the last GPS sample for the initial map position.
+- Reassignment rules: the target driver must be active and not `unavailable`; an in-progress route cannot move to a driver who already has another route in progress; reassigning the whole route frees the previous driver; a reassigned stop moves to the target driver's active route for the same date, or to a new `created` route. Completed stops cannot be reassigned.
+- A driver can only read their own incidents. The office reply moves an `open` incident to `in_progress`, and a `resolved` incident rejects new messages.
+- The live map relies on `route_locations` samples sent every 5 seconds by the mobile app; no additional polling is used.
 
 ### Phase 6 — Reports, support and school transport
 
