@@ -35,7 +35,21 @@
         }
       ],
       "@maplibre/maplibre-react-native",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Permite a FastRouteCO registrar tu ubicación durante la ruta."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permite a FastRouteCO tomar fotos de evidencia de las entregas.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
