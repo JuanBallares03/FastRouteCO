@@ -393,6 +393,34 @@ export async function getRouteById(companyId: string, routeId: string) {
   return serializeRoute(route);
 }
 
+export async function getLatestRouteLocation(companyId: string, routeId: string) {
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, companyId },
+    select: { id: true },
+  });
+
+  if (!route) {
+    throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
+  }
+
+  const location = await prisma.routeLocation.findFirst({
+    where: { routeId: route.id },
+    orderBy: { capturedAt: 'desc' },
+    select: { latitude: true, longitude: true, capturedAt: true, isOffline: true },
+  });
+
+  if (!location) {
+    return null;
+  }
+
+  return {
+    latitude: Number(location.latitude),
+    longitude: Number(location.longitude),
+    capturedAt: location.capturedAt,
+    isOffline: location.isOffline,
+  };
+}
+
 async function findDriverRoute(companyId: string, driverId: string, routeId: string) {
   const route = await prisma.route.findFirst({
     where: { id: routeId, companyId, driverId },

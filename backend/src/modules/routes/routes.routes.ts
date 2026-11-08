@@ -7,6 +7,7 @@ import {
   finishDriverRouteHandler,
   getDriverRouteHandler,
   getDriverTodayRouteHandler,
+  getLatestRouteLocationHandler,
   getRouteHandler,
   listRoutesHandler,
   optimizeRouteHandler,
@@ -98,6 +99,12 @@ router.post(
   authorize('company_admin', 'supervisor'),
   validate(optimizeRouteSchema),
   optimizeRouteHandler
+);
+router.get(
+  '/:id/locations/latest',
+  authorize('company_admin', 'supervisor'),
+  validate(getRouteSchema),
+  getLatestRouteLocationHandler
 );
 router.patch(
   '/:id/driver',

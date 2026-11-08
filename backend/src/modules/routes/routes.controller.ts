@@ -9,6 +9,7 @@ import {
   finishDriverRoute,
   getDriverRoute,
   getDriverTodayRoute,
+  getLatestRouteLocation,
   getRouteById,
   listRoutes,
   optimizeRoute,
@@ -324,6 +325,23 @@ export async function createEvidenceSignatureHandler(
 
     const { id, stopId } = req.params as { id: string; stopId: string };
     res.json(await createEvidenceSignature(companyId, driverId, id, stopId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function getLatestRouteLocationHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await getLatestRouteLocation(companyId, id));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

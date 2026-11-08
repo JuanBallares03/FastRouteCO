@@ -853,6 +853,14 @@ describe('Driver route execution', () => {
 
     const count = await prisma.routeLocation.count({ where: { routeId: route.id } });
     expect(count).toBe(2);
+
+    const latest = await request(app)
+      .get(`/api/v1/routes/${route.id}/locations/latest`)
+      .set(authHeader(adminToken));
+
+    expect(latest.status).toBe(200);
+    expect(latest.body.latitude).toBeCloseTo(4.4391);
+    expect(latest.body.longitude).toBeCloseTo(-75.2324);
   });
 
   it('returns a signed Cloudinary upload payload for evidence', async () => {
