@@ -35,6 +35,7 @@ import {
   isQueueableError,
   routesApi,
 } from '@/services/routes-api';
+import { getRealtimeSocket } from '@/services/realtime';
 import { colors, radius, spacing, typography } from '@/theme';
 
 const routeStatusLabel: Record<RouteStatus, string> = {
@@ -174,6 +175,24 @@ export default function MyRouteScreen() {
       void saveCachedRoute(route);
     }
   }, [route]);
+
+  useEffect(() => {
+    const socket = getRealtimeSocket();
+    if (!socket) return;
+
+    const handleRouteUpdate = () => {
+      void refreshRoute().catch(() => undefined);
+      setNotice('La empresa actualizó tu ruta.');
+    };
+
+    socket.on('route:reassigned', handleRouteUpdate);
+    socket.on('route:stop-reassigned', handleRouteUpdate);
+
+    return () => {
+      socket.off('route:reassigned', handleRouteUpdate);
+      socket.off('route:stop-reassigned', handleRouteUpdate);
+    };
+  }, [refreshRoute]);
 
   function updateLocalStop(stopId: string, patch: Partial<RouteStop>) {
     setRoute((current) =>
