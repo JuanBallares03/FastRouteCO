@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import routeRoutes from '../routes.routes.js';
 import orderRoutes from '../../orders/orders.routes.js';
+import incidentRoutes from '../../incidents/incidents.routes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { hashPassword, createTokenPair } from '../../auth/auth.service.js';
 import {
@@ -28,6 +29,7 @@ const app = express();
 app.use(express.json());
 app.use('/api/v1/routes', routeRoutes);
 app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/incidents', incidentRoutes);
 
 const COMPANY_ID = crypto.randomUUID();
 const OTHER_COMPANY_ID = crypto.randomUUID();
@@ -59,6 +61,12 @@ async function cleanup() {
   });
   await prisma.subscription.deleteMany({
     where: { companyId: { in: companyIds } },
+  });
+  await prisma.incidentMessage.deleteMany({
+    where: { incident: { route: { companyId: { in: companyIds } } } },
+  });
+  await prisma.incident.deleteMany({
+    where: { route: { companyId: { in: companyIds } } },
   });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -212,6 +220,12 @@ beforeEach(async () => {
   await prisma.creditBalance.updateMany({
     where: { companyId: { in: companyIds } },
     data: { planCredits: 100, extraCredits: 0 },
+  });
+  await prisma.incidentMessage.deleteMany({
+    where: { incident: { route: { companyId: { in: companyIds } } } },
+  });
+  await prisma.incident.deleteMany({
+    where: { route: { companyId: { in: companyIds } } },
   });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -857,6 +871,165 @@ describe('Driver route execution', () => {
     expect(typeof res.body.signature).toBe('string');
     expect(res.body.folder).toContain(route.id);
     expect(res.body.folder).toContain(route.stops[0].id);
+  });
+});
+
+describe('Route reassignment', () => {
+  async function createDriverRoute(driverId: string, orderIds: string[]) {
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId, routeDate: todayInBogota(), orderIds });
+
+    expect(created.status).toBe(201);
+    return created.body as {
+      id: string;
+      driverId: string;
+      stops: Array<{ id: string }>;
+    };
+  }
+
+  it('reassigns a route to another available driver', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    const res = await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID });
+
+    expect(res.status).toBe(200);
+    expect(res.body.driverId).toBe(DRIVER_B_ID);
+
+    const previous = await prisma.driver.findUnique({ where: { userId: DRIVER_A_ID } });
+    expect(previous?.status).toBe(DriverStatus.available);
+  });
+
+  it('rejects reassignment to an unavailable driver', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    const res = await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: UNAVAILABLE_DRIVER_ID });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('DRIVER_NOT_AVAILABLE');
+  });
+
+  it('moves a single stop to the target driver route', async () => {
+    const orderA = await createOrder();
+    const orderB = await createOrder();
+    const orderC = await createOrder();
+    const routeA = await createDriverRoute(DRIVER_A_ID, [orderA.id, orderB.id]);
+    const routeB = await createDriverRoute(DRIVER_B_ID, [orderC.id]);
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${routeA.id}/stops/${routeA.stops[0].id}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(routeB.id);
+    expect(res.body.stops).toHaveLength(2);
+    expect(res.body.stops.some((stop: { id: string }) => stop.id === routeA.stops[0].id)).toBe(
+      true
+    );
+
+    const remaining = await prisma.routeStop.count({ where: { routeId: routeA.id } });
+    expect(remaining).toBe(1);
+  });
+});
+
+describe('Incidents', () => {
+  async function startedDriverRoute(driverId: string, token: string) {
+    const order = await createOrder();
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId, routeDate: todayInBogota(), orderIds: [order.id] });
+
+    expect(created.status).toBe(201);
+
+    const started = await request(app)
+      .post(`/api/v1/routes/driver/${created.body.id}/start`)
+      .set(authHeader(token))
+      .send({});
+
+    expect(started.status).toBe(200);
+    return started.body as { id: string; stops: Array<{ id: string }> };
+  }
+
+  it('lets a driver report an incident and chat with the office', async () => {
+    const route = await startedDriverRoute(DRIVER_A_ID, driverAToken);
+
+    const created = await request(app)
+      .post('/api/v1/incidents')
+      .set(authHeader(driverAToken))
+      .send({
+        routeId: route.id,
+        stopId: route.stops[0].id,
+        category: 'question',
+        description: '¿Dónde debo dejar el paquete?',
+      });
+
+    expect(created.status).toBe(201);
+    expect(created.body.status).toBe('open');
+    expect(created.body.category).toBe('question');
+    expect(created.body.route.id).toBe(route.id);
+
+    const list = await request(app)
+      .get(`/api/v1/incidents?routeId=${route.id}`)
+      .set(authHeader(adminToken));
+
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(1);
+
+    const reply = await request(app)
+      .post(`/api/v1/incidents/${created.body.id}/messages`)
+      .set(authHeader(adminToken))
+      .send({ message: 'Déjalo en portería.' });
+
+    expect(reply.status).toBe(201);
+    expect(reply.body.incident.status).toBe('in_progress');
+    expect(reply.body.message.senderId).toBe(ADMIN_ID);
+
+    const resolved = await request(app)
+      .patch(`/api/v1/incidents/${created.body.id}`)
+      .set(authHeader(adminToken))
+      .send({ status: 'resolved', resolutionNotes: 'Atendido por el administrador.' });
+
+    expect(resolved.status).toBe(200);
+    expect(resolved.body.status).toBe('resolved');
+    expect(resolved.body.resolvedAt).not.toBeNull();
+
+    const driverView = await request(app)
+      .get(`/api/v1/incidents/${created.body.id}`)
+      .set(authHeader(driverAToken));
+
+    expect(driverView.status).toBe(200);
+  });
+
+  it('does not expose an incident to another driver', async () => {
+    const route = await startedDriverRoute(DRIVER_A_ID, driverAToken);
+
+    const created = await request(app)
+      .post('/api/v1/incidents')
+      .set(authHeader(driverAToken))
+      .send({
+        routeId: route.id,
+        category: 'incident',
+        description: 'El vehículo presenta una falla.',
+      });
+
+    expect(created.status).toBe(201);
+
+    const res = await request(app)
+      .get(`/api/v1/incidents/${created.body.id}`)
+      .set(authHeader(driverBToken));
+
+    expect(res.status).toBe(403);
   });
 });
 

@@ -12,6 +12,8 @@ import {
   getRouteById,
   listRoutes,
   optimizeRoute,
+  reassignRoute,
+  reassignStop,
   recordRouteLocations,
   startDriverRoute,
   suggestDrivers,
@@ -21,6 +23,7 @@ import type {
   AssignOrderInput,
   CompleteStopInput,
   CreateRouteInput,
+  ReassignRouteInput,
   RouteLocationsInput,
   StartRouteInput,
 } from './validation.js';
@@ -321,6 +324,42 @@ export async function createEvidenceSignatureHandler(
 
     const { id, stopId } = req.params as { id: string; stopId: string };
     res.json(await createEvidenceSignature(companyId, driverId, id, stopId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function reassignRouteHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id } = req.params as { id: string };
+    const body = req.body as ReassignRouteInput;
+    res.json(await reassignRoute(companyId, id, body.driverId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function reassignStopHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id, stopId } = req.params as { id: string; stopId: string };
+    const body = req.body as ReassignRouteInput;
+    res.json(await reassignStop(companyId, id, stopId, body.driverId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

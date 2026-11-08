@@ -110,10 +110,31 @@ export const completeStopSchema = z.object({
   }),
 });
 
+export const reassignRouteSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'ID de ruta inválido' }),
+  }),
+  body: z.object({
+    driverId: z.string().uuid({ message: 'ID de conductor inválido' }),
+  }),
+});
+
+export const reassignStopSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'ID de ruta inválido' }),
+    stopId: z.string().uuid({ message: 'ID de parada inválido' }),
+  }),
+  body: z.object({
+    driverId: z.string().uuid({ message: 'ID de conductor inválido' }),
+  }),
+});
+
 export type StartRouteInput = z.infer<typeof startRouteSchema>['body'];
 export type RouteLocationsInput = z.infer<typeof routeLocationsSchema>['body'];
 export type ArriveAtStopInput = z.infer<typeof arriveAtStopSchema>['body'];
 export type CompleteStopInput = z.infer<typeof completeStopSchema>['body'];
+export type ReassignRouteInput = z.infer<typeof reassignRouteSchema>['body'];
+export type ReassignStopInput = z.infer<typeof reassignStopSchema>['body'];
 
 export const suggestDriversSchema = z.object({
   params: z.object({

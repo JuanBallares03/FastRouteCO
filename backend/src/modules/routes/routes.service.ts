@@ -17,6 +17,7 @@ import {
   totalPathDuration,
 } from '../../lib/optimization.js';
 import { getRoutingEngine } from '../../lib/routing.js';
+import { emitToCompany } from '../../lib/realtime.js';
 import type { Coordinates } from '../../lib/geocoding.js';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors.js';
 import { env } from '../../env.js';
@@ -495,7 +496,29 @@ export async function startDriverRoute(
     }),
   ]);
 
-  return getDriverRoute(companyId, driverId, route.id);
+  const updated = await getDriverRoute(companyId, driverId, route.id);
+  emitToCompany(companyId, 'route:status', {
+    routeId: route.id,
+    driverId,
+    status: updated.status,
+    route: updated,
+  });
+  emitToCompany(companyId, 'route:location', {
+    routeId: route.id,
+    driverId,
+    locations:
+      data.latitude !== undefined && data.longitude !== undefined
+        ? [
+            {
+              latitude: data.latitude,
+              longitude: data.longitude,
+              capturedAt: new Date().toISOString(),
+              isOffline: false,
+            },
+          ]
+        : [],
+  });
+  return updated;
 }
 
 export async function finishDriverRoute(companyId: string, driverId: string, routeId: string) {
@@ -528,7 +551,14 @@ export async function finishDriverRoute(companyId: string, driverId: string, rou
     }),
   ]);
 
-  return getDriverRoute(companyId, driverId, route.id);
+  const updated = await getDriverRoute(companyId, driverId, route.id);
+  emitToCompany(companyId, 'route:status', {
+    routeId: route.id,
+    driverId,
+    status: updated.status,
+    route: updated,
+  });
+  return updated;
 }
 
 function toDate(value: Date | string): Date {
@@ -580,6 +610,16 @@ export async function recordRouteLocations(
 
   if (pending.length > 0) {
     await prisma.routeLocation.createMany({ data: pending });
+    emitToCompany(companyId, 'route:location', {
+      routeId: route.id,
+      driverId,
+      locations: pending.map((location) => ({
+        latitude: location.latitude,
+        longitude: location.longitude,
+        capturedAt: location.capturedAt.toISOString(),
+        isOffline: location.isOffline,
+      })),
+    });
   }
 
   return { accepted: locations.length, inserted: pending.length };
@@ -667,7 +707,15 @@ export async function arriveAtStop(
     },
   });
 
-  return getDriverRoute(companyId, driverId, route.id);
+  const updated = await getDriverRoute(companyId, driverId, route.id);
+  emitToCompany(companyId, 'route:stop-status', {
+    routeId: route.id,
+    driverId,
+    stopId: stop.id,
+    status: StopStatus.arrived,
+    route: updated,
+  });
+  return updated;
 }
 
 export async function completeDriverStop(
@@ -727,7 +775,203 @@ export async function completeDriverStop(
     }
   });
 
-  return getDriverRoute(companyId, driverId, route.id);
+  const updated = await getDriverRoute(companyId, driverId, route.id);
+  emitToCompany(companyId, 'route:stop-status', {
+    routeId: route.id,
+    driverId,
+    stopId: stop.id,
+    status: StopStatus.completed,
+    route: updated,
+  });
+  return updated;
+}
+
+export async function reassignRoute(companyId: string, routeId: string, newDriverId: string) {
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, companyId },
+    include: { driver: true },
+  });
+
+  if (!route) {
+    throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
+  }
+
+  if (route.status === RouteStatus.completed || route.status === RouteStatus.cancelled) {
+    throw new ConflictError('La ruta ya no se puede reasignar', 'ROUTE_NOT_REASSIGNABLE');
+  }
+
+  if (route.driverId === newDriverId) {
+    return getRouteById(companyId, route.id);
+  }
+
+  const newDriver = await findDriver(companyId, newDriverId);
+  if (newDriver.driver?.status === DriverStatus.unavailable) {
+    throw new ConflictError('El conductor no está disponible', 'DRIVER_NOT_AVAILABLE');
+  }
+
+  if (route.status === RouteStatus.in_progress) {
+    const activeRoute = await prisma.route.findFirst({
+      where: {
+        companyId,
+        driverId: newDriverId,
+        status: RouteStatus.in_progress,
+        id: { not: route.id },
+      },
+      select: { id: true },
+    });
+
+    if (activeRoute) {
+      throw new ConflictError(
+        'El conductor ya tiene otra ruta en curso',
+        'DRIVER_HAS_ACTIVE_ROUTE'
+      );
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.route.update({
+      where: { id: route.id },
+      data: { driverId: newDriverId },
+    }),
+    prisma.driver.update({
+      where: { userId: route.driverId },
+      data: { status: DriverStatus.available },
+    }),
+    prisma.driver.update({
+      where: { userId: newDriverId },
+      data: {
+        status:
+          route.status === RouteStatus.in_progress
+            ? DriverStatus.on_route
+            : newDriver.driver?.status ?? DriverStatus.available,
+      },
+    }),
+  ]);
+
+  const updated = await getRouteById(companyId, route.id);
+  const payload = {
+    routeId: route.id,
+    previousDriverId: route.driverId,
+    driverId: newDriverId,
+    route: updated,
+  };
+  emitToCompany(companyId, 'route:reassigned', payload);
+  return updated;
+}
+
+export async function reassignStop(
+  companyId: string,
+  routeId: string,
+  stopId: string,
+  newDriverId: string
+) {
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, companyId },
+    include: { stops: true },
+  });
+
+  if (!route) {
+    throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
+  }
+
+  if (route.status === RouteStatus.completed || route.status === RouteStatus.cancelled) {
+    throw new ConflictError('La ruta ya no se puede reasignar', 'ROUTE_NOT_REASSIGNABLE');
+  }
+
+  const stop = route.stops.find((item) => item.id === stopId);
+  if (!stop) {
+    throw new NotFoundError('Parada no encontrada', 'STOP_NOT_FOUND');
+  }
+
+  if (stop.status === StopStatus.completed) {
+    throw new ConflictError('La parada ya fue completada', 'STOP_ALREADY_COMPLETED');
+  }
+
+  if (route.driverId === newDriverId) {
+    return getRouteById(companyId, route.id);
+  }
+
+  const newDriver = await findDriver(companyId, newDriverId);
+  if (newDriver.driver?.status === DriverStatus.unavailable) {
+    throw new ConflictError('El conductor no está disponible', 'DRIVER_NOT_AVAILABLE');
+  }
+
+  if (route.status === RouteStatus.in_progress) {
+    const activeRoute = await prisma.route.findFirst({
+      where: {
+        companyId,
+        driverId: newDriverId,
+        status: RouteStatus.in_progress,
+        id: { not: route.id },
+      },
+      select: { id: true },
+    });
+
+    if (activeRoute) {
+      throw new ConflictError(
+        'El conductor ya tiene otra ruta en curso',
+        'DRIVER_HAS_ACTIVE_ROUTE'
+      );
+    }
+  }
+
+  const targetRoute = await prisma.$transaction(async (tx) => {
+    let target = await tx.route.findFirst({
+      where: {
+        companyId,
+        driverId: newDriverId,
+        routeDate: route.routeDate,
+        status: {
+          in: [RouteStatus.created, RouteStatus.optimized, RouteStatus.in_progress],
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (!target) {
+      target = await tx.route.create({
+        data: {
+          companyId,
+          driverId: newDriverId,
+          routeDate: route.routeDate,
+          status: RouteStatus.created,
+        },
+      });
+    }
+
+    const sequence = await tx.routeStop.aggregate({
+      where: { routeId: target.id },
+      _max: { sequence: true },
+    });
+
+    await tx.routeStop.update({
+      where: { id: stop.id },
+      data: {
+        routeId: target.id,
+        sequence: (sequence._max.sequence ?? 0) + 1,
+      },
+    });
+
+    if (route.status === RouteStatus.in_progress) {
+      await tx.driver.update({
+        where: { userId: newDriverId },
+        data: { status: DriverStatus.on_route },
+      });
+    }
+
+    return target;
+  });
+
+  const updatedTarget = await getRouteById(companyId, targetRoute.id);
+  emitToCompany(companyId, 'route:stop-reassigned', {
+    routeId: route.id,
+    stopId: stop.id,
+    targetRouteId: targetRoute.id,
+    previousDriverId: route.driverId,
+    driverId: newDriverId,
+    route: updatedTarget,
+  });
+  return updatedTarget;
 }
 
 export async function createEvidenceSignature(

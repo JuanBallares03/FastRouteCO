@@ -10,6 +10,8 @@ import {
   getRouteHandler,
   listRoutesHandler,
   optimizeRouteHandler,
+  reassignRouteHandler,
+  reassignStopHandler,
   recordRouteLocationsHandler,
   startDriverRouteHandler,
 } from './routes.controller.js';
@@ -22,6 +24,8 @@ import {
   getRouteSchema,
   listRoutesSchema,
   optimizeRouteSchema,
+  reassignRouteSchema,
+  reassignStopSchema,
   routeLocationsSchema,
   startRouteSchema,
   stopParamsSchema,
@@ -94,6 +98,18 @@ router.post(
   authorize('company_admin', 'supervisor'),
   validate(optimizeRouteSchema),
   optimizeRouteHandler
+);
+router.patch(
+  '/:id/driver',
+  authorize('company_admin', 'supervisor'),
+  validate(reassignRouteSchema),
+  reassignRouteHandler
+);
+router.post(
+  '/:id/stops/:stopId/reassign',
+  authorize('company_admin', 'supervisor'),
+  validate(reassignStopSchema),
+  reassignStopHandler
 );
 router.get(
   '/:id',

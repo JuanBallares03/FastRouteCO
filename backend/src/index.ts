@@ -1,8 +1,10 @@
+import { createServer } from "node:http";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import 'dotenv/config';
 import { env } from "./env.js";
+import { initRealtime } from "./lib/realtime.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import platformRoutes from "./modules/companies/companies.routes.js";
 import offeringRoutes from "./modules/billing/offerings.routes.js";
@@ -11,6 +13,7 @@ import billingRoutes from "./modules/billing/billing.routes.js";
 import orderRoutes from "./modules/orders/orders.routes.js";
 import routeRoutes from "./modules/routes/routes.routes.js";
 import paymentRoutes from "./modules/billing/payments.routes.js";
+import incidentRoutes from "./modules/incidents/incidents.routes.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -32,7 +35,11 @@ app.use("/api/v1/company", billingRoutes);
 app.use("/api/v1/orders", orderRoutes);
 app.use("/api/v1/routes", routeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1/incidents", incidentRoutes);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Backend running on http://localhost:${PORT}`);
+const server = createServer(app);
+initRealtime(server);
+
+server.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`);
 });
