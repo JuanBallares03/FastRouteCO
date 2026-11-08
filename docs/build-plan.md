@@ -133,7 +133,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 3 is implemented. Next: Phase 4.
+Progress: Phase 4 is implemented. Next: Phase 5.
 
 ### Progress log
 
@@ -155,6 +155,9 @@ Progress: Phase 3 is implemented. Next: Phase 4.
 | 2026-11-05 | Fix | Monthly pay-per-use spending limit aggregates early and open charges | `f564a34` |
 | 2026-11-05 | Fix | Plan seed limits and provisional prices aligned with the README | `c4eb557` |
 | 2026-11-05 | Test | Subscription plans use credits only and never pay-per-use rates | `87ed71d` |
+| 2026-11-06 | Phase 4 | Driver route execution endpoints, GPS trail, geofence arrival, evidence signature and stop completion (RF09, RF10, RF13, RF14, RF16, RF24) | `2f900e4` |
+| 2026-11-06 | Phase 4 | Driver mobile app: today's route, start and finish, GPS every 5 seconds, geofence, photo evidence and offline queue (RF09, RF10, RF13, RF14, RF16, RF17, RF24) | `6cb03e6` |
+| 2026-11-06 | Fix | Demo seed script loads the backend environment variables | `8fe8112` |
 
 Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
 - `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
@@ -246,6 +249,14 @@ Endpoints:
 - Delivery or pickup confirmation with at least one photo uploaded to Cloudinary (RF10, RF16, HU-15).
 - Offline mode with automatic synchronization (RF17, RNF07, HU-36).
 - Simple interface for non-technical users (RNF10).
+
+As built:
+- Driver endpoints under `/api/v1/routes/driver/*`: today's route, route detail, start, finish, location batches, geofence or manual arrival, signed Cloudinary evidence and stop completion with at least one photo (backend rejects fewer).
+- The driver can only operate their own route, only one route can be in progress at a time, and starting a route requires an active subscription or trial.
+- The geofence radius is 100 m on both backend and mobile. Outside that radius the driver can still mark the arrival manually.
+- The mobile app requests foreground location permission, sends a GPS sample every 5 seconds and keeps the full trail in `route_locations`.
+- When the API is unreachable, start, finish, arrival, completion and location actions are stored in an on-device queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
+- The last route is cached locally so the driver can still see it offline.
 
 ### Phase 5 — Real-time tracking, incidents and reassignment
 
