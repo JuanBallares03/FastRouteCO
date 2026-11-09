@@ -1,174 +1,152 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { Card, CardContent } from '@/components/ui/Card';
+import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { reportApi } from '@/services/api';
+import { formatDistance, formatDuration } from '@/lib/order-utils';
+import type { CompanyDashboard } from '@/lib/report-utils';
 
 export function SupervisorDashboardPage() {
   const { user } = useAuth();
+  const [dashboard, setDashboard] = useState<CompanyDashboard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    reportApi
+      .getDashboard()
+      .then((response) => setDashboard(response.data as CompanyDashboard))
+      .catch(() => setError('No se pudo cargar el panel de supervisión.'));
+  }, []);
+
+  if (error) {
+    return <p className="font-body-md text-body-md text-error">{error}</p>;
+  }
+
+  if (!dashboard) {
+    return (
+      <p className="font-body-md text-body-md text-on-surface-variant">
+        Cargando panel de supervisión...
+      </p>
+    );
+  }
+
+  const monthly = dashboard.month.metrics;
 
   return (
     <div className="space-y-6 animate-in">
       <header>
-        <h1 className="font-headline-lg text-headline-lg text-on-surface">Bienvenido, {user?.full_name || 'Supervisor'}</h1>
+        <h1 className="font-headline-lg text-headline-lg text-on-surface">
+          Bienvenido, {user?.full_name || 'Supervisor'}
+        </h1>
         <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-          Supervisión logística para <span className="font-semibold text-on-surface">{user?.company_name || 'tu empresa'}</span>
+          Supervisión logística para{' '}
+          <span className="font-semibold text-on-surface">{user?.company_name || 'tu empresa'}</span>
         </p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-label-md text-label-md text-on-surface-variant">Conductores en turno</span>
-                <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">0</h2>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-tertiary-container text-on-tertiary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[28px]">directions_bike</span>
-              </div>
-            </div>
-            <div className="mt-4 font-body-sm text-body-sm text-on-surface-variant">
-              0 de 10 disponibles
-            </div>
+            <span className="font-label-md text-label-md text-on-surface-variant">
+              Conductores disponibles
+            </span>
+            <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">
+              {dashboard.drivers.available} / {dashboard.drivers.total}
+            </h2>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-label-md text-label-md text-on-surface-variant">Rutas activas hoy</span>
-                <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">0</h2>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-primary-container text-on-primary flex items-center justify-center">
-                <span className="material-symbols-outlined text-[28px]">route</span>
-              </div>
-            </div>
-            <div className="mt-4 font-body-sm text-body-sm text-on-surface-variant">
-              0 completadas, 0 en progreso
-            </div>
+            <span className="font-label-md text-label-md text-on-surface-variant">
+              Rutas activas hoy
+            </span>
+            <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">
+              {dashboard.today.active}
+            </h2>
+            <p className="mt-4 font-body-sm text-body-sm text-on-surface-variant">
+              {dashboard.today.completed} completadas de {dashboard.today.routes}
+            </p>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-label-md text-label-md text-on-surface-variant">Pedidos pendientes</span>
-                <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">0</h2>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-secondary-container text-on-secondary-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-[28px]">pending_actions</span>
-              </div>
-            </div>
-            <div className="mt-4 font-body-sm text-body-sm text-on-surface-variant">
-              0 urgentes, 0 normales
-            </div>
+            <span className="font-label-md text-label-md text-on-surface-variant">
+              Pedidos pendientes
+            </span>
+            <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">
+              {dashboard.orders.pending}
+            </h2>
+            <p className="mt-4 font-body-sm text-body-sm text-on-surface-variant">
+              {dashboard.orders.urgentPending} urgentes
+            </p>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="font-label-md text-label-md text-on-surface-variant">Incidencias abiertas</span>
-                <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">0</h2>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-error-container text-on-error-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-[28px]">report_problem</span>
-              </div>
-            </div>
-            <div className="mt-4 font-body-sm text-body-sm text-on-surface-variant">
-              Sin incidencias reportadas
-            </div>
+            <span className="font-label-md text-label-md text-on-surface-variant">
+              Incidencias abiertas
+            </span>
+            <h2 className="font-headline-lg text-headline-lg text-on-surface mt-1">
+              {dashboard.incidents.open}
+            </h2>
+            {dashboard.incidents.open === 0 ? (
+              <Badge variant="success" className="mt-4">Sin incidencias</Badge>
+            ) : (
+              <Badge variant="error" className="mt-4">Requieren atención</Badge>
+            )}
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
-          <CardContent className="p-6">
-            <h3 className="font-headline-sm text-headline-sm text-on-surface mb-4">Acciones rápidas</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <a href="/supervisor/drivers" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
-                <span className="material-symbols-outlined text-[28px] text-tertiary block mb-2">person_add</span>
-                <span className="font-label-md text-label-md text-on-surface">Conductores</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Gestionar</span>
-              </a>
-              <a href="/supervisor/orders" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
-                <span className="material-symbols-outlined text-[28px] text-primary block mb-2">add_circle</span>
-                <span className="font-label-md text-label-md text-on-surface">Crear pedido</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Pedidos</span>
-              </a>
-              <a href="/supervisor/routes" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
-                <span className="material-symbols-outlined text-[28px] text-secondary block mb-2">route</span>
-                <span className="font-label-md text-label-md text-on-surface">Crear ruta</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Rutas</span>
-              </a>
-              <a href="/supervisor/live-map" className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center">
-                <span className="material-symbols-outlined text-[28px] text-primary block mb-2">map</span>
-                <span className="font-label-md text-label-md text-on-surface">Ver mapa</span>
-                <span className="font-label-sm text-label-sm text-on-surface-variant block mt-1">Disponible pronto</span>
-              </a>
-            </div>
+          <CardHeader>
+            <h2 className="font-headline-sm text-headline-sm text-on-surface">Acciones rápidas</h2>
+          </CardHeader>
+          <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { to: '/supervisor/drivers', icon: 'person_add', label: 'Conductores' },
+              { to: '/supervisor/orders', icon: 'add_circle', label: 'Crear pedido' },
+              { to: '/supervisor/routes', icon: 'route', label: 'Crear ruta' },
+              { to: '/supervisor/reports', icon: 'analytics', label: 'Reportes' },
+            ].map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="p-4 rounded-xl bg-surface-container-low hover:bg-surface-container transition-colors text-center"
+              >
+                <span className="material-symbols-outlined text-[28px] text-primary block mb-2">
+                  {item.icon}
+                </span>
+                <span className="font-label-md text-label-md text-on-surface">{item.label}</span>
+              </Link>
+            ))}
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <h3 className="font-headline-sm text-headline-sm text-on-surface mb-4">Estado de la flota</h3>
-            <div className="space-y-3">
-              <div className="p-3 rounded-lg bg-surface-container-low flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full bg-tertiary-container" />
-                  <span className="font-label-md text-label-md text-on-surface">Flota operativa</span>
-                </div>
-                <Badge variant="success">Normal</Badge>
+          <CardHeader>
+            <h2 className="font-headline-sm text-headline-sm text-on-surface">Resumen del mes</h2>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              { label: 'Rutas realizadas', value: monthly.routesTotal },
+              { label: 'Cumplimiento de paradas', value: `${monthly.completionRate}%` },
+              { label: 'Distancia real', value: formatDistance(monthly.actualDistanceM) },
+              { label: 'Duración promedio por ruta', value: formatDuration(monthly.averageRouteDurationS) },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low"
+              >
+                <span className="font-label-md text-label-md text-on-surface">{item.label}</span>
+                <span className="font-headline-md text-headline-md text-on-surface">{item.value}</span>
               </div>
-              <div className="p-3 rounded-lg bg-surface-container-low flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full bg-secondary-container" />
-                  <span className="font-label-md text-label-md text-on-surface">Cobertura GPS</span>
-                </div>
-                <Badge variant="warning">Sin datos</Badge>
-              </div>
-              <div className="p-3 rounded-lg bg-surface-container-low flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full bg-error-container" />
-                  <span className="font-label-md text-label-md text-on-surface">Alertas de mantenimiento</span>
-                </div>
-                <Badge variant="error">0 alertas</Badge>
-              </div>
-              <div className="p-3 rounded-lg bg-surface-container-low flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 rounded-full bg-primary-container" />
-                  <span className="font-label-md text-label-md text-on-surface">Capacidad disponible</span>
-                </div>
-                <span className="font-headline-md text-headline-md text-primary">100%</span>
-              </div>
-            </div>
+            ))}
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardContent className="p-6">
-          <h3 className="font-headline-sm text-headline-sm text-on-surface mb-4">Resumen operativo del día</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-surface-container-low text-center">
-              <span className="font-display-lg text-display-lg text-primary tracking-tight font-bold block">0</span>
-              <span className="font-label-md text-label-md text-on-surface-variant">Entregas completadas</span>
-            </div>
-            <div className="p-4 rounded-xl bg-surface-container-low text-center">
-              <span className="font-display-lg text-display-lg text-secondary tracking-tight font-bold block">0 km</span>
-              <span className="font-label-md text-label-md text-on-surface-variant">Kilómetros recorridos</span>
-            </div>
-            <div className="p-4 rounded-xl bg-surface-container-low text-center">
-              <span className="font-display-lg text-display-lg text-tertiary tracking-tight font-bold block">0 min</span>
-              <span className="font-label-md text-label-md text-on-surface-variant">Tiempo promedio por entrega</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

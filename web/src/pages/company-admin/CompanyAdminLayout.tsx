@@ -10,9 +10,10 @@ const COMPANY_ADMIN_NAV = [
   { label: 'Conductores', path: '/company/drivers', icon: 'directions_car' },
   { label: 'Pedidos', path: '/company/orders', icon: 'inventory' },
   { label: 'Rutas', path: '/company/routes', icon: 'route' },
-  { label: 'Reportes', path: '/company/reports', icon: 'analytics', comingSoon: true },
+  { label: 'Estudiantes', path: '/company/students', icon: 'school' },
+  { label: 'Reportes', path: '/company/reports', icon: 'analytics' },
+  { label: 'Soporte técnico', path: '/company/support', icon: 'support_agent' },
   { label: 'Suscripción y créditos', path: '/company/billing', icon: 'workspace_premium' },
-  { label: 'Configuración', path: '/company/settings', icon: 'settings', comingSoon: true },
 ];
 
 export function CompanyAdminLayout() {

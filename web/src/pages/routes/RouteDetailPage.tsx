@@ -30,11 +30,20 @@ interface RouteOrder {
   longitude: number | null;
 }
 
+interface RouteStudent {
+  id: string;
+  fullName: string;
+  pickupAddress: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 interface RouteStop {
   id: string;
   sequence: number;
   status: string;
   order?: RouteOrder | null;
+  student?: RouteStudent | null;
 }
 
 interface RouteDetail {
@@ -362,15 +371,19 @@ export function RouteDetailPage() {
 
   const mapStops = useMemo<RouteMapStop[]>(
     () =>
-      (route?.stops ?? [])
-        .filter((stop) => Boolean(stop.order))
-        .map((stop) => ({
+      (route?.stops ?? []).map((stop) => {
+        const source = stop.order ?? stop.student;
+        return {
           id: stop.id,
           sequence: stop.sequence,
-          latitude: stop.order?.latitude ?? null,
-          longitude: stop.order?.longitude ?? null,
-          label: stop.order?.address ?? `Parada ${stop.sequence}`,
-        })),
+          latitude: source?.latitude ?? null,
+          longitude: source?.longitude ?? null,
+          label:
+            stop.order?.address ??
+            stop.student?.pickupAddress ??
+            `Parada ${stop.sequence}`,
+        };
+      }),
     [route]
   );
 
@@ -516,19 +529,26 @@ export function RouteDetailPage() {
                   </span>
                   <div className="flex-1">
                     <span className="font-label-lg text-label-lg block">
-                      {stop.order?.address ?? `Parada ${stop.sequence}`}
+                      {stop.order?.address ??
+                        stop.student?.pickupAddress ??
+                        `Parada ${stop.sequence}`}
                     </span>
                     <span className="font-label-sm text-label-sm text-on-surface-variant">
-                      {stop.order?.customerName || 'Sin nombre'} · {stop.order?.customerPhone || 'Sin teléfono'}
+                      {stop.order
+                        ? `${stop.order.customerName || 'Sin nombre'} · ${stop.order.customerPhone || 'Sin teléfono'}`
+                        : stop.student
+                          ? `Estudiante: ${stop.student.fullName}`
+                          : 'Parada sin destino'}
                     </span>
                     <div className="flex flex-wrap items-center gap-2 mt-2">
                       <Badge variant="neutral">{STOP_STATUS_LABELS[stop.status] ?? stop.status}</Badge>
+                      {stop.student && <Badge variant="info">Transporte escolar</Badge>}
                       {stop.order && (
                         <Badge variant={stop.order.priority === 'urgent' ? 'error' : orderStatusVariant('pending')}>
                           {ORDER_PRIORITY_LABELS[stop.order.priority] ?? stop.order.priority}
                         </Badge>
                       )}
-                      {stop.order?.latitude === null && (
+                      {(stop.order ?? stop.student)?.latitude === null && (
                         <span className="font-label-sm text-label-sm text-error">Sin coordenadas</span>
                       )}
                     </div>

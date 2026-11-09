@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { Toast } from '@/components/ui/Modal';
-import { companyApi, orderApi, routeApi } from '@/services/api';
+import { companyApi, orderApi, routeApi, studentApi } from '@/services/api';
 import { getApiErrorMessage } from '@/lib/company-validation';
 import {
   ORDER_PRIORITY_LABELS,
@@ -54,6 +54,14 @@ interface PendingOrder {
   priority: string;
 }
 
+interface Student {
+  id: string;
+  fullName: string;
+  pickupAddress: string;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 interface Driver {
   id: string;
   fullName: string;
@@ -65,6 +73,9 @@ export function RoutesPage() {
   const basePath = location.pathname.replace(/\/$/, '');
   const [routes, setRoutes] = useState<Route[]>([]);
   const [pendingOrders, setPendingOrders] = useState<PendingOrder[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [schoolEnabled, setSchoolEnabled] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [date, setDate] = useState(todayInBogota());
   const [loading, setLoading] = useState(true);
@@ -107,6 +118,21 @@ export function RoutesPage() {
     } catch {
       setToast({ show: true, message: 'Error al cargar pedidos y conductores', variant: 'error' });
     }
+
+    try {
+      const entitlement = await studentApi.getEntitlement();
+      const enabled = Boolean(entitlement.data?.enabled);
+      setSchoolEnabled(enabled);
+      if (enabled) {
+        const studentsResponse = await studentApi.list({ active: 'true' });
+        setStudents(studentsResponse.data as Student[]);
+      } else {
+        setStudents([]);
+      }
+    } catch {
+      setSchoolEnabled(false);
+      setStudents([]);
+    }
   }, []);
 
   const toggleForm = () => {
@@ -114,6 +140,7 @@ export function RoutesPage() {
     if (!showForm) {
       setForm({ driverId: '', routeDate: todayInBogota() });
       setSelectedOrderIds([]);
+      setSelectedStudentIds([]);
       loadFormData();
     }
   };
@@ -124,14 +151,24 @@ export function RoutesPage() {
     );
   };
 
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
+    );
+  };
+
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.driverId) {
       setToast({ show: true, message: 'Selecciona un conductor', variant: 'error' });
       return;
     }
-    if (selectedOrderIds.length === 0) {
-      setToast({ show: true, message: 'Selecciona al menos un pedido', variant: 'error' });
+    if (selectedOrderIds.length + selectedStudentIds.length === 0) {
+      setToast({
+        show: true,
+        message: 'Selecciona al menos un pedido o estudiante',
+        variant: 'error',
+      });
       return;
     }
 
@@ -141,6 +178,7 @@ export function RoutesPage() {
         driverId: form.driverId,
         routeDate: form.routeDate,
         orderIds: selectedOrderIds,
+        studentIds: selectedStudentIds,
       });
       if (response.data?.driverAvailable === false) {
         setToast({ show: true, message: 'Ruta creada, pero el conductor no está disponible', variant: 'success' });
@@ -149,6 +187,7 @@ export function RoutesPage() {
       }
       setShowForm(false);
       setSelectedOrderIds([]);
+      setSelectedStudentIds([]);
       await fetchRoutes();
     } catch (error) {
       setToast({ show: true, message: getApiErrorMessage(error, 'Error al crear la ruta'), variant: 'error' });
@@ -239,6 +278,53 @@ export function RoutesPage() {
                   </div>
                 )}
               </div>
+
+              {schoolEnabled && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-label-md text-label-md text-on-surface-variant">
+                      Estudiantes de transporte escolar
+                    </span>
+                    <span className="font-label-sm text-label-sm text-on-surface-variant">
+                      {selectedStudentIds.length} seleccionados
+                    </span>
+                  </div>
+                  {students.length === 0 ? (
+                    <p className="p-4 rounded-lg bg-surface-container-low font-body-md text-body-md text-on-surface-variant">
+                      No hay estudiantes activos para asignar.
+                    </p>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto rounded-lg border border-outline/50 divide-y divide-surface-container">
+                      {students.map((student) => (
+                        <label
+                          key={student.id}
+                          className="flex items-center justify-between gap-4 p-3 cursor-pointer hover:bg-surface-container-low"
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              className="accent-primary"
+                              checked={selectedStudentIds.includes(student.id)}
+                              onChange={() => toggleStudent(student.id)}
+                            />
+                            <div>
+                              <span className="font-label-lg text-label-lg block">
+                                {student.fullName}
+                              </span>
+                              <span className="font-label-sm text-label-sm text-on-surface-variant">
+                                {student.pickupAddress}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge variant={student.latitude === null ? 'error' : 'neutral'}>
+                            {student.latitude === null ? 'Sin coordenadas' : 'Geolocalizado'}
+                          </Badge>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>Cancelar</Button>

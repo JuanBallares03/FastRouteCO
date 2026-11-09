@@ -264,8 +264,12 @@ export const routeApi = {
 
   getLatestLocation: (id: string) => api.get(`/routes/${id}/locations/latest`),
 
-  createRoute: (data: { driverId: string; routeDate: string; orderIds: string[] }) =>
-    api.post('/routes', data),
+  createRoute: (data: {
+    driverId: string;
+    routeDate: string;
+    orderIds: string[];
+    studentIds?: string[];
+  }) => api.post('/routes', data),
 
   optimizeRoute: (id: string) => api.post(`/routes/${id}/optimize`),
 
@@ -340,6 +344,49 @@ export const billingApi = {
   createCardSetup: () => api.post('/company/billing/pay-per-use/setup'),
   updateSpendingLimit: (limit: number | null) =>
     api.patch('/company/billing/spending-limit', { limit }),
+};
+
+export const reportApi = {
+  getDashboard: () => api.get('/company/reports/dashboard'),
+  getSummary: (params?: { from?: string; to?: string; branchId?: string }) =>
+    api.get('/company/reports/summary', { params }),
+  getRoutes: (params?: { from?: string; to?: string; branchId?: string }) =>
+    api.get('/company/reports/routes', { params }),
+};
+
+export const supportApi = {
+  listCompany: (params?: { status?: string; page?: number; pageSize?: number }) =>
+    api.get('/company/support', { params }),
+  create: (data: { subject: string; description: string }) =>
+    api.post('/company/support', data),
+  listPlatform: (params?: { status?: string; page?: number; pageSize?: number }) =>
+    api.get('/platform/support', { params }),
+  respond: (id: string, response: string) =>
+    api.post(`/platform/support/${id}/respond`, { response }),
+  close: (id: string) => api.post(`/platform/support/${id}/close`),
+};
+
+export const monitoringApi = {
+  getOverview: () => api.get('/platform/monitoring'),
+  listAlerts: (params?: { resolved?: string; page?: number; pageSize?: number }) =>
+    api.get('/platform/alerts', { params }),
+  resolveAlert: (id: string) => api.post(`/platform/alerts/${id}/resolve`),
+};
+
+export const settingsApi = {
+  list: () => api.get('/platform/settings'),
+  update: (data: Record<string, number>) => api.patch('/platform/settings', data),
+};
+
+export const studentApi = {
+  getEntitlement: () => api.get('/company/students/entitlement'),
+  list: (params?: { active?: string }) => api.get('/company/students', { params }),
+  create: (data: { fullName: string; pickupAddress: string }) =>
+    api.post('/company/students', data),
+  update: (id: string, data: { fullName?: string; pickupAddress?: string }) =>
+    api.patch(`/company/students/${id}`, data),
+  updateStatus: (id: string, isActive: boolean) =>
+    api.patch(`/company/students/${id}/status`, { isActive }),
 };
 
 export { clearTokens, getAccessToken, getRefreshToken };
