@@ -180,10 +180,10 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 - The school module price remains 499,000 COP. Whether it is charged once or per period remains `[TO BE DEFINED]`; the current purchase logic is unchanged.
 - `seedPlans` keeps `update: {}` on purpose so running the seed does not overwrite values edited by the Platform Administrator. Existing databases keep their old values until an explicit data correction is run.
 
-### Pending before Phase 7
+### Pre-Phase 7 prerequisites
 
 - Done: the one-time school transport `plan_modules` cleanup was applied and verified on 2026-11-09; `plan_modules` only holds the Free Trial and Premium associations, and `seedPlanModules()` keeps creating only missing associations without deleting.
-- Move the Socket.IO adapter to Redis so multiple backend instances share rooms and events.
+- Done: Socket.IO uses the Redis adapter (`@socket.io/redis-adapter`, key prefix `fastrouteco:socket.io`), so rooms and events are shared across backend instances (RF08, RF25, RNF02).
 
 ### Phase 7 — Deployment
 

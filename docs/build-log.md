@@ -29,6 +29,7 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-07 | Phase 5 | Latest driver location endpoint for the live map | `c085c59` |
 | 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
 | 2026-11-09 | Fix | Verified school transport `plan_modules` cleanup: only Free Trial and Premium remain | `d176b38` |
+| 2026-11-09 | Realtime | Socket.IO Redis adapter shared across backend instances (RF08, RF25, RNF02) | `e231ef4` |
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 | 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
 | 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
@@ -117,7 +118,7 @@ As built:
 - Reassignment rules: the target driver must be active and not `unavailable`; an in-progress route cannot move to a driver who already has another route in progress; reassigning the whole route frees the previous driver; a reassigned stop moves to the target driver's active route for the same date, or to a new `created` route. Completed stops cannot be reassigned.
 - A driver can only read their own incidents. The office reply moves an `open` incident to `in_progress`, and a `resolved` incident rejects new messages.
 - The live map relies on `route_locations` samples sent every 5 seconds by the mobile app; no additional polling is used.
-- Known deviation: live location and chat currently use the Socket.IO default in-memory adapter. Redis is provisioned in Docker Compose but is not required at runtime yet. The adapter must move to Redis before Phase 7 (deployment) so multiple backend instances share rooms and events.
+- Live location and chat use the Socket.IO Redis adapter (`@socket.io/redis-adapter`) with the `fastrouteco:socket.io` key prefix, so rooms and events are shared across backend instances. This closed the earlier in-memory adapter deviation before Phase 7 (deployment).
 
 ## Phase 6 — Reports, support and school transport
 
