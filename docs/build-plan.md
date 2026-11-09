@@ -75,17 +75,14 @@ FastRouteCO/
 ## Development tools
 
 - Editor: VS Code with OpenCode as the coding assistant.
-- MCP servers (configured in `opencode.json`):
-  - Context7: check up-to-date documentation before using any library API.
-  - CodeGraphContext: index the code and query it before large refactors.
-  - Chrome DevTools: test and debug the web panel in the browser.
-  - Mermaid and draw.io: create or update diagrams when a phase changes the architecture.
-  - Composio: connect to external apps when a task needs it.
+- MCP servers (`opencode.json`): only Context7 is enabled, for up-to-date library documentation. draw.io, Mermaid, Chrome DevTools, CodeGraphContext and Composio remain configured but disabled to save tokens.
 - Version control: Git and GitHub.
 
 ## Plan
 
 Each phase is a vertical slice: backend first, then the web and mobile screens that use it. At the end of each phase, list what was built with its HU, RF and RNF IDs, what is pending, and how to test it.
+
+Phases 1–6 are complete. Their as-built detail and progress history live in `docs/build-log.md`; this plan keeps standing decisions and pending work.
 
 ### Phase 0 — Setup (decisions already taken)
 
@@ -134,51 +131,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 5 is implemented and its offline storage decision is applied. Next: Phase 6.
-
-### Progress log
-
-| Date | Step | Result | Commit |
-|---|---|---|---|
-| 2026-11-05 | Phase 1, step 3 | Company Administrator backend: company data, branches, supervisors and drivers with plan limits and multi-company isolation | `c51ec39` |
-| 2026-11-05 | Phase 1, steps 4-5 | Web design system and login/set-password screens verified (already present) | — |
-| 2026-11-05 | Phase 1, steps 6-11 | Web screens: companies and company detail (already present), my company, branches, supervisors and drivers | `b04492b` |
-| 2026-11-05 | Phase 2 | Orders registration, geocoding and management (HU-28) | `85fa47c` |
-| 2026-11-05 | Phase 2 | Driver suggestions, order assignment and route creation (HU-29, HU-06) | `7d9477a` |
-| 2026-11-05 | Phase 2 | Route paths with Neo4j Dijkstra and approximate fallback (RF15) | `2cc147d` |
-| 2026-11-05 | Phase 2 | Local Nominatim and road-network import tooling | `8008fa4` |
-| 2026-11-05 | Phase 2 | Web screens: orders, routes and route detail with map (HU-28, HU-29, HU-06, HU-08) | `4b6cdb8` |
-| 2026-11-05 | Phase 2 | Route optimization with nearest neighbor and 2-opt, metrics in `route_optimizations` (RF06, RNF01, HU-07, HU-08) | `b35f495` |
-| 2026-11-05 | Phase 2 | Optimize action in the route detail screen | `15a824c` |
-| 2026-11-05 | Fix | Free trial renewal stored as a Bogotá business date | `28cb501` |
-| 2026-11-05 | Phase 3 | Plans, credit balances, consumption, Wompi checkout and webhook, card registration and pay-per-use (RF18-RF22, RF28-RF31, HU-16 to HU-18, HU-22, HU-33, HU-37 to HU-39) | `a7f0e91` |
-| 2026-11-05 | Phase 3 | Platform plans/modules/packages screen and company subscription/credits/history screen | `be3ddef` |
-| 2026-11-05 | Fix | Monthly pay-per-use spending limit aggregates early and open charges | `f564a34` |
-| 2026-11-05 | Fix | Plan seed limits and provisional prices aligned with the README | `c4eb557` |
-| 2026-11-05 | Test | Subscription plans use credits only and never pay-per-use rates | `87ed71d` |
-| 2026-11-06 | Phase 4 | Driver route execution endpoints, GPS trail, geofence arrival, evidence signature and stop completion (RF09, RF10, RF13, RF14, RF16, RF24) | `2f900e4` |
-| 2026-11-06 | Phase 4 | Driver mobile app: today's route, start and finish, GPS every 5 seconds, geofence, photo evidence and offline queue (RF09, RF10, RF13, RF14, RF16, RF17, RF24) | `6cb03e6` |
-| 2026-11-06 | Fix | Demo seed script loads the backend environment variables | `8fe8112` |
-| 2026-11-07 | Phase 5 | Socket.IO server, realtime route events, incident chat endpoints and route/stop reassignment (RF07, RF08, RF25, HU-09 to HU-11, HU-31) | `ae28612` |
-| 2026-11-07 | Phase 5 | Latest driver location endpoint for the live map | `c085c59` |
-| 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
-| 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
-| 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
-| 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
-
-Step 2 scope, as built (`/api/v1/platform/*`, Platform Administrator only):
-- `POST /companies` registers only the company (HU-01) with its Free Trial subscription (status active, no billing cycle or payment, renewal date = today + 7 days in Colombia) and credit balance, and sends the confirmation email to the company email. It rejects companies without their own fleet (HU-01 R01) and duplicated NIT. It does not create the Company Administrator.
-- `GET /companies` with filters (company status, subscription status, plan, search by legal name or NIT) and pagination (HU-20 CA01); `GET /companies/:id` with details, plan, subscription and administrators.
-- `PATCH /companies/:id/status` activates or deactivates; deactivating blocks login (HU-20 CA03), revokes refresh tokens and keeps the data (HU-20 CA04).
-- `GET` and `POST /companies/:id/admins` (HU-21, sends the invitation) and `PATCH /companies/:id/admins/:adminId/status`.
-- Not included on purpose: deleting companies, editing company data (Company Administrator, HU-24) and editing administrators.
-- Login errors: unknown email or wrong password return 401 with a generic message; correct credentials with an inactive user or company return 403 with the reason.
-
-- Login and role-based access for the four roles; the Company Administrator can also do everything the Logistics Supervisor does (RNF04, HU-04, CU-01).
-- Multi-company data isolation: each company only accesses its own data (RNF09).
-- Company registration with automatic 7-day Free Trial (RF02, RF19, HU-01, CU-02, CU-03).
-- Company management, Company Administrators, supervisors, branches and drivers (RF02, RF03, RF23, HU-20, HU-21, HU-24 to HU-27).
-- Transactional emails with Resend (RF27).
+Progress: Phase 6 is implemented and verified locally; its code commit is pending. Next: commit Phase 6 and plan Phase 7.
 
 ### Phase 2 — Orders, routes and routing engine
 
@@ -193,13 +146,6 @@ Decisions taken:
 | Routing engine | Neo4j with APOC Dijkstra over the imported Ibagué road network. If Neo4j is unavailable or no path exists, the backend falls back to an approximate straight-line distance (RNF08). |
 | Road network import | A backend script downloads the Ibagué bounding box from the Overpass API and loads the drivable ways into Neo4j; runtime routing never calls external services. |
 | Optimization algorithm | Deterministic nearest-neighbor construction followed by 2-opt improvement. The matrix is built from each point to all the others with one Neo4j Dijkstra call per source, so it is asymmetric (one-way streets); 2-opt recalculates the full cost of the reversed segment. The path starts at the driver start point and ends at the last stop, without returning to the start. Processing time (matrix plus algorithm) is measured against RNF01 and stored with total distance and estimated duration in `route_optimizations`. Urgent priority and the maximum number of orders per route remain `[TO BE DEFINED]`. |
-
-- Order registration with OpenStreetMap geocoding (RF04, RF15, HU-28).
-- Driver suggestion and order assignment (RF05, HU-29).
-- Route creation per driver and day (RF01, HU-06).
-- Load the Ibagué road network from OpenStreetMap into Neo4j and calculate paths with Dijkstra (RF15).
-- Route optimization from the driver's starting point, within 10 seconds (RF06, RNF01, HU-07, HU-08), with nearest neighbor plus 2-opt and metrics stored in `route_optimizations`.
-- Keep working with the last available data when the map service is down (RNF08).
 
 ### Phase 3 — Plans, credits and payments
 
@@ -234,58 +180,11 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 - The school module price remains 499,000 COP. Whether it is charged once or per period remains `[TO BE DEFINED]`; the current purchase logic is unchanged.
 - `seedPlans` keeps `update: {}` on purpose so running the seed does not overwrite values edited by the Platform Administrator. Existing databases keep their old values until an explicit data correction is run.
 
-- Plans, pay-per-use rates, credit packages and add-on modules (RF18, RF22, HU-22).
-- Credit balance, consumption per successful optimization and monthly reset (RF20, HU-16).
-- Credit package purchases (RF21, HU-17, HU-18).
-- Plan subscription and online payment with Wompi (RF28, HU-33).
-- Pay-per-use: card registration, accumulated charges and spending limit (RF29, RF30, RF31, HU-37, HU-38, HU-39).
-- Blocking rules when the Free Trial ends, a plan expires or a charge is rejected (RF19).
-- No card data is stored; only the gateway reference (RNF11).
+### Pending before Phase 7
 
-Endpoints:
-- Platform Administrator: `GET/POST/PATCH /api/v1/platform/plans`, `/modules` and `/credit-packages`.
-- Company Administrator: `GET /api/v1/company/billing`, `/billing/offerings`, `/billing/usage`, `/billing/transactions`, `/billing/payments`, `/billing/usage-charges`; `POST /billing/subscription`, `/billing/credits/purchase`, `/billing/modules/purchase`, `/billing/pay-per-use/setup`, `/billing/pay-per-use/card`; `PATCH /billing/spending-limit`.
-- Public Wompi: `POST /api/v1/payments/wompi/events` and `POST /api/v1/payments/wompi/card` (signed setup token).
-
-### Phase 4 — Driver mobile app
-
-- View the assigned route and its stops (RF09, HU-13, HU-14).
-- Start and end the route (RF24, HU-30).
-- GPS location every 5 seconds and complete GPS trail (RF13, RNF02, HU-36).
-- Arrival detection by geofencing, with manual marking (RF14, HU-15).
-- Delivery or pickup confirmation with at least one photo uploaded to Cloudinary (RF10, RF16, HU-15).
-- Offline mode with automatic synchronization (RF17, RNF07, HU-36).
-- Simple interface for non-technical users (RNF10).
-
-As built:
-- Driver endpoints under `/api/v1/routes/driver/*`: today's route, route detail, start, finish, location batches, geofence or manual arrival, signed Cloudinary evidence and stop completion with at least one photo (backend rejects fewer).
-- The driver can only operate their own route, only one route can be in progress at a time, and starting a route requires an active subscription or trial.
-- The geofence radius is a provisional 100 m on both backend and mobile `[TO BE DEFINED]`; it must be validated with field tests. Outside that radius the driver can still mark the arrival manually.
-- The mobile app requests foreground location permission, sends a GPS sample every 5 seconds and keeps the full trail in `route_locations`.
-- When the API is unreachable, start, finish, arrival, completion and location actions are stored in the on-device SQLite queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
-- The last route is cached in SQLite so the driver can still see it offline.
-
-### Phase 5 — Real-time tracking, incidents and reassignment
-
-- Live driver locations and route status on the map (RF08, HU-09, HU-10).
-- Incidents and questions, with driver–supervisor chat (RF25, HU-11, HU-31).
-- Order and route reassignment (RF07, HU-10).
-
-As built:
-- Socket.IO runs on the same HTTP server as the API. Connections authenticate with the access token, and each socket joins a company room and a user room. The backend emits `route:status`, `route:location`, `route:stop-status`, `route:reassigned`, `route:stop-reassigned`, `incident:created`, `incident:updated` and `incident:message`.
-- Web route detail shows the driver marker with the latest location and updates it in real time. Supervisors and Company Administrators can reassign the whole route or a single stop to an active driver of the same company.
-- The mobile incidents tab lets a driver report an incident or question on an in-progress route, optionally attached to a stop, and chat with the office. Reassignment events refresh the driver's route.
-- `GET /api/v1/routes/:id/locations/latest` returns the last GPS sample for the initial map position.
-- Reassignment rules: the target driver must be active and not `unavailable`; an in-progress route cannot move to a driver who already has another route in progress; reassigning the whole route frees the previous driver; a reassigned stop moves to the target driver's active route for the same date, or to a new `created` route. Completed stops cannot be reassigned.
-- A driver can only read their own incidents. The office reply moves an `open` incident to `in_progress`, and a `resolved` incident rejects new messages.
-- The live map relies on `route_locations` samples sent every 5 seconds by the mobile app; no additional polling is used.
-
-### Phase 6 — Reports, support and school transport
-
-- Reports and dashboard (RF11, HU-05, HU-12, HU-35).
-- Technical support requests and platform failure and alert history (RF26, HU-02, HU-03, HU-34).
-- System settings (HU-23).
-- School transport module: students and pickup points (RF12, HU-32).
+- Commit the Phase 6 implementation and tests.
+- Review and apply the school transport `plan_modules` cleanup; `seedPlanModules()` already targets only Free Trial and Premium.
+- Move the Socket.IO adapter to Redis so multiple backend instances share rooms and events.
 
 ### Phase 7 — Deployment
 
@@ -333,4 +232,5 @@ Read the sources of truth and summarize in a few lines what you understood about
   5. an action would delete data, drop tables, rewrite Git history, or touch files outside the repository or inside evaluations/;
   6. an error or a red CI cannot be fixed after three attempts.
 - When stopping, ask one specific question with options and a recommendation. After the answer, record the decision in this file and continue without further confirmation.
-- After each step, update the progress log in this file.
+- After each step, update the progress log in `docs/build-log.md`.
+- Save tokens: run only the tests of the module being changed while working, and the full suite once before each commit. Show only failures, not full command output. Search with grep instead of reading whole files. Keep progress summaries short.
