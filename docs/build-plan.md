@@ -68,8 +68,9 @@ FastRouteCO/
 - Mobile local storage for offline mode `[TO BE DEFINED]`. Current implementation: `expo-sqlite` database `fastrouteco.db` with an `offline_queue` table for pending actions and a `route_cache` table for the cached route. Evidence photos stay in the `evidence/` folder because they are files, not records. On first start, legacy `fastrouteco-offline-queue.json` and `fastrouteco-route-cache.json` files are imported and removed.
 - Geofence radius `[TO BE DEFINED]`: 100 m is a provisional value on backend and mobile, with no HU, RF or RNF defining it. It must be validated with field tests before delivery.
 - Hosting `[TO BE DEFINED]`.
-- Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract for development. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code. The production provider and its usage limits remain `[TO BE DEFINED]` and are decided with hosting in Phase 7.
-- Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development; decide together with hosting.
+- Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract, used in both development and production. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code.
+- Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development.
+- Hosting: Oracle Cloud Always Free, a single Ampere A1 (ARM64) VM with 2 OCPU and 12 GB of RAM. Budget is 0 USD, at most about 10 USD per month. Docker Compose runs the backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract) on that VM. The web panel is served from the same VM behind a reverse proxy with automatic HTTPS. PostgreSQL backups run as a scheduled `pg_dump` script on the same VM, keeping the last 7 daily dumps.
 - Prices of plans, pay-per-use, credit packages and the school module `[TO BE DEFINED]`. Seed data uses placeholder values, none of them approved: Basic 129,900, Pro 349,900 and Premium 899,900 COP per month; pay-per-use membership 59,900 COP, 2 included drivers, 29,900 COP per additional driver and 700 COP per optimization. Annual plan prices remain undefined (`null`). The school module keeps its 499,000 COP placeholder until it is decided whether it is charged once or per period.
 
 ## Development tools
@@ -187,10 +188,28 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 
 ### Phase 7 — Deployment
 
-- Hosting is `[TO BE DEFINED]`. Before deploying, propose options for each part (backend, web panel, PostgreSQL, Redis, Neo4j) with cost and trade-offs; the README asks for low-cost cloud hosting.
-- Production environment variables for Resend, Wompi and Cloudinary.
+Hosting decision (2026-11-09):
+
+| Area | Decision |
+|---|---|
+| Host | Oracle Cloud Always Free: one Ampere A1 (ARM64) VM, 2 OCPU and 12 GB RAM. Budget 0 USD, at most about 10 USD per month. |
+| Runtime | Docker Compose on the VM: backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract). |
+| Web panel | Served from the same VM by a reverse proxy with automatic HTTPS. |
+| Backups | Scheduled `pg_dump` on the same VM, one daily dump, keeping the last 7. |
+
+Phase 7 work inside the repository:
+
+- Production `docker-compose` and reverse-proxy configuration.
+- Production `.env.example` files with variable names only.
+- Verify every image has an ARM64 manifest (especially Nominatim and Neo4j).
+- Deployment steps in the README.
+
+Still external to the repository (ask before touching):
+
+- The VM itself, the domain, and production credentials for Wompi, Resend and Cloudinary.
+- The production map tile provider `[TO BE DEFINED]`.
+- Mobile builds for Android and iOS with EAS Build (RNF05).
 - 99% availability during the companies' operating hours (RNF03) and scalability (RNF06).
-- Mobile app builds for Android and iOS (RNF05).
 - Initial rollout in Ibagué.
 
 ## Environment variables (names only)
