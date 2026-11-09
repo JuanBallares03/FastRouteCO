@@ -14,6 +14,15 @@
       "*.env.*": "deny",
       "*.env.example": "allow",
       "*.env.test": "allow"
+    },
+    "bash": {
+      "rm *": "ask",
+      "rm -rf *": "deny",
+      "rm -fr *": "deny",
+      "Remove-Item *": "ask",
+      "git push --force*": "deny",
+      "git push -f*": "deny",
+      "git reset --hard*": "deny"
     }
   },
   "mcp": {
