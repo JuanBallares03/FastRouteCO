@@ -31,8 +31,12 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 | 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
 | 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
-| 2026-11-08 | Phase 6 | Reports, dashboards, support, monitoring/alerts, bounded system settings and school transport with tests (RF11, RF12, RF26, HU-02, HU-03, HU-05, HU-12, HU-23, HU-32, HU-34, HU-35) | pending |
-| 2026-11-08 | Fix | Validation middleware applies parsed defaults and coercions across modules | pending |
+| 2026-11-08 | Phase 6 | Company and platform reports (RF11, HU-05, HU-12, HU-35) | `c3a8aa1` |
+| 2026-11-08 | Phase 6 | Support requests, platform monitoring and system alerts (RF26, HU-02, HU-03, HU-34) | `b3328e5` |
+| 2026-11-08 | Phase 6 | Runtime system settings applied to auth and email (HU-23) | `c02d0d2` |
+| 2026-11-08 | Phase 6 | School transport students, route stops, tests and non-destructive seed associations (RF12, HU-32) | `20ce704` |
+| 2026-11-08 | Phase 6 | Web dashboards, reports, support, monitoring, settings and students screens | `12636c7` |
+| 2026-11-08 | Fix | Validation middleware applies parsed defaults and coercions across modules | `d82de2e` |
 | 2026-11-08 | Chore | Unused MCP servers disabled, leaving only Context7 | `2c59c37` |
 
 ## Phase 1 — Access, companies and users

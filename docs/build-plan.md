@@ -131,7 +131,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 6 is implemented and verified locally; its code commit is pending. Next: commit Phase 6 and plan Phase 7.
+Progress: Phase 6 is implemented, committed and verified locally. Next: Phase 7 planning.
 
 ### Phase 2 — Orders, routes and routing engine
 
@@ -182,8 +182,7 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 
 ### Pending before Phase 7
 
-- Commit the Phase 6 implementation and tests.
-- Review and apply the school transport `plan_modules` cleanup; `seedPlanModules()` already targets only Free Trial and Premium.
+- Review and apply the one-time school transport `plan_modules` cleanup; `seedPlanModules()` only creates missing Free Trial and Premium associations and never deletes.
 - Move the Socket.IO adapter to Redis so multiple backend instances share rooms and events.
 
 ### Phase 7 — Deployment
