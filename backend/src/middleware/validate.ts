@@ -17,6 +17,21 @@ export function validate(schema: z.ZodSchema) {
       res.status(400).json({ errors: messages });
       return;
     }
+    const parsed = result.data as {
+      body?: unknown;
+      params?: unknown;
+      query?: unknown;
+    };
+    if ('body' in parsed) req.body = parsed.body;
+    if ('params' in parsed) req.params = parsed.params as Request['params'];
+    if ('query' in parsed) {
+      Object.defineProperty(req, 'query', {
+        value: parsed.query,
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
+    }
     next();
   };
 }
