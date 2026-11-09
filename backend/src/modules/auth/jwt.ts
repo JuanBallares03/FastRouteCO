@@ -15,15 +15,21 @@ export interface RefreshTokenPayload {
   type: 'refresh';
 }
 
-export function signAccessToken(payload: Omit<AccessTokenPayload, 'type'>): string {
+export function signAccessToken(
+  payload: Omit<AccessTokenPayload, 'type'>,
+  expiresInMinutes = 15
+): string {
   return jwt.sign({ ...payload, type: 'access' }, env.JWT_SECRET, {
-    expiresIn: '15m',
+    expiresIn: `${expiresInMinutes}m`,
   });
 }
 
-export function signRefreshToken(payload: Omit<RefreshTokenPayload, 'type'>): string {
+export function signRefreshToken(
+  payload: Omit<RefreshTokenPayload, 'type'>,
+  expiresInDays = 7
+): string {
   return jwt.sign({ ...payload, type: 'refresh' }, env.JWT_REFRESH_SECRET, {
-    expiresIn: '7d',
+    expiresIn: `${expiresInDays}d`,
   });
 }
 

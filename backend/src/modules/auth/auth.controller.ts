@@ -8,6 +8,7 @@ import {
   getUserProfile,
   AuthUser,
   InvalidCredentialsError,
+  InvalidPasswordError,
   UserInactiveError,
   CompanyInactiveError,
 } from './auth.service.js';
@@ -137,6 +138,10 @@ export async function acceptInvitationHandler(req: Request, res: Response, next:
       },
     });
   } catch (error) {
+    if (error instanceof InvalidPasswordError) {
+      res.status(400).json({ message: error.message });
+      return;
+    }
     next(error);
   }
 }

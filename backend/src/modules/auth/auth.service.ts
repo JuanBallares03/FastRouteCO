@@ -9,6 +9,7 @@ import {
 } from './jwt.js';
 import { prisma } from '../../lib/prisma.js';
 import { sendInvitationEmail } from '../../lib/email.js';
+import { getRuntimeSettings } from '../../modules/settings/settings.service.js';
 
 type UserWithCompany = Prisma.UserGetPayload<{ include: { company: true } }>;
 
@@ -27,10 +28,6 @@ export interface AuthUser {
   isActive: boolean;
   companyStatus?: CompanyStatus;
 }
-
-const REFRESH_TOKEN_TTL_DAYS = 7;
-const INVITATION_TOKEN_TTL_HOURS = 72;
-const BCRYPT_ROUNDS = 12;
 
 export function sha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex');
@@ -53,7 +50,8 @@ function calculateExpiryHours(hours: number): Date {
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, BCRYPT_ROUNDS);
+  const settings = await getRuntimeSettings();
+  return bcrypt.hash(password, settings.bcrypt_rounds);
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
@@ -88,6 +86,13 @@ export class CompanyInactiveError extends Error {
   }
 }
 
+export class InvalidPasswordError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidPasswordError';
+  }
+}
+
 export async function validateUserCredentials(
   email: string,
   password: string
@@ -118,6 +123,7 @@ export async function validateUserCredentials(
 }
 
 export async function createTokenPair(user: User): Promise<TokenPair> {
+  const settings = await getRuntimeSettings();
   const jti = crypto.randomUUID();
   const refreshTokenRaw = generateSecureToken();
   const refreshTokenHash = sha256Hex(refreshTokenRaw);
@@ -127,21 +133,27 @@ export async function createTokenPair(user: User): Promise<TokenPair> {
       userId: user.id,
       tokenHash: refreshTokenHash,
       jti,
-      expiresAt: calculateExpiry(REFRESH_TOKEN_TTL_DAYS),
+      expiresAt: calculateExpiry(settings.refresh_token_days),
     },
   });
 
-  const accessToken = signAccessToken({
-    sub: user.id,
-    email: user.email,
-    role: user.role,
-    companyId: user.companyId,
-  });
+  const accessToken = signAccessToken(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId,
+    },
+    settings.access_token_minutes
+  );
 
-  const refreshToken = signRefreshToken({
-    sub: user.id,
-    jti,
-  });
+  const refreshToken = signRefreshToken(
+    {
+      sub: user.id,
+      jti,
+    },
+    settings.refresh_token_days
+  );
 
   return { accessToken, refreshToken };
 }
@@ -234,6 +246,13 @@ export async function acceptInvitation(
   if (!user.isActive) return null;
   if (user.company && user.company.status === CompanyStatus.inactive) return null;
 
+  const settings = await getRuntimeSettings();
+  if (password.length < settings.password_min_length) {
+    throw new InvalidPasswordError(
+      `La contraseña debe tener al menos ${settings.password_min_length} caracteres`
+    );
+  }
+
   const passwordHash = await hashPassword(password);
 
   await prisma.$transaction([
@@ -267,18 +286,25 @@ export async function resendInvitation(userId: string): Promise<string | null> {
   const tokenRaw = generateSecureToken();
   const tokenHash = sha256Hex(tokenRaw);
 
+  const settings = await getRuntimeSettings();
   await prisma.userInvitation.create({
     data: {
       userId,
       tokenHash,
-      expiresAt: calculateExpiryHours(INVITATION_TOKEN_TTL_HOURS),
+      expiresAt: calculateExpiryHours(settings.invitation_expiry_hours),
     },
   });
 
   const invitationUrl = `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
   
   if (user.company) {
-    await sendInvitationEmail(user.email, user.fullName, invitationUrl, user.company.legalName);
+    await sendInvitationEmail(
+      user.email,
+      user.fullName,
+      invitationUrl,
+      user.company.legalName,
+      settings.invitation_expiry_hours
+    );
   }
 
   return invitationUrl;
@@ -297,18 +323,25 @@ export async function createInvitationForUser(userId: string): Promise<string> {
   const tokenRaw = generateSecureToken();
   const tokenHash = sha256Hex(tokenRaw);
 
+  const settings = await getRuntimeSettings();
   await prisma.userInvitation.create({
     data: {
       userId,
       tokenHash,
-      expiresAt: calculateExpiryHours(INVITATION_TOKEN_TTL_HOURS),
+      expiresAt: calculateExpiryHours(settings.invitation_expiry_hours),
     },
   });
 
   const invitationUrl = `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
   
   if (user.company) {
-    await sendInvitationEmail(user.email, user.fullName, invitationUrl, user.company.legalName);
+    await sendInvitationEmail(
+      user.email,
+      user.fullName,
+      invitationUrl,
+      user.company.legalName,
+      settings.invitation_expiry_hours
+    );
   }
 
   return invitationUrl;
