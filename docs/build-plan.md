@@ -182,7 +182,7 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 
 ### Pending before Phase 7
 
-- Review and apply the one-time school transport `plan_modules` cleanup; `seedPlanModules()` only creates missing Free Trial and Premium associations and never deletes.
+- Done: the one-time school transport `plan_modules` cleanup was applied and verified on 2026-11-09; `plan_modules` only holds the Free Trial and Premium associations, and `seedPlanModules()` keeps creating only missing associations without deleting.
 - Move the Socket.IO adapter to Redis so multiple backend instances share rooms and events.
 
 ### Phase 7 — Deployment
