@@ -151,20 +151,26 @@ async function seedModules() {
   }
 }
 
+const SCHOOL_TRANSPORT_PLANS = ['Free Trial', 'Premium'];
+
 async function seedPlanModules() {
   console.log('🌱 Seeding plan_modules...');
   const schoolModule = await prisma.module.findUnique({ where: { code: 'school_transport' } });
   if (!schoolModule) throw new Error('school_transport module not found');
 
-  const plans = await prisma.plan.findMany({ where: { isActive: true } });
+  const plans = await prisma.plan.findMany({
+    where: { isActive: true, name: { in: SCHOOL_TRANSPORT_PLANS } },
+  });
+
+  await prisma.planModule.createMany({
+    data: plans.map((plan) => ({ planId: plan.id, moduleId: schoolModule.id })),
+    skipDuplicates: true,
+  });
+
   for (const plan of plans) {
-    await prisma.planModule.upsert({
-      where: { planId_moduleId: { planId: plan.id, moduleId: schoolModule.id } },
-      update: {},
-      create: { planId: plan.id, moduleId: schoolModule.id },
-    });
-    console.log(`  ✓ ${plan.name} <-> school_transport`);
+    console.log(`  V ${plan.name} <-> school_transport`);
   }
+}
 }
 
 async function seedCreditPackages() {

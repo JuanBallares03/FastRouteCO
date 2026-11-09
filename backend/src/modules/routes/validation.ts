@@ -14,16 +14,27 @@ const latitude = z.number().min(-90).max(90);
 const longitude = z.number().min(-180).max(180);
 
 export const createRouteSchema = z.object({
-  body: z.object({
-    driverId: z.string().uuid({ message: 'ID de conductor inválido' }),
-    routeDate: businessDate,
-    orderIds: z
-      .array(z.string().uuid({ message: 'ID de pedido inválido' }))
-      .min(1, { message: 'La ruta debe incluir al menos un pedido' })
-      .refine((ids) => new Set(ids).size === ids.length, {
-        message: 'La ruta no puede repetir pedidos',
-      }),
-  }),
+  body: z
+    .object({
+      driverId: z.string().uuid({ message: 'ID de conductor inválido' }),
+      routeDate: businessDate,
+      orderIds: z
+        .array(z.string().uuid({ message: 'ID de pedido inválido' }))
+        .default([])
+        .refine((ids) => new Set(ids).size === ids.length, {
+          message: 'La ruta no puede repetir pedidos',
+        }),
+      studentIds: z
+        .array(z.string().uuid({ message: 'ID de estudiante inválido' }))
+        .default([])
+        .refine((ids) => new Set(ids).size === ids.length, {
+          message: 'La ruta no puede repetir estudiantes',
+        }),
+    })
+    .refine((data) => data.orderIds.length + data.studentIds.length > 0, {
+      message: 'La ruta debe incluir al menos un pedido o estudiante',
+      path: ['orderIds'],
+    }),
 });
 
 export const listRoutesSchema = z.object({

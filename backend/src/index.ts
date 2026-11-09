@@ -14,6 +14,12 @@ import orderRoutes from "./modules/orders/orders.routes.js";
 import routeRoutes from "./modules/routes/routes.routes.js";
 import paymentRoutes from "./modules/billing/payments.routes.js";
 import incidentRoutes from "./modules/incidents/incidents.routes.js";
+import settingsRoutes from "./modules/settings/settings.routes.js";
+import supportRoutes from "./modules/support/support.routes.js";
+import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
+import reportRoutes from "./modules/reports/reports.routes.js";
+import studentRoutes from "./modules/students/students.routes.js";
+import { errorHandler } from "./middleware/error-handler.js";
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -36,6 +42,13 @@ app.use("/api/v1/orders", orderRoutes);
 app.use("/api/v1/routes", routeRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/incidents", incidentRoutes);
+app.use("/api/v1/platform", settingsRoutes);
+app.use("/api/v1/platform", monitoringRoutes);
+app.use("/api/v1", supportRoutes);
+app.use("/api/v1/company", reportRoutes);
+app.use("/api/v1/company", studentRoutes);
+
+app.use(errorHandler);
 
 const server = createServer(app);
 initRealtime(server);

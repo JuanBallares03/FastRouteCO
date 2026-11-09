@@ -29,6 +29,7 @@ import {
   processUsageCharge,
   syncCompanySubscription,
 } from '../billing/billing.service.js';
+import { assertStudentsAvailable } from '../students/students.service.js';
 
 const ACTIVE_ROUTE_STATUSES: RouteStatus[] = [
   RouteStatus.created,
@@ -79,6 +80,17 @@ function serializeOrder(
   };
 }
 
+function serializeStudent(
+  student: Prisma.StudentGetPayload<Record<string, never>> | null
+) {
+  if (!student) return null;
+  return {
+    ...student,
+    latitude: student.latitude === null ? null : Number(student.latitude),
+    longitude: student.longitude === null ? null : Number(student.longitude),
+  };
+}
+
 function serializeRoute(route: RouteWithRelations) {
   return {
     ...route,
@@ -87,6 +99,7 @@ function serializeRoute(route: RouteWithRelations) {
     stops: route.stops.map((stop) => ({
       ...stop,
       order: serializeOrder(stop.order),
+      student: serializeStudent(stop.student),
     })),
   };
 }
@@ -257,7 +270,12 @@ export async function assignOrder(
 
 export async function createRoute(
   companyId: string,
-  data: { driverId: string; routeDate: string; orderIds: string[] }
+  data: {
+    driverId: string;
+    routeDate: string;
+    orderIds?: string[];
+    studentIds?: string[];
+  }
 ) {
   const driver = await findDriver(companyId, data.driverId);
 
@@ -268,7 +286,16 @@ export async function createRoute(
     throw new BadRequestError('Fecha de ruta inválida', 'INVALID_ROUTE_DATE');
   }
 
-  const uniqueOrderIds = [...new Set(data.orderIds)];
+  const uniqueOrderIds = [...new Set(data.orderIds ?? [])];
+  const uniqueStudentIds = await assertStudentsAvailable(companyId, data.studentIds ?? []);
+
+  if (uniqueOrderIds.length + uniqueStudentIds.length === 0) {
+    throw new BadRequestError(
+      'La ruta debe incluir al menos un pedido o estudiante',
+      'ROUTE_WITHOUT_STOPS'
+    );
+  }
+
   const orders = await prisma.order.findMany({
     where: { id: { in: uniqueOrderIds }, companyId },
   });
@@ -320,17 +347,24 @@ export async function createRoute(
     });
     const firstSequence = (aggregate._max.sequence ?? 0) + 1;
 
+    const stopData = [
+      ...uniqueOrderIds.map((orderId) => ({ orderId, studentId: null })),
+      ...uniqueStudentIds.map((studentId) => ({ orderId: null, studentId })),
+    ];
     await tx.routeStop.createMany({
-      data: uniqueOrderIds.map((orderId, index) => ({
+      data: stopData.map((stop, index) => ({
         routeId: target.id,
-        orderId,
+        orderId: stop.orderId,
+        studentId: stop.studentId,
         sequence: firstSequence + index,
       })),
     });
-    await tx.order.updateMany({
-      where: { id: { in: uniqueOrderIds } },
-      data: { status: OrderStatus.assigned },
-    });
+    if (uniqueOrderIds.length > 0) {
+      await tx.order.updateMany({
+        where: { id: { in: uniqueOrderIds } },
+        data: { status: OrderStatus.assigned },
+      });
+    }
 
     return target;
   });
@@ -1072,7 +1106,7 @@ export async function optimizeRoute(companyId: string, routeId: string) {
     where: { id: routeId, companyId },
     include: {
       stops: {
-        include: { order: true },
+        include: { order: true, student: true },
         orderBy: { sequence: 'asc' },
       },
     },
@@ -1090,12 +1124,10 @@ export async function optimizeRoute(companyId: string, routeId: string) {
     throw new ConflictError('La ruta no tiene paradas para optimizar', 'ROUTE_WITHOUT_STOPS');
   }
 
-  const unlocated = route.stops.filter(
-    (stop) =>
-      !stop.order ||
-      stop.order.latitude === null ||
-      stop.order.longitude === null
-  );
+  const unlocated = route.stops.filter((stop) => {
+    const source = stop.order ?? stop.student;
+    return !source || source.latitude === null || source.longitude === null;
+  });
 
   if (unlocated.length > 0) {
     throw new ConflictError(
@@ -1107,12 +1139,14 @@ export async function optimizeRoute(companyId: string, routeId: string) {
   await assertOptimizationAllowed(companyId);
   await processClosingUsageCharges(companyId);
 
-  const stops = route.stops.map((stop) => ({
-    id: stop.id,
-    order: stop.order as NonNullable<typeof stop.order>,
-    latitude: Number(stop.order!.latitude),
-    longitude: Number(stop.order!.longitude),
-  }));
+  const stops = route.stops.map((stop) => {
+    const source = (stop.order ?? stop.student)!;
+    return {
+      id: stop.id,
+      latitude: Number(source.latitude),
+      longitude: Number(source.longitude),
+    };
+  });
 
   const start = await resolveStartPoint(companyId, route, {
     latitude: stops[0].latitude,
