@@ -18,20 +18,24 @@
   },
   "mcp": {
     "drawio": {
+      "enabled": false,
       "type": "local",
       "command": ["cmd", "/c", "npx", "-y", "@drawio/mcp"],
       "timeout": 20000
     },
     "chrome-devtools": {
+      "enabled": false,
       "type": "local",
       "command": ["cmd", "/c", "npx", "-y", "chrome-devtools-mcp@latest"],
       "timeout": 20000
     },
     "codegraphcontext": {
+      "enabled": false,
       "type": "local",
       "command": ["cgc", "mcp", "start"]
     },
     "composio": {
+      "enabled": false,
       "type": "remote",
       "url": "https://connect.composio.dev/mcp"
     },
@@ -40,6 +44,7 @@
       "url": "https://mcp.context7.com/mcp"
     },
     "mermaid": {
+      "enabled": false,
       "type": "local",
       "command": ["cmd", "/c", "npx", "-y", "mcp-mermaid"],
       "timeout": 20000
