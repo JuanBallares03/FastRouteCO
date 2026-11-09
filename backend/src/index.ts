@@ -51,7 +51,7 @@ app.use("/api/v1/company", studentRoutes);
 app.use(errorHandler);
 
 const server = createServer(app);
-initRealtime(server);
+await initRealtime(server);
 
 server.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);

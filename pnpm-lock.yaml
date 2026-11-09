@@ -178,6 +178,9 @@ importers:
       '@prisma/client':
         specifier: ^7.10.1
         version: 7.10.1(prisma@7.10.1(@types/node@26.6.5)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@6.0.3))(typescript@6.0.3)
+      '@socket.io/redis-adapter':
+        specifier: ^8.3.0
+        version: 8.3.0(socket.io-adapter@2.5.8(supports-color@8.1.1))(supports-color@8.1.1)
       axios:
         specifier: ^1.20.0
         version: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -2533,6 +2536,12 @@ packages:
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
 
+  '@socket.io/redis-adapter@8.3.0':
+    resolution: {integrity: sha512-ly0cra+48hDmChxmIpnESKrc94LjRL80TEmZVscuQ/WWkRP81nNj8W8cCGMqbI4L6NCuAaPRSzZF1a9GlAxxnA==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      socket.io-adapter: ^2.5.4
+
   '@stablelib/base64@1.0.1':
     resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
 
@@ -3734,6 +3743,15 @@ packages:
 
   debug@3.2.7:
     resolution: {integrity: sha512-CFjzYYAi4ThfiQvizrFQevTTXHtnCqWfe7x1AhgEscTz6ZbLbfoLRLPugTQyBth6f8ZERVUSyWHFD/7Wu4t1XQ==}
+    peerDependencies:
+      supports-color: '*'
+    peerDependenciesMeta:
+      supports-color:
+        optional: true
+
+  debug@4.3.7:
+    resolution: {integrity: sha512-Er2nc/H7RrMXZBFCEim6TCmMk02Z8vLC2Rbi1KEBggpo0fS6l0S1nnapwmIi3yW/+GOJap1Krg4w0Hg80oCqgQ==}
+    engines: {node: '>=6.0'}
     peerDependencies:
       supports-color: '*'
     peerDependenciesMeta:
@@ -5732,6 +5750,9 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
+  notepack.io@3.0.1:
+    resolution: {integrity: sha512-TKC/8zH5pXIAMVQio2TvVDTtPRX+DJPHDqjRbxogtFiByHyzKmy96RA0JtCQJ+WouyyL4A10xomQzgbUT+1jCg==}
+
   noxcturnal@0.1.12:
     resolution: {integrity: sha512-trkrCAq5t1ynqEbGdHGbGo1ItUye1uelApLhmU0/asW5NrfBRsMQDXBOpUTIfpcX7SdAvVjii7cEPIrfIrEVgg==}
     engines: {node: '>=18'}
@@ -6989,6 +7010,10 @@ packages:
   ua-parser-js@1.0.41:
     resolution: {integrity: sha512-LbBDqdIC5s8iROCUjMbW1f5dJQTEFB1+KO9ogbvlb3nm9n4YHa5p4KTvFPWvh2Hs8gZMBuiB1/8+pdfe/tDPug==}
     hasBin: true
+
+  uid2@1.0.0:
+    resolution: {integrity: sha512-+I6aJUv63YAcY9n4mQreLUt0d4lvwkkopDNmpomkAUz0fAkEMV9pRWxN0EjhW1YfRhcuyHg2v3mwddCDW1+LFQ==}
+    engines: {node: '>= 4.0.0'}
 
   unbox-primitive@1.1.0:
     resolution: {integrity: sha512-nWJ91DjeOkej/TA8pXQ3myruKpKEYgqvpw9lz4OPHj/NWFNluYrjbz9j01CJ8yKQd2g4jFoOkINCTW2I5LEEyw==}
@@ -9651,6 +9676,15 @@ snapshots:
 
   '@socket.io/component-emitter@3.1.2': {}
 
+  '@socket.io/redis-adapter@8.3.0(socket.io-adapter@2.5.8(supports-color@8.1.1))(supports-color@8.1.1)':
+    dependencies:
+      debug: 4.3.7(supports-color@8.1.1)
+      notepack.io: 3.0.1
+      socket.io-adapter: 2.5.8(supports-color@8.1.1)
+      uid2: 1.0.0
+    transitivePeerDependencies:
+      - supports-color
+
   '@stablelib/base64@1.0.1': {}
 
   '@standard-schema/spec@1.1.0': {}
@@ -11147,6 +11181,12 @@ snapshots:
       supports-color: 8.1.1
 
   debug@3.2.7(supports-color@8.1.1):
+    dependencies:
+      ms: 2.1.3
+    optionalDependencies:
+      supports-color: 8.1.1
+
+  debug@4.3.7(supports-color@8.1.1):
     dependencies:
       ms: 2.1.3
     optionalDependencies:
@@ -13750,6 +13790,8 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
+  notepack.io@3.0.1: {}
+
   noxcturnal@0.1.12:
     dependencies:
       '@babel/code-frame': 7.29.7
@@ -15209,6 +15251,8 @@ snapshots:
   ua-parser-js@0.7.41: {}
 
   ua-parser-js@1.0.41: {}
+
+  uid2@1.0.0: {}
 
   unbox-primitive@1.1.0:
     dependencies:

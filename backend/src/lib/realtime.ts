@@ -1,5 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { Redis } from 'ioredis';
 import { env } from '../env.js';
 import { verifyAccessToken } from '../modules/auth/jwt.js';
 import { prisma } from './prisma.js';
@@ -11,9 +13,20 @@ interface RealtimeUser {
 }
 
 let io: Server | null = null;
+let pubClient: Redis | null = null;
+let subClient: Redis | null = null;
 
-export function initRealtime(server: HttpServer): Server {
+export async function initRealtime(server: HttpServer): Promise<Server> {
   if (io) return io;
+
+  pubClient = new Redis(env.REDIS_URL, { lazyConnect: true });
+  subClient = pubClient.duplicate();
+
+  for (const client of [pubClient, subClient]) {
+    client.on('error', (error) => {
+      console.error('Redis realtime client error:', error.message);
+    });
+  }
 
   io = new Server(server, {
     cors: {
@@ -21,6 +34,9 @@ export function initRealtime(server: HttpServer): Server {
       credentials: true,
     },
   });
+
+  await Promise.all([pubClient.connect(), subClient.connect()]);
+  io.adapter(createAdapter(pubClient, subClient, { key: 'fastrouteco:socket.io' }));
 
   io.use(async (socket, next) => {
     const token =
@@ -82,9 +98,29 @@ export function emitToUser(userId: string, event: string, payload: unknown): voi
   io?.to(`user:${userId}`).emit(event, payload);
 }
 
-export function closeRealtime(): Promise<void> | void {
-  if (!io) return;
+async function closeClient(client: Redis | null): Promise<void> {
+  if (!client) return;
+  if (client.status === 'ready') {
+    try {
+      await client.quit();
+      return;
+    } catch {
+      // fall through to a forced disconnect
+    }
+  }
+  client.disconnect();
+}
+
+export async function closeRealtime(): Promise<void> {
   const server = io;
+  const pub = pubClient;
+  const sub = subClient;
   io = null;
-  return server.close();
+  pubClient = null;
+  subClient = null;
+
+  if (server) {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  await Promise.all([closeClient(pub), closeClient(sub)]);
 }
