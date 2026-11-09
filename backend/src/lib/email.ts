@@ -62,11 +62,33 @@ export async function sendCompanyConfirmationEmail(
   });
 }
 
+export async function sendSupportResponseEmail(
+  companyEmail: string,
+  companyName: string,
+  subject: string,
+  response: string
+): Promise<boolean> {
+  return sendEmail({
+    to: companyEmail,
+    subject: `Respuesta de soporte FastRouteCO - ${subject}`,
+    html: `
+      <h1>Respuesta de soporte</h1>
+      <p>Hola <strong>${companyName}</strong>,</p>
+      <p>Recibimos tu solicitud <strong>${subject}</strong>. Esta es nuestra respuesta:</p>
+      <p>${response.replace(/\n/g, '<br>')}</p>
+      <hr>
+      <p><small>Equipo FastRouteCO</small></p>
+    `,
+    text: `Respuesta de soporte\n\nHola ${companyName},\n\nRecibimos tu solicitud ${subject}. Esta es nuestra respuesta:\n${response}\n\nEquipo FastRouteCO`,
+  });
+}
+
 export async function sendInvitationEmail(
   userEmail: string,
   userName: string,
   invitationUrl: string,
-  companyName: string
+  companyName: string,
+  expiresInHours = 72
 ): Promise<boolean> {
   return sendEmail({
     to: userEmail,
@@ -75,11 +97,11 @@ export async function sendInvitationEmail(
       <h1>Invitación a FastRouteCO</h1>
       <p>Hola <strong>${userName}</strong>,</p>
       <p>Has sido invitado a unirte a <strong>${companyName}</strong> en FastRouteCO como Administrador de la empresa.</p>
-      <p>Define tu contraseña en el siguiente enlace (válido por 72 horas):</p>
+      <p>Define tu contraseña en el siguiente enlace (válido por ${expiresInHours} horas):</p>
       <p><a href="${invitationUrl}">${invitationUrl}</a></p>
       <hr>
       <p><small>Equipo FastRouteCO</small></p>
     `,
-    text: `Invitación a FastRouteCO\n\nHola ${userName},\n\nHas sido invitado a unirte a ${companyName} en FastRouteCO como Administrador de la empresa.\nDefine tu contraseña en el siguiente enlace (válido por 72 horas):\n${invitationUrl}\n\nEquipo FastRouteCO`,
+    text: `Invitación a FastRouteCO\n\nHola ${userName},\n\nHas sido invitado a unirte a ${companyName} en FastRouteCO como Administrador de la empresa.\nDefine tu contraseña en el siguiente enlace (válido por ${expiresInHours} horas):\n${invitationUrl}\n\nEquipo FastRouteCO`,
   });
 }
