@@ -28,6 +28,7 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-07 | Phase 5 | Socket.IO server, realtime route events, incident chat endpoints and route/stop reassignment (RF07, RF08, RF25, HU-09 to HU-11, HU-31) | `ae28612` |
 | 2026-11-07 | Phase 5 | Latest driver location endpoint for the live map | `c085c59` |
 | 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
+| 2026-11-09 | Fix | Verified school transport `plan_modules` cleanup: only Free Trial and Premium remain | `d176b38` |
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 | 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
 | 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
