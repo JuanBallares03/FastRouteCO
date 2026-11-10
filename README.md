@@ -357,8 +357,9 @@ pnpm --filter backend osm:import
 `OSM_BBOX` (south,west,north,east) changes the road network area. When
 Nominatim or Neo4j are unavailable the backend keeps working with the last
 available data: orders are stored without coordinates and route distances use
-an approximate straight line (RNF08). The production geocoding and map tile
-providers are decided with hosting in Phase 7.
+an approximate straight line (RNF08). Production uses the same self-hosted
+Nominatim with the Tolima extract. The production map tile provider is still
+`[TO BE DEFINED]`.
 
 ### Development (3 terminals)
 
@@ -439,6 +440,113 @@ On Windows, the Android SDK's bundled `ninja.exe` (version 1.10) does not suppor
    - Verify: `ninja --version` should show 1.13.2 or newer.
 
 Without these steps, Gradle's CMake tasks will fail with path-length errors during `pnpm --filter mobile android`.
+
+## Production deployment
+
+The production stack is defined in `docker-compose.prod.yml` and targets a
+single Oracle Cloud Always Free Ampere A1 (ARM64) VM with 2 OCPU and 12 GB of
+RAM. Docker Compose runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima
+extract) and the backend. Caddy serves the web panel from the same VM and
+provides automatic HTTPS as the reverse proxy.
+
+Only ports 80 and 443 are published. PostgreSQL, Redis, Neo4j, Nominatim and
+the backend stay on the internal Docker network.
+
+### ARM64 images
+
+Every base image has a `linux/arm64` manifest, verified with
+`docker buildx imagetools inspect`:
+
+| Image | ARM64 |
+|---|---|
+| `node:22-alpine` | yes |
+| `postgres:16-alpine` | yes |
+| `redis:7-alpine` | yes |
+| `neo4j:5-community` | yes |
+
+`mediagis/nominatim:5.3` also publishes `linux/arm64` (manifest
+`sha256:35a584f18eab044f7241082c877900de771e50adeb22e73196ff5ec151fae386`).
+`caddy:2-alpine` publishes `linux/arm64` as well.
+
+Build the images on the VM itself, not on another architecture. Prisma
+downloads its native engine at build time, so building natively on ARM64 keeps
+the runtime image consistent with the VM.
+
+### First deployment
+
+1. Create the VM, point the domain's DNS `A` record to it and open TCP 80 and
+   443 in the Oracle security list.
+2. Install Docker Engine and the Docker Compose plugin on the VM.
+3. Clone the repository and create the environment files:
+
+   ```bash
+   cp production.env.example production.env
+   cp backend/production.env.example backend/production.env
+   ```
+
+   Fill in `production.env` (domain, database and service passwords, Wompi
+   public key, map style URL) and `backend/production.env` (JWT secrets,
+   Resend, Wompi and Cloudinary credentials). These files are ignored by Git.
+   Without the Wompi, Resend and Cloudinary values the API starts but email,
+   card setup and evidence upload fail.
+4. Place `osm-data/tolima.osm.pbf` on the VM. You can build it once with
+   `osmium extract` as described above and upload it.
+5. Build and start the stack:
+
+   ```bash
+   docker compose --env-file production.env -f docker-compose.prod.yml up -d --build
+   ```
+
+6. The backend applies pending Prisma migrations on start. The first Nominatim
+   start imports the Tolima extract and can take a long time; follow it with
+   `docker compose --env-file production.env -f docker-compose.prod.yml logs -f nominatim`.
+7. Load the Ibagué road network into Neo4j and seed the initial data:
+
+   ```bash
+   docker compose --env-file production.env -f docker-compose.prod.yml exec backend node dist/scripts/osm-import.js
+   docker compose --env-file production.env -f docker-compose.prod.yml exec backend pnpm db:seed
+   docker compose --env-file production.env -f docker-compose.prod.yml exec backend pnpm db:seed:admin
+   ```
+
+8. Caddy requests the HTTPS certificate automatically once DNS points to the
+   VM. Open `https://<domain>` to verify the panel and `https://<domain>/health`
+   for the API.
+
+### Backups
+
+`scripts/backup-postgres.sh` writes a compressed daily `pg_dump` to `backups/`
+and keeps the last 7 files. Run it from cron on the VM:
+
+```bash
+chmod +x scripts/backup-postgres.sh
+# 03:00 every day
+0 3 * * * /home/ubuntu/FastRouteCO/scripts/backup-postgres.sh
+```
+
+Restore a dump with:
+
+```bash
+gunzip -c backups/fastrouteco_<timestamp>.sql.gz | \
+  docker compose --env-file production.env -f docker-compose.prod.yml exec -T postgres \
+  psql -U postgres -d fastrouteco
+```
+
+### Updates
+
+```bash
+git pull
+docker compose --env-file production.env -f docker-compose.prod.yml up -d --build
+```
+
+`backend` and `web` rebuild; migrations run automatically when the backend
+container starts.
+
+### Mobile release builds
+
+Android and iOS release builds use EAS Build (`RNF05`). Set the variables from
+`mobile/production.env.example` in the EAS environment and run the existing
+Expo commands. EAS credentials and store accounts are managed outside this
+repository.
 
 ## Glossary
 

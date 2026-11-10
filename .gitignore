@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 .env
+.env.production
+production.env
+**/production.env
+backups/
 .venv/
 node_modules/
 .pnpm-store/
