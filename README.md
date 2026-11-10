@@ -495,6 +495,65 @@ Build the images on the VM itself, not on another architecture. Prisma
 downloads its native engine at build time, so building natively on ARM64 keeps
 the runtime image consistent with the VM.
 
+### AWS setup
+
+#### Budget alert
+
+1. Open **AWS Billing and Cost Management → Budgets → Create budget**.
+2. Choose **Cost budget**, monthly, amount **10 USD**.
+3. Add alerts at **80% of actual cost** and **100% of forecasted cost**, with
+   your email.
+4. Confirm the free-plan credits (up to 200 USD for 6 months) in the same
+   console and remember they expire; the 10 USD budget is the hard limit after
+   that.
+
+#### EC2 instance
+
+1. Launch a **t4g.medium** instance (2 vCPU, 4 GB RAM, ARM64/Graviton) with
+   **Ubuntu Server LTS ARM64**.
+2. Use a **30 GB gp3** root volume.
+3. Create or select an SSH key pair and keep the private key safe.
+4. Allocate an **Elastic IP** and associate it with the instance so the public
+   address does not change when the instance is stopped. Point the domain's
+   DNS `A` record to that Elastic IP.
+5. Connect with `ssh -i <key>.pem ubuntu@<elastic-ip>` and update the system:
+
+   ```bash
+   sudo apt update && sudo apt upgrade -y
+   ```
+
+#### Security group
+
+Inbound rules only:
+
+| Type | Port | Source |
+|---|---|---|
+| SSH | 22 | your public IP `/32` |
+| HTTP | 80 | `0.0.0.0/0`, `::/0` |
+| HTTPS | 443 | `0.0.0.0/0`, `::/0` |
+
+Remove any default SSH rule open to the world. Do not open PostgreSQL, Redis,
+Neo4j, Nominatim or the backend port: they only listen on the internal Docker
+network. Leave the default outbound rule (all traffic) so the VM can pull
+images and reach Resend, Wompi, Cloudinary and the Overpass API.
+
+#### Swap file
+
+Create a 4 GB swap file and make it persistent:
+
+```bash
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swap.conf
+sudo sysctl --system
+```
+
+Verify with `free -h` and `swapon --show`. The swap absorbs the Nominatim
+import peak; keep swappiness low so normal operation stays in RAM.
+
 ### First deployment
 
 1. Provision the AWS resources (budget alert, EC2 instance, security group and
