@@ -4,6 +4,16 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - max_connections=50
     environment:
       POSTGRES_DB: fastrouteco
       POSTGRES_USER: postgres
@@ -21,7 +31,14 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - noeviction
     volumes:
       - redisdata:/data
     healthcheck:
@@ -38,9 +55,10 @@ services:
     environment:
       NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD}"
       NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_server_memory_heap_initial__size: 512m
-      NEO4J_server_memory_heap_max__size: 2G
-      NEO4J_server_memory_pagecache_size: 1G
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 512m
+      NEO4J_server_memory_transaction_total_max: 256m
     volumes:
       - neo4jdata:/data
       - neo4jlogs:/logs
@@ -59,11 +77,11 @@ services:
     environment:
       PBF_PATH: /nominatim/data/tolima.osm.pbf
       IMPORT_STYLE: full
-      THREADS: 2
-      POSTGRES_SHARED_BUFFERS: 1GB
-      POSTGRES_MAINTENANCE_WORK_MEM: 2GB
-      POSTGRES_WORK_MEM: 64MB
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 4GB
+      THREADS: 1
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 512MB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 768MB
       NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD}
     volumes:
       - ./osm-data:/nominatim/data
@@ -82,6 +100,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      NODE_OPTIONS: --max-old-space-size=384
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/fastrouteco?schema=public
       REDIS_URL: redis://redis:6379
       NEO4J_URI: bolt://neo4j:7687

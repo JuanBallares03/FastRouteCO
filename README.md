@@ -454,6 +454,27 @@ same VM and provides automatic HTTPS as the reverse proxy.
 Only ports 80 and 443 are published. PostgreSQL, Redis, Neo4j, Nominatim and
 the backend stay on the internal Docker network.
 
+### Memory budget (4 GB)
+
+The stack is tuned for 4 GB of RAM plus a 4 GB swap file. Expected consumption:
+
+| Component | Expected RAM | Limits |
+|---|---:|---|
+| Ubuntu + Docker | 400-600 MB | system processes |
+| PostgreSQL | 250-400 MB | `shared_buffers=128MB`, `work_mem=16MB`, `maintenance_work_mem=128MB`, 50 connections |
+| Redis | 50-130 MB | `maxmemory=128mb`, `noeviction`, append-only file |
+| Neo4j + APOC | 900-1200 MB | heap 256-512 MB, page cache 512 MB, transaction max 256 MB, JVM overhead |
+| Nominatim (PostgreSQL + Apache) | 700-1000 MB at runtime | `shared_buffers=256MB`, `maintenance_work_mem=512MB`, `work_mem=16MB`, 1 import thread |
+| Backend (Node) | 200-350 MB | `NODE_OPTIONS=--max-old-space-size=384` |
+| Caddy | 50-100 MB | TLS termination and static files |
+| **Total** | **2.5-3.5 GB typical** | |
+
+The Nominatim import is the memory peak: it can reach 2-3 GB and uses swap,
+which makes the first import slower. Do not run it while other heavy jobs are
+active. After the import, the steady state fits in 4 GB; monitor with
+`free -h` and `docker stats`. If the swap is constantly in use, move Nominatim
+to a separate instance or switch its `IMPORT_STYLE` to `address`.
+
 ### ARM64 images
 
 Every base image has a `linux/arm64` manifest, verified with
