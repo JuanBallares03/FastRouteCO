@@ -270,13 +270,31 @@ export async function acceptInvitation(
   return { user: mapToAuthUser(user), tokens };
 }
 
-export async function resendInvitation(userId: string): Promise<string | null> {
+interface InvitationActor {
+  role: string;
+  companyId: string | null;
+}
+
+export async function resendInvitation(
+  userId: string,
+  actor: InvitationActor
+): Promise<string | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { company: true, invitations: { where: { usedAt: null } } },
   });
 
   if (!user) return null;
+
+  if (actor.role !== 'platform_admin') {
+    const canManage =
+      actor.role === 'company_admin' &&
+      actor.companyId !== null &&
+      user.companyId === actor.companyId &&
+      (user.role === UserRole.supervisor || user.role === UserRole.driver);
+
+    if (!canManage) return null;
+  }
 
   await prisma.userInvitation.updateMany({
     where: { userId, usedAt: null },

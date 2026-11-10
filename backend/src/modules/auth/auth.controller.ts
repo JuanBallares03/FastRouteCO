@@ -146,17 +146,28 @@ export async function acceptInvitationHandler(req: Request, res: Response, next:
   }
 }
 
-export async function resendInvitationHandler(req: Request, res: Response, next: NextFunction) {
+export async function resendInvitationHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
   try {
     const { userId } = req.params as { userId: string };
-    const invitationUrl = await resendInvitation(userId);
+    const actor = req.user;
+
+    if (!actor) {
+      res.status(401).json({ message: 'No autenticado' });
+      return;
+    }
+
+    const invitationUrl = await resendInvitation(userId, actor);
 
     if (!invitationUrl) {
       res.status(404).json({ message: 'Usuario no encontrado' });
       return;
     }
 
-    res.json({ message: 'Invitación reenviada', invitationUrl });
+    res.json({ message: 'Invitación reenviada' });
   } catch (error) {
     next(error);
   }

@@ -337,7 +337,10 @@ describe('Auth Service', () => {
         },
       });
       const url1 = await createInvitationForUser(userId);
-      const url2 = await resendInvitation(userId);
+      const url2 = await resendInvitation(userId, {
+        role: 'platform_admin',
+        companyId: null,
+      });
 
       expect(url2).not.toBe(url1);
       expect(url2).toContain('/set-password?token=');
@@ -499,6 +502,87 @@ describe('Auth API Endpoints', () => {
         .post('/api/v1/auth/accept-invitation')
         .send({ token: 'sometoken', password: 'weak' });
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe('POST /api/v1/auth/resend-invitation/:userId', () => {
+    it('should reject an unauthenticated request', async () => {
+      const res = await request(app).post(
+        `/api/v1/auth/resend-invitation/${TEST_USER_ID}`
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should resend an invitation to a driver of the same company without returning the token', async () => {
+      const driverId = crypto.randomUUID();
+      await prisma.user.create({
+        data: {
+          id: driverId,
+          companyId: TEST_COMPANY_ID,
+          role: UserRole.driver,
+          fullName: 'Driver To Invite',
+          email: uniqueEmail('auth-test-driver'),
+          isActive: true,
+        },
+      });
+
+      try {
+        const loginRes = await request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: 'test@company.com', password: TEST_PASSWORD });
+
+        const res = await request(app)
+          .post(`/api/v1/auth/resend-invitation/${driverId}`)
+          .set('Authorization', `Bearer ${loginRes.body.accessToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.invitationUrl).toBeUndefined();
+      } finally {
+        await prisma.userInvitation.deleteMany({ where: { userId: driverId } });
+        await prisma.user.delete({ where: { id: driverId } });
+      }
+    });
+
+    it('should not resend an invitation to another company', async () => {
+      const otherCompanyId = crypto.randomUUID();
+      const otherUserId = crypto.randomUUID();
+      await prisma.company.create({
+        data: {
+          id: otherCompanyId,
+          legalName: 'Other Company',
+          taxId: uniqueTaxId(),
+          email: 'other@company.com',
+          status: CompanyStatus.active,
+          hasOwnFleet: true,
+        },
+      });
+      await prisma.user.create({
+        data: {
+          id: otherUserId,
+          companyId: otherCompanyId,
+          role: UserRole.driver,
+          fullName: 'Other Driver',
+          email: uniqueEmail('auth-test-other'),
+          isActive: true,
+        },
+      });
+
+      try {
+        const loginRes = await request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: 'test@company.com', password: TEST_PASSWORD });
+
+        const res = await request(app)
+          .post(`/api/v1/auth/resend-invitation/${otherUserId}`)
+          .set('Authorization', `Bearer ${loginRes.body.accessToken}`);
+
+        expect(res.status).toBe(404);
+      } finally {
+        await prisma.userInvitation.deleteMany({ where: { userId: otherUserId } });
+        await prisma.user.delete({ where: { id: otherUserId } });
+        await prisma.company.delete({ where: { id: otherCompanyId } });
+      }
     });
   });
 
