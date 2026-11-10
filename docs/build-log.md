@@ -30,7 +30,7 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
 | 2026-11-09 | Fix | Verified school transport `plan_modules` cleanup: only Free Trial and Premium remain | `d176b38` |
 | 2026-11-09 | Realtime | Socket.IO Redis adapter shared across backend instances (RF08, RF25, RNF02) | `e231ef4` |
-| 2026-11-09 | Phase 7 | Hosting decided: Oracle Cloud Always Free ARM64 VM with Docker Compose, Caddy and daily PostgreSQL backups | `7bde605` |
+| 2026-11-09 | Phase 7 | Hosting decided: AWS EC2 ARM64 `t4g.medium` with Docker Compose, Caddy and daily PostgreSQL backups | `7bde605` |
 | 2026-11-09 | Phase 7 | Production Docker Compose, backend and web images, Caddy config, env examples, backup script and README deployment steps | `e15231b` |
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 | 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
@@ -144,7 +144,7 @@ Scope:
 - Hosting, production stack and deployment steps (RNF03, RNF05, RNF06).
 
 As built:
-- Hosting: one Oracle Cloud Always Free Ampere A1 (ARM64) VM with 2 OCPU and 12 GB RAM. Budget 0 USD, at most about 10 USD per month.
+- Hosting: one AWS EC2 ARM64 (Graviton) `t4g.medium` instance with 2 vCPU, 4 GB RAM, Ubuntu LTS ARM64, a 30 GB disk and a 4 GB swap file. Free plan with credits (up to 200 USD for 6 months); budget 0 USD, at most about 10 USD per month.
 - `docker-compose.prod.yml` runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima extract) and the backend on an internal network; only Caddy publishes ports 80 and 443.
 - `backend/Dockerfile` is a multi-stage Node 22 Alpine image that applies Prisma migrations on start. `web/Dockerfile` builds the Vite panel and serves it from Caddy.
 - Caddy provides automatic HTTPS for `DOMAIN`, proxies `/api/*` and `/socket.io/*` to the backend, serves the SPA with an `index.html` fallback and adds security headers.

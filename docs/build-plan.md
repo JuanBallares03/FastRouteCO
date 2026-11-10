@@ -70,7 +70,7 @@ FastRouteCO/
 - Hosting `[TO BE DEFINED]`.
 - Geocoding service: self-hosted Nominatim on Docker Compose with a Tolima extract, used in both development and production. The backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code.
 - Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development.
-- Hosting: Oracle Cloud Always Free, a single Ampere A1 (ARM64) VM with 2 OCPU and 12 GB of RAM. Budget is 0 USD, at most about 10 USD per month. Docker Compose runs the backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract) on that VM. The web panel is served from the same VM behind a reverse proxy with automatic HTTPS. PostgreSQL backups run as a scheduled `pg_dump` script on the same VM, keeping the last 7 daily dumps.
+- Hosting: AWS, on the free plan with credits (up to 200 USD for 6 months) and a budget of 0 USD, at most about 10 USD per month. A single EC2 ARM64 (Graviton) `t4g.medium` instance with 4 GB of RAM, Ubuntu LTS ARM64, a 30 GB disk and a 4 GB swap file. Docker Compose runs the backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract) on that VM. The web panel is served from the same VM behind a reverse proxy with automatic HTTPS. PostgreSQL backups run as a scheduled `pg_dump` script on the same VM, keeping the last 7 daily dumps.
 - Prices of plans, pay-per-use, credit packages and the school module `[TO BE DEFINED]`. Seed data uses placeholder values, none of them approved: Basic 129,900, Pro 349,900 and Premium 899,900 COP per month; pay-per-use membership 59,900 COP, 2 included drivers, 29,900 COP per additional driver and 700 COP per optimization. Annual plan prices remain undefined (`null`). The school module keeps its 499,000 COP placeholder until it is decided whether it is charged once or per period.
 
 ## Development tools
@@ -188,14 +188,16 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 
 ### Phase 7 — Deployment
 
-Hosting decision (2026-11-09):
+Hosting decision (corrected 2026-11-09: the university requires AWS, Google Cloud or Azure):
 
 | Area | Decision |
 |---|---|
-| Host | Oracle Cloud Always Free: one Ampere A1 (ARM64) VM, 2 OCPU and 12 GB RAM. Budget 0 USD, at most about 10 USD per month. |
+| Host | AWS EC2 ARM64 (Graviton) `t4g.medium`: 2 vCPU, 4 GB RAM, Ubuntu LTS ARM64, 30 GB disk. Free plan with credits (up to 200 USD for 6 months); budget 0 USD, at most about 10 USD per month. |
+| Memory | 4 GB RAM plus a 4 GB swap file. Service memory limits are tuned to fit (see the README consumption table). |
 | Runtime | Docker Compose on the VM: backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract). |
 | Web panel | Served from the same VM by a reverse proxy with automatic HTTPS. |
 | Backups | Scheduled `pg_dump` on the same VM, one daily dump, keeping the last 7. |
+| AWS setup | Budget alert, security group (SSH only from the operator IP, 80 and 443 open, nothing else) and swap file, documented in the README. |
 
 Phase 7 work inside the repository:
 

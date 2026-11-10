@@ -444,10 +444,12 @@ Without these steps, Gradle's CMake tasks will fail with path-length errors duri
 ## Production deployment
 
 The production stack is defined in `docker-compose.prod.yml` and targets a
-single Oracle Cloud Always Free Ampere A1 (ARM64) VM with 2 OCPU and 12 GB of
-RAM. Docker Compose runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima
-extract) and the backend. Caddy serves the web panel from the same VM and
-provides automatic HTTPS as the reverse proxy.
+single AWS EC2 ARM64 (Graviton) `t4g.medium` instance: 2 vCPU, 4 GB of RAM,
+Ubuntu LTS ARM64, a 30 GB disk and a 4 GB swap file. It runs on the AWS free
+plan with credits (up to 200 USD for 6 months) and a budget of 0 USD, at most
+about 10 USD per month. Docker Compose runs PostgreSQL, Redis, Neo4j with APOC,
+Nominatim (Tolima extract) and the backend. Caddy serves the web panel from the
+same VM and provides automatic HTTPS as the reverse proxy.
 
 Only ports 80 and 443 are published. PostgreSQL, Redis, Neo4j, Nominatim and
 the backend stay on the internal Docker network.
@@ -474,8 +476,9 @@ the runtime image consistent with the VM.
 
 ### First deployment
 
-1. Create the VM, point the domain's DNS `A` record to it and open TCP 80 and
-   443 in the Oracle security list.
+1. Provision the AWS resources (budget alert, EC2 instance, security group and
+   swap) as described in "AWS setup" below, then point the domain's DNS `A`
+   record to the instance's Elastic IP.
 2. Install Docker Engine and the Docker Compose plugin on the VM.
 3. Clone the repository and create the environment files:
 
