@@ -132,7 +132,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phase 6 is implemented, committed and verified locally. Next: Phase 7 planning.
+Progress: Phases 0–6 are implemented, committed and verified locally. Phase 7 in-repository work is done; the VM, domain, production credentials, map tile provider and mobile store builds remain external.
 
 ### Phase 2 — Orders, routes and routing engine
 

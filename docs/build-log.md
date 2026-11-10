@@ -30,6 +30,8 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-07 | Phase 5 | Web route detail: live driver marker, incident chat and reassignment controls | `f2eab87` |
 | 2026-11-09 | Fix | Verified school transport `plan_modules` cleanup: only Free Trial and Premium remain | `d176b38` |
 | 2026-11-09 | Realtime | Socket.IO Redis adapter shared across backend instances (RF08, RF25, RNF02) | `e231ef4` |
+| 2026-11-09 | Phase 7 | Hosting decided: Oracle Cloud Always Free ARM64 VM with Docker Compose, Caddy and daily PostgreSQL backups | `7bde605` |
+| 2026-11-09 | Phase 7 | Production Docker Compose, backend and web images, Caddy config, env examples, backup script and README deployment steps | `e15231b` |
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 | 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
 | 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
@@ -135,3 +137,19 @@ As built:
 - Platform monitoring: aggregated company, subscription, operation, support and alert indicators, with alert history and resolution (`GET /api/v1/platform/monitoring`, `GET /api/v1/platform/alerts`, `POST /api/v1/platform/alerts/:id/resolve`). Unhandled API 5xx errors are recorded as critical alerts (HU-02).
 - System settings: editable invitation expiry, refresh token days, access token minutes, minimum password length and bcrypt cost, bounded by safe minimums and maximums. Changes apply without restarting the API (HU-23).
 - School transport: students with automatic pickup geocoding, activation/deactivation without deleting history, and inclusion as route stops. The module is included in Free Trial and Premium, purchased separately in Pro and pay-per-use, and not available in Basic (HU-32, RF12).
+
+## Phase 7 - Deployment
+
+Scope:
+- Hosting, production stack and deployment steps (RNF03, RNF05, RNF06).
+
+As built:
+- Hosting: one Oracle Cloud Always Free Ampere A1 (ARM64) VM with 2 OCPU and 12 GB RAM. Budget 0 USD, at most about 10 USD per month.
+- `docker-compose.prod.yml` runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima extract) and the backend on an internal network; only Caddy publishes ports 80 and 443.
+- `backend/Dockerfile` is a multi-stage Node 22 Alpine image that applies Prisma migrations on start. `web/Dockerfile` builds the Vite panel and serves it from Caddy.
+- Caddy provides automatic HTTPS for `DOMAIN`, proxies `/api/*` and `/socket.io/*` to the backend, serves the SPA with an `index.html` fallback and adds security headers.
+- Production environment examples without real values: `production.env.example`, `backend/production.env.example`, `web/production.env.example` and `mobile/production.env.example`. Real `production.env` files are ignored by Git.
+- ARM64 manifests verified with `docker buildx imagetools inspect` for `node:22-alpine`, `postgres:16-alpine`, `redis:7-alpine`, `neo4j:5-community`, `mediagis/nominatim:5.3` and `caddy:2-alpine`. Build images on the ARM VM so Prisma uses the native engine.
+- `scripts/backup-postgres.sh` writes a daily compressed `pg_dump` and keeps the last 7 files; the README includes the cron entry and restore command.
+- README deployment section in English: first deployment, migrations, seed, road-network import, backups, updates and mobile release builds.
+- Pending external to the repository: VM and domain creation, production Wompi, Resend and Cloudinary credentials, production map tile provider, and Android/iOS builds with EAS.
