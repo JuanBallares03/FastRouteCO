@@ -32,6 +32,9 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-09 | Realtime | Socket.IO Redis adapter shared across backend instances (RF08, RF25, RNF02) | `e231ef4` |
 | 2026-11-09 | Phase 7 | Hosting decided: AWS EC2 ARM64 `t4g.medium` with Docker Compose, Caddy and daily PostgreSQL backups | `7bde605` |
 | 2026-11-09 | Phase 7 | Production Docker Compose, backend and web images, Caddy config, env examples, backup script and README deployment steps | `e15231b` |
+| 2026-11-09 | Phase 7 | Hosting corrected to AWS EC2 `t4g.medium` after the university requirement | `37e9d24` |
+| 2026-11-09 | Phase 7 | Production memory tuned for 4 GB plus swap, with per-service budget | `666635c` |
+| 2026-11-09 | Phase 7 | AWS budget alert, EC2/security group and swap steps | `01f2aaf` |
 | 2026-11-07 | Phase 5 | Mobile incidents tab and realtime route refresh on reassignment | `b3cdee2` |
 | 2026-11-07 | Phase 5 | Expo SDK 58 patch update and `expo-sqlite` dependency | `339f2b4` |
 | 2026-11-07 | Phase 5 | Offline queue and route cache moved to SQLite with legacy JSON migration | `ae153f2` |
@@ -150,6 +153,7 @@ As built:
 - Caddy provides automatic HTTPS for `DOMAIN`, proxies `/api/*` and `/socket.io/*` to the backend, serves the SPA with an `index.html` fallback and adds security headers.
 - Production environment examples without real values: `production.env.example`, `backend/production.env.example`, `web/production.env.example` and `mobile/production.env.example`. Real `production.env` files are ignored by Git.
 - ARM64 manifests verified with `docker buildx imagetools inspect` for `node:22-alpine`, `postgres:16-alpine`, `redis:7-alpine`, `neo4j:5-community`, `mediagis/nominatim:5.3` and `caddy:2-alpine`. Build images on the ARM VM so Prisma uses the native engine.
+- Memory tuned for the 4 GB instance: Neo4j heap 256-512 MB and page cache 512 MB, Nominatim with one import thread and smaller PostgreSQL buffers, PostgreSQL 128 MB shared buffers, Redis capped at 128 MB and Node heap capped at 384 MB. The README documents the expected consumption per service and the Nominatim import peak.
 - `scripts/backup-postgres.sh` writes a daily compressed `pg_dump` and keeps the last 7 files; the README includes the cron entry and restore command.
 - README deployment section in English: first deployment, migrations, seed, road-network import, backups, updates and mobile release builds.
 - Pending external to the repository: VM and domain creation, production Wompi, Resend and Cloudinary credentials, production map tile provider, and Android/iOS builds with EAS.
