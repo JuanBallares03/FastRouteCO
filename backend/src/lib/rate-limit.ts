@@ -118,10 +118,16 @@ interface RateLimitOptions {
   keyPrefix: string;
   store?: RateLimitStore;
   keyGenerator?: (req: Request) => string;
+  skip?: () => boolean;
 }
 
 export function createRateLimiter(options: RateLimitOptions): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
+    if (options.skip?.()) {
+      next();
+      return;
+    }
+
     const identity = options.keyGenerator?.(req) ?? req.ip ?? 'unknown';
     const key = `rate-limit:${options.keyPrefix}:${identity}`;
     const store = options.store ?? getSharedRateLimitStore();
