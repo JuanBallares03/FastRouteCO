@@ -431,6 +431,8 @@ export async function applyOptimizationBilling(
   };
 }
 
+class UsageChargeAlreadyClaimedError extends Error {}
+
 export async function processUsageCharge(companyId: string, usageChargeId: string) {
   const charge = await prisma.usageCharge.findFirst({
     where: { id: usageChargeId, companyId, status: UsageChargeStatus.open },
@@ -446,19 +448,35 @@ export async function processUsageCharge(companyId: string, usageChargeId: strin
   const paymentId = randomUUID();
   const reference = buildPaymentReference(paymentId, 'usage', charge.id);
   const amount = Number(charge.amount);
-  const payment = await prisma.payment.create({
-    data: {
-      id: paymentId,
-      companyId,
-      purpose: PaymentPurpose.usage,
-      amount,
-      status: PaymentStatus.pending,
-    },
-  });
-  await prisma.usageCharge.update({
-    where: { id: charge.id },
-    data: { paymentId },
-  });
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          id: paymentId,
+          companyId,
+          purpose: PaymentPurpose.usage,
+          amount,
+          status: PaymentStatus.pending,
+        },
+      });
+      const claimed = await tx.usageCharge.updateMany({
+        where: {
+          id: charge.id,
+          companyId,
+          status: UsageChargeStatus.open,
+          paymentId: null,
+        },
+        data: { paymentId: payment.id },
+      });
+      if (claimed.count === 0) {
+        throw new UsageChargeAlreadyClaimedError();
+      }
+    });
+  } catch (error) {
+    if (error instanceof UsageChargeAlreadyClaimedError) return null;
+    throw error;
+  }
 
   let transaction: WompiTransaction;
   try {
@@ -469,15 +487,17 @@ export async function processUsageCharge(companyId: string, usageChargeId: strin
       paymentSourceId: Number(company.cardReference),
     });
   } catch (error) {
-    await prisma.usageCharge.update({
-      where: { id: charge.id },
-      data: { paymentId: null },
-    });
-    await prisma.payment.delete({ where: { id: paymentId } });
+    await prisma.$transaction([
+      prisma.usageCharge.update({
+        where: { id: charge.id },
+        data: { paymentId: null },
+      }),
+      prisma.payment.delete({ where: { id: paymentId } }),
+    ]);
     throw error;
   }
 
-  await handleTransactionStatus(payment.id, transaction);
+  await handleTransactionStatus(paymentId, transaction);
   return transaction;
 }
 

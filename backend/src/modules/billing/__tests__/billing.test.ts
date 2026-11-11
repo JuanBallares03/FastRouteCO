@@ -518,6 +518,41 @@ describe('Company billing', () => {
     expect(Number(charge.amount)).toBe(6000);
   });
 
+  it('charges an open usage period only once under concurrency', async () => {
+    await activatePayPerUse();
+    const charge = await prisma.usageCharge.create({
+      data: {
+        companyId: COMPANY_ID,
+        periodStartDate: new Date('2026-10-01T00:00:00.000Z'),
+        optimizationCount: 2,
+        amount: 4000,
+      },
+    });
+
+    chargePaymentSource.mockImplementation(
+      async (params: { reference: string; amountInCents: number }) => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return {
+          id: `tx-${randomUUID()}`,
+          status: 'APPROVED',
+          amount_in_cents: params.amountInCents,
+          currency: 'COP',
+          reference: params.reference,
+          payment_method_type: 'CARD',
+        };
+      }
+    );
+
+    const { processUsageCharge } = await import('../billing.service.js');
+    await Promise.all([
+      processUsageCharge(COMPANY_ID, charge.id),
+      processUsageCharge(COMPANY_ID, charge.id),
+    ]);
+
+    expect(chargePaymentSource).toHaveBeenCalledTimes(1);
+    expect(await prisma.payment.count({ where: { companyId: COMPANY_ID } })).toBe(1);
+  });
+
   it('uses credits only for subscription plans, never per optimization or driver', async () => {
     await prisma.plan.update({
       where: { id: planId },
