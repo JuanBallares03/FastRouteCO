@@ -5,6 +5,7 @@ import helmet from "helmet";
 import 'dotenv/config';
 import { env } from "./env.js";
 import { initRealtime, closeRealtime } from "./lib/realtime.js";
+import { closeRateLimitStore } from "./lib/rate-limit.js";
 import { prisma } from "./lib/prisma.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import platformRoutes from "./modules/companies/companies.routes.js";
@@ -25,6 +26,7 @@ import { errorHandler } from "./middleware/error-handler.js";
 const app = express();
 const PORT = process.env.PORT ?? 3000;
 
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(express.json());
@@ -73,6 +75,7 @@ async function shutdown(signal: string) {
 
   try {
     await closeRealtime();
+    await closeRateLimitStore();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await prisma.$disconnect();
   } finally {
