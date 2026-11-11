@@ -7,25 +7,25 @@ Sources of truth: `README.md` (RF01–RF31, RNF01–RNF11), `docs/user-stories/u
 
 | ID | Dimension | Severity | CWE / OWASP | Location (file:line) | Finding | Status |
 |---|---|---|---|---|---|---|
-| AUD-01 | Security | Critical | CWE-306, CWE-620 / A01, A07 | `backend/src/modules/auth/auth.routes.ts:27`, `auth.controller.ts:149-160`, `auth.service.ts:273-311` | Unauthenticated invitation resend returns a valid password-reset token for any user | Open |
-| AUD-02 | Security | Critical | CWE-345 / A08 | `backend/src/lib/wompi.ts:93-105`, `backend/src/modules/billing/billing.service.ts:1019-1085` | Wompi event checksum does not cover `reference`; the reference decides which product is granted | Open |
-| AUD-03 | Security | Critical | CWE-362 / A04 | `backend/src/modules/billing/billing.service.ts:434-481` | Concurrent pay-per-use charges create two Wompi transactions for the same usage charge | Open |
-| AUD-04 | Security | Critical | CWE-362, CWE-841 / A04 | `backend/src/modules/billing/billing.service.ts:1056-1126` | Concurrent Wompi webhooks can apply the same payment twice | Open |
-| AUD-05 | Architecture | High | CWE-362 / A04 | `backend/src/modules/billing/billing.service.ts:346-416`, `1188-1200` | Credit and pay-per-use counters use read-modify-write and lose updates under concurrency | Open |
-| AUD-06 | Architecture | High | CWE-362 / A04 | `backend/src/modules/routes/routes.service.ts:198-268`, `276-370`, `backend/prisma/schema.prisma:387-408` | Two requests can assign the same order to two routes; no unique constraint on `route_stops.order_id` | Open |
-| AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Open |
-| AUD-08 | Performance | High | CWE-400 / A04 | `backend/src/lib/routing.ts:190-238` | Nearest-intersection queries scan every `Intersection` node | Open |
-| AUD-09 | Performance | High | CWE-400 / A04 | `backend/src/modules/reports/reports.service.ts:32-35`, `95-100`, `157` | Report summary loads every GPS point in the range into memory | Open |
-| AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Open |
-| AUD-11 | Architecture | High | N/A (build-plan, scheduled processes) | `backend/src/modules/billing/billing.service.ts:434-499` | Billing close, early charge, trial expiry and renewals have no scheduled execution | Open |
-| AUD-12 | Reliability | High | CWE-703 / A04 | `backend/src/modules/orders/orders.service.ts:185-204` | Editing an order during a Nominatim outage erases its existing coordinates | Open |
-| AUD-13 | Reliability | High | CWE-754 / A04 | `backend/src/index.ts:54`, `backend/src/lib/realtime.ts:38` | The API does not start if Redis is down and has no graceful shutdown | Open |
-| AUD-14 | Security | High | CWE-212 / A01 | `mobile/src/features/auth/AuthContext.tsx:137-147` | Sign-out leaves the cached route, offline queue and evidence photos on the device | Open |
-| AUD-15 | Reliability | High | N/A (RNF07) | `mobile/src/features/auth/AuthContext.tsx:98-102` | A cold start without network deletes the local session and logs the driver out | Open |
-| AUD-16 | Security | High | CWE-307 / A07 | `backend/src/index.ts:27-30`, `backend/src/modules/auth/auth.routes.ts:22-27` | No rate limiting on login, refresh, invitation or card-setup endpoints | Open |
-| AUD-17 | Testing | High | N/A (CI) | `.github/workflows/ci.yml:1-119` | CI only installs, tests and builds the backend | Open |
-| AUD-18 | Reliability | High | N/A (deployment) | `backend/prisma/seed.ts:174` | Extra closing brace makes `pnpm db:seed` fail on a fresh deployment | Open |
-| AUD-19 | Dependencies | High | N/A (CVEs) | `pnpm-lock.yaml` | `pnpm audit` reports 8 high, 7 moderate and 6 low vulnerabilities | Open |
+| AUD-01 | Security | Critical | CWE-306, CWE-620 / A01, A07 | `backend/src/modules/auth/auth.routes.ts:27`, `auth.controller.ts:149-160`, `auth.service.ts:273-311` | Unauthenticated invitation resend returns a valid password-reset token for any user | Fixed in `0f70ab4` |
+| AUD-02 | Security | Critical | CWE-345 / A08 | `backend/src/lib/wompi.ts:93-105`, `backend/src/modules/billing/billing.service.ts:1019-1085` | Wompi event checksum does not cover `reference`; the reference decides which product is granted | Fixed in `17b0a93` |
+| AUD-03 | Security | Critical | CWE-362 / A04 | `backend/src/modules/billing/billing.service.ts:434-481` | Concurrent pay-per-use charges create two Wompi transactions for the same usage charge | Fixed in `9e3311e` |
+| AUD-04 | Security | Critical | CWE-362, CWE-841 / A04 | `backend/src/modules/billing/billing.service.ts:1056-1126` | Concurrent Wompi webhooks can apply the same payment twice | Fixed in `c3ea9ca` |
+| AUD-05 | Architecture | High | CWE-362 / A04 | `backend/src/modules/billing/billing.service.ts:346-416`, `1188-1200` | Credit and pay-per-use counters use read-modify-write and lose updates under concurrency | Fixed in `96bb399` |
+| AUD-06 | Architecture | High | CWE-362 / A04 | `backend/src/modules/routes/routes.service.ts:198-268`, `276-370`, `backend/prisma/schema.prisma:387-408` | Two requests can assign the same order to two routes; no unique constraint on `route_stops.order_id` | Fixed in `358438c` |
+| AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Open — requires stop cap and RNF01 measurement |
+| AUD-08 | Performance | High | CWE-400 / A04 | `backend/src/lib/routing.ts:190-238` | Nearest-intersection queries scan every `Intersection` node | Fixed in `658031e` |
+| AUD-09 | Performance | High | CWE-400 / A04 | `backend/src/modules/reports/reports.service.ts:32-35`, `95-100`, `157` | Report summary loads every GPS point in the range into memory | Fixed in `096b19f` |
+| AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Open — requires schema migration approval |
+| AUD-11 | Architecture | High | N/A (build-plan, scheduled processes) | `backend/src/modules/billing/billing.service.ts:434-499` | Billing close, early charge, trial expiry and renewals have no scheduled execution | Open — requires scheduler and billing-rule decision |
+| AUD-12 | Reliability | High | CWE-703 / A04 | `backend/src/modules/orders/orders.service.ts:185-204` | Editing an order during a Nominatim outage erases its existing coordinates | Fixed in `9dd21d6` |
+| AUD-13 | Reliability | High | CWE-754 / A04 | `backend/src/index.ts:54`, `backend/src/lib/realtime.ts:38` | The API does not start if Redis is down and has no graceful shutdown | Fixed in `f6b9190` |
+| AUD-14 | Security | High | CWE-212 / A01 | `mobile/src/features/auth/AuthContext.tsx:137-147` | Sign-out leaves the cached route, offline queue and evidence photos on the device | Fixed in `da49c06` |
+| AUD-15 | Reliability | High | N/A (RNF07) | `mobile/src/features/auth/AuthContext.tsx:98-102` | A cold start without network deletes the local session and logs the driver out | Fixed in `14cc738` |
+| AUD-16 | Security | High | CWE-307 / A07 | `backend/src/index.ts:27-30`, `backend/src/modules/auth/auth.routes.ts:22-27` | No rate limiting on login, refresh, invitation or card-setup endpoints | Fixed in `b77bfea` |
+| AUD-17 | Testing | High | N/A (CI) | `.github/workflows/ci.yml:1-119` | CI only installs, tests and builds the backend | Fixed in `55b6d9d` |
+| AUD-18 | Reliability | High | N/A (deployment) | `backend/prisma/seed.ts:174` | Extra closing brace makes `pnpm db:seed` fail on a fresh deployment | Fixed in `451dd5f` |
+| AUD-19 | Dependencies | High | N/A (CVEs) | `pnpm-lock.yaml` | `pnpm audit` reports 8 high, 7 moderate and 6 low vulnerabilities | Open — requires dependency approval |
 | AUD-20 | Reliability | Medium | CWE-754 / A05 | `backend/src/index.ts:32-34` | `/health` always returns 200 without checking PostgreSQL, Redis or Neo4j | Open |
 | AUD-21 | Security | Medium | CWE-345 / A07 | `backend/src/modules/auth/jwt.ts:36-42` | Access and refresh token payloads are not checked for `type` | Open |
 | AUD-22 | Security | Medium | CWE-922 / A02 | `web/src/context/AuthContext.tsx:56-58`, `74-76` | Access and refresh tokens are stored in `localStorage` | Open |
@@ -284,4 +284,12 @@ Top 5 risks:
 
 ## Final check
 
-Pending. Lint, typecheck, test and build results for `backend`, `web` and `mobile` will be recorded here after the fixes.
+Executed after the fixes on 2026-11-10:
+
+- `backend`: lint and typecheck pass; 192 tests pass; production build passes.
+- `web`: lint and typecheck pass; 10 tests pass; production build passes (Vite reports a 1.63 MB main chunk warning, no build error).
+- `mobile`: lint and typecheck pass; 24 tests pass.
+- `pnpm lint`, `pnpm test` and `pnpm build` pass at the workspace root.
+
+Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-06, AUD-08, AUD-09, AUD-12 to AUD-18).
+Still open by design: AUD-07 (stop cap and RNF01 measurement), AUD-10 (schema migration approval), AUD-11 (scheduler and billing-rule decision), AUD-19 (dependency approval), and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
