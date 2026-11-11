@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import {
   BillingCycle,
@@ -444,7 +444,7 @@ export async function processUsageCharge(companyId: string, usageChargeId: strin
   if (Number(charge.amount) <= 0) return null;
 
   const paymentId = randomUUID();
-  const reference = `${paymentId}|usage|${charge.id}`;
+  const reference = buildPaymentReference(paymentId, 'usage', charge.id);
   const amount = Number(charge.amount);
   const payment = await prisma.payment.create({
     data: {
@@ -781,6 +781,22 @@ async function pendingPayment(companyId: string, purpose: PaymentPurpose, amount
   });
 }
 
+function referenceSignature(payload: string): string {
+  return createHmac('sha256', env.WOMPI_INTEGRITY_SECRET)
+    .update(payload)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+export function buildPaymentReference(
+  paymentId: string,
+  kind: string,
+  ...parts: string[]
+): string {
+  const payload = [paymentId, kind, ...parts].join('|');
+  return `${payload}|${referenceSignature(payload)}`;
+}
+
 function checkoutFor(paymentId: string, reference: string, amount: number) {
   return buildCheckoutUrl({
     reference,
@@ -811,7 +827,12 @@ export async function startSubscriptionCheckout(
   }
 
   const payment = await pendingPayment(companyId, PaymentPurpose.subscription, amount);
-  const reference = `${payment.id}|subscription|${plan.id}|${billingCycle}`;
+  const reference = buildPaymentReference(
+    payment.id,
+    'subscription',
+    plan.id,
+    billingCycle
+  );
   return {
     paymentId: payment.id,
     checkoutUrl: checkoutFor(payment.id, reference, amount),
@@ -844,7 +865,7 @@ export async function startCreditPackageCheckout(companyId: string, packageId: s
 
   const amount = Number(pkg.price);
   const payment = await pendingPayment(companyId, PaymentPurpose.credit_package, amount);
-  const reference = `${payment.id}|credit_package|${pkg.id}`;
+  const reference = buildPaymentReference(payment.id, 'credit_package', pkg.id);
   return {
     paymentId: payment.id,
     checkoutUrl: checkoutFor(payment.id, reference, amount),
@@ -890,7 +911,7 @@ export async function startModuleCheckout(companyId: string, moduleId: string) {
 
   const amount = Number(module.price);
   const payment = await pendingPayment(companyId, PaymentPurpose.module, amount);
-  const reference = `${payment.id}|module|${module.id}`;
+  const reference = buildPaymentReference(payment.id, 'module', module.id);
   return {
     paymentId: payment.id,
     checkoutUrl: checkoutFor(payment.id, reference, amount),
@@ -958,7 +979,7 @@ export async function registerCardAndStartPayPerUse(companyId: string, token: st
   }
 
   const payment = await pendingPayment(companyId, PaymentPurpose.subscription, baseAmount);
-  const reference = `${payment.id}|pay_per_use|${plan.id}`;
+  const reference = buildPaymentReference(payment.id, 'pay_per_use', plan.id);
   const transaction = await chargePaymentSource({
     amountInCents: Math.round(baseAmount * 100),
     customerEmail: company.email,
@@ -1016,9 +1037,92 @@ async function activatePayPerUseSubscription(companyId: string, planId: string) 
   return subscription;
 }
 
-function parseReference(reference: string) {
-  const [paymentId, kind, ...rest] = reference.split('|');
+function parseReference(
+  reference: string
+): { paymentId: string; kind: string; rest: string[] } | null {
+  const parts = reference.split('|');
+  if (parts.length < 4) return null;
+
+  const signature = parts.pop() ?? '';
+  const payload = parts.join('|');
+  const expected = referenceSignature(payload);
+
+  if (
+    signature.length !== expected.length ||
+    !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  ) {
+    return null;
+  }
+
+  const [paymentId, kind, ...rest] = parts;
   return { paymentId, kind, rest };
+}
+
+async function validateReference(
+  tx: BillingClient,
+  payment: { companyId: string; purpose: PaymentPurpose; amount: Prisma.Decimal },
+  kind: string,
+  rest: string[]
+) {
+  const amount = Number(payment.amount);
+
+  if (kind === 'subscription' || kind === 'pay_per_use') {
+    if (payment.purpose !== PaymentPurpose.subscription) {
+      throw new BadRequestError('El pago no corresponde a una suscripción', 'REFERENCE_MISMATCH');
+    }
+    const plan = await tx.plan.findUnique({ where: { id: rest[0] } });
+    if (!plan) throw new BadRequestError('Plan no encontrado', 'REFERENCE_MISMATCH');
+    const expected =
+      kind === 'pay_per_use'
+        ? Number(plan.monthlyPrice ?? 0)
+        : rest[1] === BillingCycle.annual
+          ? Number(plan.annualPrice ?? 0)
+          : Number(plan.monthlyPrice ?? 0);
+    if (expected !== amount) {
+      throw new BadRequestError('El monto del pago no coincide', 'REFERENCE_MISMATCH');
+    }
+    return;
+  }
+
+  if (kind === 'credit_package') {
+    const pkg = await tx.creditPackage.findUnique({ where: { id: rest[0] } });
+    if (
+      payment.purpose !== PaymentPurpose.credit_package ||
+      !pkg ||
+      Number(pkg.price) !== amount
+    ) {
+      throw new BadRequestError('El pago no corresponde al paquete', 'REFERENCE_MISMATCH');
+    }
+    return;
+  }
+
+  if (kind === 'module') {
+    const module = await tx.module.findUnique({ where: { id: rest[0] } });
+    if (
+      payment.purpose !== PaymentPurpose.module ||
+      !module ||
+      Number(module.price ?? 0) !== amount
+    ) {
+      throw new BadRequestError('El pago no corresponde al módulo', 'REFERENCE_MISMATCH');
+    }
+    return;
+  }
+
+  if (kind === 'usage') {
+    const charge = await tx.usageCharge.findFirst({
+      where: { id: rest[0], companyId: payment.companyId },
+    });
+    if (
+      payment.purpose !== PaymentPurpose.usage ||
+      !charge ||
+      Number(charge.amount) !== amount
+    ) {
+      throw new BadRequestError('El pago no corresponde al consumo', 'REFERENCE_MISMATCH');
+    }
+    return;
+  }
+
+  throw new BadRequestError('Referencia de pago inválida', 'REFERENCE_MISMATCH');
 }
 
 export async function handleWompiEvent(payload: unknown) {
@@ -1031,8 +1135,14 @@ export async function handleWompiEvent(payload: unknown) {
 
   const data = payload.data.transaction as WompiTransaction | undefined;
   if (!data?.reference) return { ignored: true };
-  const { paymentId } = parseReference(data.reference);
-  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (data.currency !== 'COP') {
+    throw new BadRequestError('La moneda del pago no es válida', 'PAYMENT_CURRENCY_MISMATCH');
+  }
+
+  const parsed = parseReference(data.reference);
+  if (!parsed) return { ignored: true };
+
+  const payment = await prisma.payment.findUnique({ where: { id: parsed.paymentId } });
   if (!payment) return { ignored: true };
 
   const expectedAmount = Math.round(Number(payment.amount) * 100);
@@ -1068,8 +1178,12 @@ async function approvePayment(paymentId: string, transaction: WompiTransaction) 
       },
     });
 
-    const referencePart = transaction.reference;
-    const { kind, rest } = parseReference(referencePart);
+    const parsed = parseReference(transaction.reference);
+    if (!parsed) {
+      throw new BadRequestError('Referencia de pago inválida', 'REFERENCE_MISMATCH');
+    }
+    const { kind, rest } = parsed;
+    await validateReference(tx, payment, kind, rest);
 
     if (kind === 'subscription' || kind === 'pay_per_use') {
       const planId = rest[0];
@@ -1099,7 +1213,13 @@ async function rejectPayment(paymentId: string, transaction: WompiTransaction) {
       },
     });
 
-    const { kind, rest } = parseReference(transaction.reference);
+    const parsed = parseReference(transaction.reference);
+    if (!parsed) {
+      throw new BadRequestError('Referencia de pago inválida', 'REFERENCE_MISMATCH');
+    }
+    const { kind, rest } = parsed;
+    await validateReference(tx, payment, kind, rest);
+
     if (kind === 'usage') {
       await tx.usageCharge.updateMany({
         where: { id: rest[0], companyId: payment.companyId },

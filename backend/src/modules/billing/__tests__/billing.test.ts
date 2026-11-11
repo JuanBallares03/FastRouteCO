@@ -16,6 +16,7 @@ import paymentRoutes from '../payments.routes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { env } from '../../../env.js';
 import { createTokenPair, hashPassword } from '../../auth/auth.service.js';
+import { buildPaymentReference } from '../billing.service.js';
 
 const app = express();
 app.use(express.json());
@@ -270,7 +271,7 @@ describe('Company billing', () => {
     const payment = await prisma.payment.findUniqueOrThrow({
       where: { id: start.body.paymentId },
     });
-    const reference = `${payment.id}|credit_package|${packageId}`;
+    const reference = buildPaymentReference(payment.id, 'credit_package', packageId);
 
     const event = signedEvent({
       id: `tx-${randomUUID()}`,
@@ -295,7 +296,7 @@ describe('Company billing', () => {
     expect(purchase?.credits).toBe(20);
   });
 
-  it('rejects a Wompi event with an invalid checksum', async () => {
+  it('ignores a signed event whose reference was tampered with', async () => {
     const start = await request(app)
       .post('/api/v1/company/billing/credits/purchase')
       .set(authHeader(adminToken))
@@ -310,6 +311,56 @@ describe('Company billing', () => {
       amount_in_cents: 5000000,
       currency: 'COP',
       reference: `${payment.id}|credit_package|${packageId}`,
+    });
+    const res = await request(app).post('/api/v1/payments/wompi/events').send(event);
+
+    expect(res.status).toBe(200);
+    const updated = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(updated.status).toBe(PaymentStatus.pending);
+    const purchase = await prisma.creditPurchase.findFirst({
+      where: { paymentId: payment.id },
+    });
+    expect(purchase).toBeNull();
+  });
+
+  it('rejects a Wompi event with currency other than COP', async () => {
+    const start = await request(app)
+      .post('/api/v1/company/billing/credits/purchase')
+      .set(authHeader(adminToken))
+      .send({ packageId });
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: start.body.paymentId },
+    });
+
+    const event = signedEvent({
+      id: `tx-${randomUUID()}`,
+      status: 'APPROVED',
+      amount_in_cents: 5000000,
+      currency: 'USD',
+      reference: buildPaymentReference(payment.id, 'credit_package', packageId),
+    });
+    const res = await request(app).post('/api/v1/payments/wompi/events').send(event);
+
+    expect(res.status).toBe(400);
+    const updated = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(updated.status).toBe(PaymentStatus.pending);
+  });
+
+  it('rejects a Wompi event with an invalid checksum', async () => {
+    const start = await request(app)
+      .post('/api/v1/company/billing/credits/purchase')
+      .set(authHeader(adminToken))
+      .send({ packageId });
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: start.body.paymentId },
+    });
+
+    const event = signedEvent({
+      id: `tx-${randomUUID()}`,
+      status: 'APPROVED',
+      amount_in_cents: 5000000,
+      currency: 'COP',
+      reference: buildPaymentReference(payment.id, 'credit_package', packageId),
     });
     event.signature.checksum = '0'.repeat(64);
 
@@ -330,7 +381,7 @@ describe('Company billing', () => {
     const payment = await prisma.payment.findUniqueOrThrow({
       where: { id: start.body.paymentId },
     });
-    const reference = `${payment.id}|subscription|${planId}|annual`;
+    const reference = buildPaymentReference(payment.id, 'subscription', planId, 'annual');
     const event = signedEvent({
       id: `tx-${randomUUID()}`,
       status: 'APPROVED',
@@ -391,7 +442,7 @@ describe('Company billing', () => {
       status: 'APPROVED',
       amount_in_cents: 2500000,
       currency: 'COP',
-      reference: `${payment.id}|module|${moduleId}`,
+      reference: buildPaymentReference(payment.id, 'module', moduleId),
       payment_method_type: 'CARD',
     });
     const res = await request(app).post('/api/v1/payments/wompi/events').send(event);
