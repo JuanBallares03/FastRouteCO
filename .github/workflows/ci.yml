@@ -64,7 +64,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        working-directory: ./backend
 
       - name: Generate Prisma Client
         run: pnpm prisma:generate
@@ -115,3 +114,69 @@ jobs:
       - name: Build
         run: pnpm build
         working-directory: ./backend
+
+  web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run lint
+        run: pnpm lint
+        working-directory: ./web
+
+      - name: Run typecheck
+        run: pnpm typecheck
+        working-directory: ./web
+
+      - name: Run tests
+        run: pnpm test
+        working-directory: ./web
+
+      - name: Build
+        run: pnpm build
+        working-directory: ./web
+
+  mobile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run lint
+        run: pnpm lint
+        working-directory: ./mobile
+
+      - name: Run typecheck
+        run: pnpm typecheck
+        working-directory: ./mobile
+
+      - name: Run tests
+        run: pnpm test
+        working-directory: ./mobile
