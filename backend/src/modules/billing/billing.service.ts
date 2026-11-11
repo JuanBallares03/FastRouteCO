@@ -50,6 +50,10 @@ type SubscriptionWithPlan = Prisma.SubscriptionGetPayload<{
 
 type BillingClient = Prisma.TransactionClient;
 
+async function lockCompanyBilling(tx: BillingClient, companyId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${companyId}))`;
+}
+
 export interface PlanView {
   id: string;
   name: string;
@@ -335,6 +339,7 @@ export async function applyOptimizationBilling(
   companyId: string,
   optimizationId: string
 ) {
+  await lockCompanyBilling(tx, companyId);
   const subscription = await findActiveSubscription(companyId, tx);
   if (!subscription) {
     throw new ForbiddenError(
@@ -1274,6 +1279,7 @@ async function applySubscription(
   cycle: BillingCycle,
   paymentId: string
 ) {
+  await lockCompanyBilling(tx, companyId);
   const plan = await tx.plan.findUnique({ where: { id: planId } });
   if (!plan) throw new NotFoundError('Plan no encontrado', 'PLAN_NOT_FOUND');
 
@@ -1324,6 +1330,7 @@ async function applyCreditPurchase(
   packageId: string,
   paymentId: string
 ) {
+  await lockCompanyBilling(tx, companyId);
   const pkg = await tx.creditPackage.findUnique({ where: { id: packageId } });
   if (!pkg) throw new NotFoundError('Paquete no encontrado', 'PACKAGE_NOT_FOUND');
 
@@ -1339,7 +1346,7 @@ async function applyCreditPurchase(
   });
   await tx.creditBalance.update({
     where: { companyId },
-    data: { extraCredits: balance.extraCredits + pkg.credits },
+    data: { extraCredits: { increment: pkg.credits } },
   });
   await tx.creditTransaction.create({
     data: {

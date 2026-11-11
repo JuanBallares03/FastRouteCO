@@ -550,6 +550,60 @@ describe('Company billing', () => {
     expect(Number(charge.amount)).toBe(6000);
   });
 
+  it('serializes concurrent optimizations for the same company', async () => {
+    await activatePayPerUse();
+    const driver = await prisma.user.create({
+      data: {
+        companyId: COMPANY_ID,
+        role: UserRole.driver,
+        fullName: 'Concurrent Driver',
+        email: `billing-concurrent-${randomUUID()}@test.com`,
+        passwordHash: await hashPassword(PASSWORD),
+        isActive: true,
+        driver: { create: { status: 'available' } },
+      },
+    });
+    const route = await prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId: driver.id,
+        routeDate: new Date('2026-11-05T00:00:00.000Z'),
+        status: 'created',
+      },
+    });
+    const optimizations = await Promise.all(
+      [1, 2].map(() =>
+        prisma.routeOptimization.create({
+          data: {
+            routeId: route.id,
+            totalDistanceM: 1000,
+            estimatedDurationS: 100,
+            processingTimeMs: 10,
+            isSuccessful: true,
+          },
+        })
+      )
+    );
+
+    const { applyOptimizationBilling } = await import('../billing.service.js');
+    await Promise.all(
+      optimizations.map((optimization) =>
+        prisma.$transaction((tx) =>
+          applyOptimizationBilling(tx, COMPANY_ID, optimization.id)
+        )
+      )
+    );
+
+    const charges = await prisma.usageCharge.findMany({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(charges).toHaveLength(1);
+    expect(charges[0].optimizationCount).toBe(2);
+    expect(Number(charges[0].amount)).toBe(
+      charges[0].optimizationCount * 2000 + charges[0].additionalDrivers * 2000
+    );
+  });
+
   it('charges an open usage period only once under concurrency', async () => {
     await activatePayPerUse();
     const charge = await prisma.usageCharge.create({
