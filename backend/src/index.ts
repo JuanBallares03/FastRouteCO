@@ -4,7 +4,8 @@ import cors from "cors";
 import helmet from "helmet";
 import 'dotenv/config';
 import { env } from "./env.js";
-import { initRealtime } from "./lib/realtime.js";
+import { initRealtime, closeRealtime } from "./lib/realtime.js";
+import { prisma } from "./lib/prisma.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import platformRoutes from "./modules/companies/companies.routes.js";
 import offeringRoutes from "./modules/billing/offerings.routes.js";
@@ -56,3 +57,29 @@ await initRealtime(server);
 server.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
+
+let shuttingDown = false;
+
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received, shutting down`);
+
+  const forceExit = setTimeout(() => {
+    console.error("Forced shutdown after timeout");
+    process.exit(1);
+  }, 10000);
+  forceExit.unref();
+
+  try {
+    await closeRealtime();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await prisma.$disconnect();
+  } finally {
+    clearTimeout(forceExit);
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));

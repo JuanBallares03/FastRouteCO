@@ -16,10 +16,18 @@ let io: Server | null = null;
 let pubClient: Redis | null = null;
 let subClient: Redis | null = null;
 
-export async function initRealtime(server: HttpServer): Promise<Server> {
+export async function initRealtime(
+  server: HttpServer,
+  options: { redisUrl?: string } = {}
+): Promise<Server> {
   if (io) return io;
 
-  pubClient = new Redis(env.REDIS_URL, { lazyConnect: true });
+  pubClient = new Redis(options.redisUrl ?? env.REDIS_URL, {
+    lazyConnect: true,
+    connectTimeout: 5000,
+    maxRetriesPerRequest: 1,
+    retryStrategy: () => null,
+  });
   subClient = pubClient.duplicate();
 
   for (const client of [pubClient, subClient]) {
@@ -35,8 +43,18 @@ export async function initRealtime(server: HttpServer): Promise<Server> {
     },
   });
 
-  await Promise.all([pubClient.connect(), subClient.connect()]);
-  io.adapter(createAdapter(pubClient, subClient, { key: 'fastrouteco:socket.io' }));
+  try {
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient, { key: 'fastrouteco:socket.io' }));
+  } catch (error) {
+    console.error(
+      '[realtime] Redis unavailable, falling back to the in-memory adapter',
+      error instanceof Error ? error.message : error
+    );
+    await Promise.all([closeClient(pubClient), closeClient(subClient)]);
+    pubClient = null;
+    subClient = null;
+  }
 
   io.use(async (socket, next) => {
     const token =
