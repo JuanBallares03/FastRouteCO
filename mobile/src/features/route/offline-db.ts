@@ -1,5 +1,5 @@
 import { File, Paths } from 'expo-file-system';
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
+import { deleteDatabaseAsync, openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
 import {
   parseLegacyQueue,
   parseLegacyRouteCache,
@@ -100,4 +100,16 @@ export function getOfflineDatabase(): Promise<SQLiteDatabase> {
   }
 
   return databasePromise;
+}
+
+export async function clearOfflineData(): Promise<void> {
+  const pendingDatabase = databasePromise;
+  databasePromise = null;
+
+  if (pendingDatabase) {
+    const database = await pendingDatabase.catch(() => null);
+    await database?.closeAsync().catch(() => undefined);
+  }
+
+  await deleteDatabaseAsync(DATABASE_NAME).catch(() => undefined);
 }

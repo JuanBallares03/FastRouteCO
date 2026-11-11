@@ -19,3 +19,23 @@ export function deleteEvidencePhoto(uri: string): void {
     file.delete();
   }
 }
+
+export function clearEvidencePhotos(): void {
+  if (!evidenceDirectory.exists) {
+    return;
+  }
+
+  for (const entry of evidenceDirectory.list()) {
+    try {
+      entry.delete();
+    } catch {
+      // ignore files that are already gone
+    }
+  }
+
+  try {
+    evidenceDirectory.delete();
+  } catch {
+    // ignore a directory that is already gone
+  }
+}
