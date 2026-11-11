@@ -324,6 +324,27 @@ describe('Order assignment', () => {
     expect(updated?.status).toBe(OrderStatus.assigned);
   });
 
+  it('assigns a pending order only once under concurrent requests', async () => {
+    const order = await createOrder();
+
+    const responses = await Promise.all([
+      request(app)
+        .post(`/api/v1/orders/${order.id}/assign`)
+        .set(authHeader(adminToken))
+        .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE }),
+      request(app)
+        .post(`/api/v1/orders/${order.id}/assign`)
+        .set(authHeader(adminToken))
+        .send({ driverId: DRIVER_B_ID, routeDate: ROUTE_DATE }),
+    ]);
+
+    const statuses = responses.map((res) => res.status).sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(
+      await prisma.routeStop.count({ where: { orderId: order.id } })
+    ).toBe(1);
+  });
+
   it('rejects assigning an already assigned order', async () => {
     const order = await createOrder(COMPANY_ID, { status: OrderStatus.assigned });
 
