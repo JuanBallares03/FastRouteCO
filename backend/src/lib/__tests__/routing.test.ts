@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { approximatePath } from '../routing.js';
+import { approximatePath, boundingBoxAround } from '../routing.js';
 import { haversineMeters } from '../geo.js';
 import { formatBusinessDate, parseBusinessDate, todayInBogota } from '../dates.js';
 
@@ -13,6 +13,27 @@ describe('Geo helpers', () => {
 
   it('returns a positive distance between different points', () => {
     expect(haversineMeters(from, to)).toBeGreaterThan(0);
+  });
+});
+
+describe('Nearest node bounding box', () => {
+  it('covers the search radius around a point', () => {
+    const center = { latitude: 4.65, longitude: -74.05 };
+    const box = boundingBoxAround(center, 3000);
+
+    expect(box.minLatitude).toBeLessThan(center.latitude);
+    expect(box.maxLatitude).toBeGreaterThan(center.latitude);
+    expect(box.minLongitude).toBeLessThan(center.longitude);
+    expect(box.maxLongitude).toBeGreaterThan(center.longitude);
+
+    const inside = { latitude: 4.66, longitude: -74.04 };
+    expect(inside.latitude).toBeGreaterThanOrEqual(box.minLatitude);
+    expect(inside.latitude).toBeLessThanOrEqual(box.maxLatitude);
+    expect(inside.longitude).toBeGreaterThanOrEqual(box.minLongitude);
+    expect(inside.longitude).toBeLessThanOrEqual(box.maxLongitude);
+
+    const outside = { latitude: 4.8, longitude: -74.05 };
+    expect(outside.latitude).toBeGreaterThan(box.maxLatitude);
   });
 });
 

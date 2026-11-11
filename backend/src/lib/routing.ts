@@ -26,6 +26,32 @@ export interface RoutingEngine {
 
 const MAX_NEAREST_NODE_DISTANCE_M = 3000;
 
+export interface BoundingBox {
+  minLatitude: number;
+  maxLatitude: number;
+  minLongitude: number;
+  maxLongitude: number;
+}
+
+export function boundingBoxAround(
+  point: Coordinates,
+  radiusMeters = MAX_NEAREST_NODE_DISTANCE_M
+): BoundingBox {
+  const latitudeDelta = radiusMeters / 111320;
+  const cosine = Math.cos((point.latitude * Math.PI) / 180);
+  const longitudeDelta =
+    Math.abs(cosine) < 1e-6
+      ? 180
+      : Math.min(180, radiusMeters / (111320 * Math.abs(cosine)));
+
+  return {
+    minLatitude: Math.max(-90, point.latitude - latitudeDelta),
+    maxLatitude: Math.min(90, point.latitude + latitudeDelta),
+    minLongitude: Math.max(-180, point.longitude - longitudeDelta),
+    maxLongitude: Math.min(180, point.longitude + longitudeDelta),
+  };
+}
+
 function durationSeconds(distanceMeters: number): number {
   const speedMetersPerSecond = (env.ROUTING_AVG_SPEED_KMH * 1000) / 3600;
   return Math.round(distanceMeters / speedMetersPerSecond);
@@ -192,16 +218,28 @@ export class Neo4jRoutingEngine implements RoutingEngine {
     points: Coordinates[]
   ): Promise<Array<{ osmId: number; distance: number } | null>> {
     const result = await session.run(
-      `UNWIND range(0, size($points) - 1) AS idx
-       WITH idx, $points[idx] AS p
+      `UNWIND $points AS p
        MATCH (n:Intersection)
        WHERE n.location IS NOT NULL
-       WITH idx, n, point.distance(n.location, point({srid: 4326, x: p.longitude, y: p.latitude})) AS distance
+         AND point.withinBBox(
+           n.location,
+           point({srid: 4326, x: p.minLongitude, y: p.minLatitude}),
+           point({srid: 4326, x: p.maxLongitude, y: p.maxLatitude})
+         )
+       WITH p.idx AS idx, n,
+            point.distance(n.location, point({srid: 4326, x: p.longitude, y: p.latitude})) AS distance
        ORDER BY idx, distance ASC
        WITH idx, collect({ osmId: n.osmId, distance: distance })[0] AS nearest
        RETURN idx AS idx, nearest.osmId AS osmId, nearest.distance AS distance
        ORDER BY idx ASC`,
-      { points }
+      {
+        points: points.map((point, idx) => ({
+          idx,
+          latitude: point.latitude,
+          longitude: point.longitude,
+          ...boundingBoxAround(point),
+        })),
+      }
     );
 
     const nodes: Array<{ osmId: number; distance: number } | null> = points.map(() => null);
@@ -221,14 +259,24 @@ export class Neo4jRoutingEngine implements RoutingEngine {
     session: ReturnType<Driver['session']>,
     point: Coordinates
   ): Promise<{ osmId: number; distance: number } | null> {
+    const box = boundingBoxAround(point);
     const result = await session.run(
       `MATCH (n:Intersection)
        WHERE n.location IS NOT NULL
+         AND point.withinBBox(
+           n.location,
+           point({srid: 4326, x: $minLongitude, y: $minLatitude}),
+           point({srid: 4326, x: $maxLongitude, y: $maxLatitude})
+         )
        RETURN n.osmId AS osmId,
               point.distance(n.location, point({srid: 4326, x: $longitude, y: $latitude})) AS distance
        ORDER BY distance ASC
        LIMIT 1`,
-      { latitude: point.latitude, longitude: point.longitude }
+      {
+        latitude: point.latitude,
+        longitude: point.longitude,
+        ...box,
+      }
     );
 
     const record = result.records[0];
