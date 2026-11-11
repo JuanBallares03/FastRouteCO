@@ -296,6 +296,38 @@ describe('Company billing', () => {
     expect(purchase?.credits).toBe(20);
   });
 
+  it('applies a credit purchase once when the same event is delivered twice', async () => {
+    const start = await request(app)
+      .post('/api/v1/company/billing/credits/purchase')
+      .set(authHeader(adminToken))
+      .send({ packageId });
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: start.body.paymentId },
+    });
+
+    const event = signedEvent({
+      id: `tx-${randomUUID()}`,
+      status: 'APPROVED',
+      amount_in_cents: 5000000,
+      currency: 'COP',
+      reference: buildPaymentReference(payment.id, 'credit_package', packageId),
+      payment_method_type: 'CARD',
+    });
+
+    await Promise.all([
+      request(app).post('/api/v1/payments/wompi/events').send(event),
+      request(app).post('/api/v1/payments/wompi/events').send(event),
+    ]);
+
+    const balance = await prisma.creditBalance.findUniqueOrThrow({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(balance.extraCredits).toBe(20);
+    expect(
+      await prisma.creditPurchase.count({ where: { paymentId: payment.id } })
+    ).toBe(1);
+  });
+
   it('ignores a signed event whose reference was tampered with', async () => {
     const start = await request(app)
       .post('/api/v1/company/billing/credits/purchase')

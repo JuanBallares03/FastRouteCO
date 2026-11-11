@@ -1188,8 +1188,8 @@ async function approvePayment(paymentId: string, transaction: WompiTransaction) 
     const payment = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!payment || payment.status !== PaymentStatus.pending) return;
 
-    await tx.payment.update({
-      where: { id: paymentId },
+    const claimed = await tx.payment.updateMany({
+      where: { id: paymentId, status: PaymentStatus.pending },
       data: {
         status: PaymentStatus.approved,
         gatewayReference: transaction.id,
@@ -1197,6 +1197,7 @@ async function approvePayment(paymentId: string, transaction: WompiTransaction) 
         approvedAt: new Date(),
       },
     });
+    if (claimed.count === 0) return;
 
     const parsed = parseReference(transaction.reference);
     if (!parsed) {
@@ -1224,14 +1225,15 @@ async function rejectPayment(paymentId: string, transaction: WompiTransaction) {
     const payment = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!payment || payment.status !== PaymentStatus.pending) return;
 
-    await tx.payment.update({
-      where: { id: paymentId },
+    const claimed = await tx.payment.updateMany({
+      where: { id: paymentId, status: PaymentStatus.pending },
       data: {
         status: PaymentStatus.rejected,
         gatewayReference: transaction.id,
         paymentMethod: transaction.payment_method_type ?? transaction.payment_method?.type,
       },
     });
+    if (claimed.count === 0) return;
 
     const parsed = parseReference(transaction.reference);
     if (!parsed) {
