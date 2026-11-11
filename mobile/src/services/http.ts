@@ -1,4 +1,9 @@
-import { create, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import {
+  create,
+  isAxiosError,
+  type AxiosError,
+  type InternalAxiosRequestConfig,
+} from 'axios';
 import { clearSession, saveTokens } from '@/features/auth/session-storage';
 import { tokenStore } from '@/features/auth/token-store';
 import type { AuthTokens } from '@/features/auth/types';
@@ -37,6 +42,15 @@ let sessionExpiredHandler: (() => void) | null = null;
 
 export function setSessionExpiredHandler(handler: (() => void) | null): void {
   sessionExpiredHandler = handler;
+}
+
+export function isAuthenticationError(error: unknown): boolean {
+  if (!isAxiosError(error)) {
+    return false;
+  }
+
+  const status = error.response?.status;
+  return status === 401 || status === 403;
 }
 
 function isAuthEndpoint(url: string | undefined): boolean {

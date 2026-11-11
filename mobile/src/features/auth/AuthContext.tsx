@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { authApi } from '@/services/auth-api';
-import { setSessionExpiredHandler } from '@/services/http';
+import { isAuthenticationError, setSessionExpiredHandler } from '@/services/http';
 import { NON_DRIVER_MESSAGE, LoginBlockedError, isDriverRole } from './auth-errors';
 import { clearSession, loadSession, saveSession } from './session-storage';
 import { clearOfflineData } from '../route/offline-db';
@@ -99,9 +99,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user: profile,
           });
         }
-      } catch {
-        if (isActive) {
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        if (isAuthenticationError(error)) {
           await resetSession();
+        } else {
+          setUser(storedSession.user);
         }
       } finally {
         if (isActive) {
