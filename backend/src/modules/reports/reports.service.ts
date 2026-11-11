@@ -9,7 +9,6 @@ import {
 } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { addDays, parseBusinessDate, todayInBogota } from '../../lib/dates.js';
-import { haversineMeters } from '../../lib/geo.js';
 import { BadRequestError } from '../../lib/errors.js';
 import type { ReportSummaryInput } from './reports.validation.js';
 
@@ -29,13 +28,7 @@ const reportRouteInclude = {
     take: 1,
     select: { totalDistanceM: true, estimatedDurationS: true, isSuccessful: true },
   },
-  locations: {
-    select: { latitude: true, longitude: true, capturedAt: true },
-    orderBy: { capturedAt: 'asc' as const },
-  },
 } satisfies Prisma.RouteInclude;
-
-type ReportRoute = Prisma.RouteGetPayload<{ include: typeof reportRouteInclude }>;
 
 interface DriverRanking {
   driverId: string;
@@ -64,17 +57,31 @@ function resolveRange(input: ReportSummaryInput) {
   return { from, to, fromDate, toDate, days };
 }
 
-function routeActualDistanceM(route: ReportRoute): number {
-  let total = 0;
-  for (let index = 1; index < route.locations.length; index++) {
-    const previous = route.locations[index - 1];
-    const current = route.locations[index];
-    total += haversineMeters(
-      { latitude: Number(previous.latitude), longitude: Number(previous.longitude) },
-      { latitude: Number(current.latitude), longitude: Number(current.longitude) }
-    );
-  }
-  return total;
+async function actualDistancesByRoute(routeIds: string[]): Promise<Map<string, number>> {
+  if (routeIds.length === 0) return new Map();
+
+  const rows = await prisma.$queryRaw<Array<{ route_id: string; distance: unknown }>>(
+    Prisma.sql`
+      SELECT route_id::text AS route_id, COALESCE(SUM(
+        6371000 * 2 * asin(sqrt(
+          power(sin(radians(latitude - previous_latitude) / 2), 2) +
+          cos(radians(previous_latitude)) * cos(radians(latitude)) *
+          power(sin(radians(longitude - previous_longitude) / 2), 2)
+        ))
+      ), 0) AS distance
+      FROM (
+        SELECT route_id, latitude, longitude,
+               lag(latitude) OVER (PARTITION BY route_id ORDER BY captured_at, id) AS previous_latitude,
+               lag(longitude) OVER (PARTITION BY route_id ORDER BY captured_at, id) AS previous_longitude
+        FROM route_locations
+        WHERE route_id = ANY(${routeIds}::uuid[])
+      ) points
+      WHERE previous_latitude IS NOT NULL
+      GROUP BY route_id
+    `
+  );
+
+  return new Map(rows.map((row) => [row.route_id, Number(row.distance)]));
 }
 
 function roundedAverage(total: number, count: number): number | null {
@@ -106,6 +113,8 @@ export async function getReportSummary(companyId: string, input: ReportSummaryIn
       _sum: { quantity: true },
     }),
   ]);
+
+  const actualDistances = await actualDistancesByRoute(routes.map((route) => route.id));
 
   const byStatus: Record<RouteStatus, number> = {
     created: 0,
@@ -154,7 +163,7 @@ export async function getReportSummary(companyId: string, input: ReportSummaryIn
     }
 
     const planned = route.optimizations[0]?.totalDistanceM ?? 0;
-    const actual = routeActualDistanceM(route);
+    const actual = Math.round(actualDistances.get(route.id) ?? 0);
     plannedDistanceM += planned;
     actualDistanceM += actual;
 
