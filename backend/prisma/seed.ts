@@ -171,7 +171,6 @@ async function seedPlanModules() {
     console.log(`  V ${plan.name} <-> school_transport`);
   }
 }
-}
 
 async function seedCreditPackages() {
   console.log('🌱 Seeding credit_packages...');
