@@ -182,10 +182,10 @@ export async function updateOrder(
 
   await assertBranchBelongsToCompany(companyId, input.branchId);
 
-  let coordinates: GeocodingOutcome | null = null;
-  if (input.address && input.address !== order.address) {
-    coordinates = await geocodeAddress(input.address);
-  }
+  const addressChanged = Boolean(input.address && input.address !== order.address);
+  const coordinates = addressChanged
+    ? await geocodeAddress(input.address as string)
+    : null;
 
   const updated = await prisma.order.update({
     where: { id: orderId },
@@ -198,8 +198,8 @@ export async function updateOrder(
       description: input.description,
       channel: input.channel,
       branchId: input.branchId,
-      latitude: coordinates ? coordinates.latitude : undefined,
-      longitude: coordinates ? coordinates.longitude : undefined,
+      latitude: addressChanged ? (coordinates?.latitude ?? null) : undefined,
+      longitude: addressChanged ? (coordinates?.longitude ?? null) : undefined,
     },
     include: { branch: { select: { id: true, name: true } } },
   });

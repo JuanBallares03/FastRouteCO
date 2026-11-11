@@ -327,6 +327,28 @@ describe('Orders Module', () => {
       expect(res.body.geocoded).toBe(true);
     });
 
+    it('clears coordinates when the new address cannot be geocoded', async () => {
+      const created = await request(app)
+        .post('/api/v1/orders')
+        .set(authHeader(supervisorToken))
+        .send(baseOrder);
+
+      const res = await request(app)
+        .patch(`/api/v1/orders/${created.body.id}`)
+        .set(authHeader(supervisorToken))
+        .send({ address: 'CALLE SIN SERVICIO 123' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.geocoded).toBe(false);
+      expect(res.body.warning).toBeTruthy();
+
+      const stored = await prisma.order.findUniqueOrThrow({
+        where: { id: created.body.id },
+      });
+      expect(stored.latitude).toBeNull();
+      expect(stored.longitude).toBeNull();
+    });
+
     it('rejects editing a completed order', async () => {
       const created = await request(app)
         .post('/api/v1/orders')
