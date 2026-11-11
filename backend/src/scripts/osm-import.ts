@@ -52,6 +52,8 @@ const EXCLUDED_HIGHWAYS = new Set([
 ]);
 
 const DEFAULT_BBOX = '4.30,-75.35,4.60,-75.05';
+const OVERPASS_USER_AGENT =
+  process.env.OVERPASS_USER_AGENT ?? 'FastRouteCO/1.0 (routing graph import)';
 
 function readBbox(): string {
   const bbox = process.env.OSM_BBOX ?? DEFAULT_BBOX;
@@ -75,7 +77,10 @@ async function fetchOverpass(bbox: string): Promise<OverpassElement[]> {
     env.OVERPASS_URL,
     new URLSearchParams({ data: query }).toString(),
     {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': OVERPASS_USER_AGENT,
+      },
       timeout: 240000,
     }
   );
