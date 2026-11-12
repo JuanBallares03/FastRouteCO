@@ -385,6 +385,27 @@ describe('Order assignment', () => {
     expect(res.body.route.stops).toHaveLength(2);
     expect(res.body.route.stops.map((stop: { sequence: number }) => stop.sequence)).toEqual([1, 2]);
   });
+
+  it('rejects assigning an order to a route that already has 10 stops', async () => {
+    const orders = await Promise.all(Array.from({ length: 10 }, () => createOrder()));
+
+    for (const order of orders) {
+      const res = await request(app)
+        .post(`/api/v1/orders/${order.id}/assign`)
+        .set(authHeader(adminToken))
+        .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE });
+      expect(res.status).toBe(200);
+    }
+
+    const extra = await createOrder();
+    const res = await request(app)
+      .post(`/api/v1/orders/${extra.id}/assign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
+  });
 });
 
 describe('Route creation', () => {
@@ -473,6 +494,43 @@ describe('Route creation', () => {
       .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE, orderIds: [order.id, order.id] });
 
     expect(res.status).toBe(400);
+  });
+
+  it('rejects routes with more than 10 stops', async () => {
+    const orders = await Promise.all(Array.from({ length: 11 }, () => createOrder()));
+
+    const res = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({
+        driverId: DRIVER_A_ID,
+        routeDate: ROUTE_DATE,
+        orderIds: orders.map((order) => order.id),
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects appending orders beyond the 10-stop limit', async () => {
+    const orders = await Promise.all(Array.from({ length: 10 }, () => createOrder()));
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({
+        driverId: DRIVER_A_ID,
+        routeDate: ROUTE_DATE,
+        orderIds: orders.map((order) => order.id),
+      });
+    expect(created.status).toBe(201);
+
+    const extra = await createOrder();
+    const res = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: ROUTE_DATE, orderIds: [extra.id] });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
   });
 });
 
@@ -624,6 +682,32 @@ describe('Route optimization', () => {
       .set(authHeader(otherAdminToken));
 
     expect(res.status).toBe(404);
+  });
+
+  it('rejects optimizing a route with more than 10 stops', async () => {
+    const orders = await Promise.all(Array.from({ length: 11 }, () => createOrder()));
+    const route = await prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId: DRIVER_A_ID,
+        routeDate: new Date(`${ROUTE_DATE}T00:00:00.000Z`),
+        status: RouteStatus.created,
+      },
+    });
+    await prisma.routeStop.createMany({
+      data: orders.map((order, index) => ({
+        routeId: route.id,
+        orderId: order.id,
+        sequence: index + 1,
+      })),
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${route.id}/optimize`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
   });
 });
 
@@ -968,6 +1052,24 @@ describe('Route reassignment', () => {
 
     const remaining = await prisma.routeStop.count({ where: { routeId: routeA.id } });
     expect(remaining).toBe(1);
+  });
+
+  it('rejects moving a stop to a route with 10 stops', async () => {
+    const targetOrders = await Promise.all(Array.from({ length: 10 }, () => createOrder()));
+    await createDriverRoute(
+      DRIVER_A_ID,
+      targetOrders.map((order) => order.id)
+    );
+    const sourceOrder = await createOrder();
+    const sourceRoute = await createDriverRoute(DRIVER_B_ID, [sourceOrder.id]);
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${sourceRoute.id}/stops/${sourceRoute.stops[0].id}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID });
+
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
   });
 });
 

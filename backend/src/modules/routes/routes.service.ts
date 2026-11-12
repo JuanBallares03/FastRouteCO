@@ -30,6 +30,7 @@ import {
   syncCompanySubscription,
 } from '../billing/billing.service.js';
 import { assertStudentsAvailable } from '../students/students.service.js';
+import { MAX_ROUTE_STOPS } from './constants.js';
 
 const ACTIVE_ROUTE_STATUSES: RouteStatus[] = [
   RouteStatus.created,
@@ -255,6 +256,14 @@ export async function assignOrder(
       });
     }
 
+    const stopCount = await tx.routeStop.count({ where: { routeId: target.id } });
+    if (stopCount >= MAX_ROUTE_STOPS) {
+      throw new ConflictError(
+        `La ruta no puede superar ${MAX_ROUTE_STOPS} paradas`,
+        'ROUTE_STOP_LIMIT_EXCEEDED'
+      );
+    }
+
     const aggregate = await tx.routeStop.aggregate({
       where: { routeId: target.id },
       _max: { sequence: true },
@@ -292,6 +301,13 @@ export async function createRoute(
 
   const uniqueOrderIds = [...new Set(data.orderIds ?? [])];
   const uniqueStudentIds = await assertStudentsAvailable(companyId, data.studentIds ?? []);
+
+  if (uniqueOrderIds.length + uniqueStudentIds.length > MAX_ROUTE_STOPS) {
+    throw new BadRequestError(
+      `La ruta no puede superar ${MAX_ROUTE_STOPS} paradas`,
+      'ROUTE_STOP_LIMIT_EXCEEDED'
+    );
+  }
 
   if (uniqueOrderIds.length + uniqueStudentIds.length === 0) {
     throw new BadRequestError(
@@ -357,6 +373,15 @@ export async function createRoute(
           status: RouteStatus.created,
         },
       });
+    }
+
+    const existingStops = await tx.routeStop.count({ where: { routeId: target.id } });
+    const incomingStops = uniqueOrderIds.length + uniqueStudentIds.length;
+    if (existingStops + incomingStops > MAX_ROUTE_STOPS) {
+      throw new ConflictError(
+        `La ruta no puede superar ${MAX_ROUTE_STOPS} paradas`,
+        'ROUTE_STOP_LIMIT_EXCEEDED'
+      );
     }
 
     const aggregate = await tx.routeStop.aggregate({
@@ -1012,6 +1037,14 @@ export async function reassignStop(
       });
     }
 
+    const targetStopCount = await tx.routeStop.count({ where: { routeId: target.id } });
+    if (targetStopCount >= MAX_ROUTE_STOPS) {
+      throw new ConflictError(
+        `La ruta no puede superar ${MAX_ROUTE_STOPS} paradas`,
+        'ROUTE_STOP_LIMIT_EXCEEDED'
+      );
+    }
+
     const sequence = await tx.routeStop.aggregate({
       where: { routeId: target.id },
       _max: { sequence: true },
@@ -1133,6 +1166,13 @@ export async function optimizeRoute(companyId: string, routeId: string) {
 
   if (route.stops.length === 0) {
     throw new ConflictError('La ruta no tiene paradas para optimizar', 'ROUTE_WITHOUT_STOPS');
+  }
+
+  if (route.stops.length > MAX_ROUTE_STOPS) {
+    throw new ConflictError(
+      `La ruta no puede superar ${MAX_ROUTE_STOPS} paradas`,
+      'ROUTE_STOP_LIMIT_EXCEEDED'
+    );
   }
 
   const unlocated = route.stops.filter((stop) => {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MAX_ROUTE_STOPS } from './constants.js';
 
 const businessDate = z
   .string()
@@ -33,6 +34,10 @@ export const createRouteSchema = z.object({
     })
     .refine((data) => data.orderIds.length + data.studentIds.length > 0, {
       message: 'La ruta debe incluir al menos un pedido o estudiante',
+      path: ['orderIds'],
+    })
+    .refine((data) => data.orderIds.length + data.studentIds.length <= MAX_ROUTE_STOPS, {
+      message: `La ruta puede incluir hasta ${MAX_ROUTE_STOPS} paradas`,
       path: ['orderIds'],
     }),
 });
