@@ -461,13 +461,18 @@ The stack is tuned for 4 GB of RAM plus a 4 GB swap file. Expected consumption:
 | Component | Expected RAM | Limits |
 |---|---:|---|
 | Ubuntu + Docker | 400-600 MB | system processes |
-| PostgreSQL | 250-400 MB | `shared_buffers=128MB`, `work_mem=16MB`, `maintenance_work_mem=128MB`, 50 connections |
-| Redis | 50-130 MB | `maxmemory=128mb`, `noeviction`, append-only file |
-| Neo4j + APOC | 900-1200 MB | heap 256-512 MB, page cache 512 MB, transaction max 256 MB, JVM overhead |
-| Nominatim (PostgreSQL + Apache) | 700-1000 MB at runtime | `shared_buffers=256MB`, `maintenance_work_mem=512MB`, `work_mem=16MB`, 1 import thread |
-| Backend (Node) | 200-350 MB | `NODE_OPTIONS=--max-old-space-size=384` |
-| Caddy | 50-100 MB | TLS termination and static files |
-| **Total** | **2.5-3.5 GB typical** | |
+| PostgreSQL | 250-400 MB | `mem_limit=768m`; `shared_buffers=128MB`, `work_mem=16MB`, `maintenance_work_mem=128MB`, 50 connections |
+| Redis | 50-130 MB | `mem_limit=192m`; `maxmemory=128mb`, `noeviction`, append-only file |
+| Neo4j + APOC | 900-1200 MB | `mem_limit=1536m`; heap 256-512 MB, page cache 512 MB, transaction max 256 MB, JVM overhead |
+| Nominatim (PostgreSQL + Apache) | 700-1000 MB at runtime | `mem_limit=3g`, `memswap_limit=4g`; `shared_buffers=256MB`, `maintenance_work_mem=512MB`, `work_mem=16MB`, 1 import thread |
+| Backend (Node) | 200-350 MB | `mem_limit=512m`; `NODE_OPTIONS=--max-old-space-size=384` |
+| Caddy | 50-100 MB | `mem_limit=256m`; TLS termination and static files |
+| **Total** | **2.5-3.5 GB typical** | **6.3 GB of hard container ceilings** |
+
+The `mem_limit` values in `docker-compose.prod.yml` are ceilings, not
+reservations; the typical total stays at 2.5-3.5 GB. Only Nominatim may use
+1 GB of swap during the initial import. The other containers are capped at
+their RAM limit with `memswap_limit` equal to `mem_limit`.
 
 The Nominatim import is the memory peak: it can reach 2-3 GB and uses swap,
 which makes the first import slower. Do not run it while other heavy jobs are

@@ -4,6 +4,8 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    mem_limit: 768m
+    memswap_limit: 768m
     command:
       - postgres
       - -c
@@ -31,6 +33,8 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    mem_limit: 192m
+    memswap_limit: 192m
     command:
       - redis-server
       - --appendonly
@@ -52,6 +56,8 @@ services:
   neo4j:
     image: neo4j:5-community
     restart: unless-stopped
+    mem_limit: 1536m
+    memswap_limit: 1536m
     environment:
       NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD}"
       NEO4J_PLUGINS: '["apoc"]'
@@ -74,6 +80,8 @@ services:
   nominatim:
     image: mediagis/nominatim:5.3
     restart: unless-stopped
+    mem_limit: 3g
+    memswap_limit: 4g
     environment:
       PBF_PATH: /nominatim/data/tolima.osm.pbf
       IMPORT_STYLE: full
@@ -95,6 +103,8 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    mem_limit: 512m
+    memswap_limit: 512m
     env_file:
       - ./backend/production.env
     environment:
@@ -136,6 +146,8 @@ services:
         VITE_MAP_STYLE_URL: ${VITE_MAP_STYLE_URL:-}
         VITE_WOMPI_PUBLIC_KEY: ${WOMPI_PUBLIC_KEY:-}
     restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 256m
     environment:
       DOMAIN: ${DOMAIN}
     ports:
