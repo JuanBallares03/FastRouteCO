@@ -9,6 +9,7 @@ import {
   PaymentPurpose,
   PaymentStatus,
   SubscriptionStatus,
+  UsageChargeStatus,
   UserRole,
 } from '@prisma/client';
 import billingRoutes from '../billing.routes.js';
@@ -17,6 +18,13 @@ import { prisma } from '../../../lib/prisma.js';
 import { env } from '../../../env.js';
 import { createTokenPair, hashPassword } from '../../auth/auth.service.js';
 import { buildPaymentReference } from '../billing.service.js';
+import {
+  addDays,
+  addMonths,
+  parseBusinessDate,
+  startOfMonth,
+  todayInBogota,
+} from '../../../lib/dates.js';
 
 const app = express();
 app.use(express.json());
@@ -436,6 +444,35 @@ describe('Company billing', () => {
     expect(balance.planCredits).toBe(10);
   });
 
+  it('expires the active subscription when a subscription payment is rejected', async () => {
+    const start = await request(app)
+      .post('/api/v1/company/billing/subscription')
+      .set(authHeader(adminToken))
+      .send({ planId, billingCycle: 'monthly' });
+    expect(start.status).toBe(201);
+
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: start.body.paymentId },
+    });
+    const event = signedEvent({
+      id: `tx-${randomUUID()}`,
+      status: 'DECLINED',
+      amount_in_cents: 10000000,
+      currency: 'COP',
+      reference: buildPaymentReference(payment.id, 'subscription', planId, 'monthly'),
+      payment_method_type: 'CARD',
+    });
+    const res = await request(app).post('/api/v1/payments/wompi/events').send(event);
+
+    expect(res.status).toBe(200);
+    const updated = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(updated.status).toBe(PaymentStatus.rejected);
+    const subscription = await prisma.subscription.findFirstOrThrow({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(subscription.status).toBe(SubscriptionStatus.expired);
+  });
+
   it('registers a card and activates pay per use', async () => {
     const payPerUsePlan = await activatePayPerUse();
 
@@ -735,5 +772,106 @@ describe('Company billing', () => {
     await expect(assertOptimizationAllowed(COMPANY_ID)).rejects.toMatchObject({
       code: 'SPENDING_LIMIT_REACHED',
     });
+  });
+});
+
+describe('Billing jobs', () => {
+  it('expires a trial and does not notify twice', async () => {
+    const trialPlan = await prisma.plan.create({
+      data: {
+        name: `Billing Test Trial ${randomUUID().slice(0, 8)}`,
+        modality: 'subscription',
+        monthlyPrice: 0,
+        annualPrice: 0,
+        monthlyCredits: 0,
+        trialDays: 7,
+        isActive: true,
+      },
+    });
+    const current = parseBusinessDate(todayInBogota());
+    await prisma.subscription.updateMany({
+      where: { companyId: COMPANY_ID },
+      data: {
+        planId: trialPlan.id,
+        startDate: addDays(current, -8),
+        renewalDate: addDays(current, -1),
+      },
+    });
+
+    const { runBillingJobs } = await import('../billing-jobs.js');
+    const first = await runBillingJobs({ companyIds: [COMPANY_ID] });
+    expect(first).toMatchObject({
+      skipped: false,
+      companiesProcessed: 1,
+      errors: [],
+    });
+
+    const subscription = await prisma.subscription.findFirstOrThrow({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(subscription.status).toBe(SubscriptionStatus.expired);
+    expect(
+      await prisma.notification.count({
+        where: { companyId: COMPANY_ID, type: 'subscription_expired' },
+      })
+    ).toBe(1);
+
+    await runBillingJobs({ companyIds: [COMPANY_ID] });
+    expect(
+      await prisma.notification.count({
+        where: { companyId: COMPANY_ID, type: 'subscription_expired' },
+      })
+    ).toBe(1);
+  });
+
+  it('closes a previous usage period and sets its end date', async () => {
+    await activatePayPerUse();
+    const current = parseBusinessDate(todayInBogota());
+    const periodStartDate = startOfMonth(addMonths(current, -1));
+    const expectedEndDate = addDays(addMonths(periodStartDate, 1), -1);
+    const charge = await prisma.usageCharge.create({
+      data: {
+        companyId: COMPANY_ID,
+        periodStartDate,
+        optimizationCount: 2,
+        amount: 4000,
+      },
+    });
+
+    const { runBillingJobs } = await import('../billing-jobs.js');
+    const result = await runBillingJobs({ companyIds: [COMPANY_ID] });
+    expect(result.errors).toEqual([]);
+
+    const updated = await prisma.usageCharge.findUniqueOrThrow({
+      where: { id: charge.id },
+    });
+    expect(updated.status).toBe(UsageChargeStatus.charged);
+    expect(updated.periodEndDate?.toISOString()).toBe(expectedEndDate.toISOString());
+    expect(
+      await prisma.payment.count({
+        where: { companyId: COMPANY_ID, purpose: PaymentPurpose.usage },
+      })
+    ).toBe(1);
+  });
+
+  it('keeps pay per use active after its billing date', async () => {
+    await activatePayPerUse();
+    const current = parseBusinessDate(todayInBogota());
+    await prisma.subscription.updateMany({
+      where: { companyId: COMPANY_ID },
+      data: {
+        startDate: addMonths(current, -2),
+        renewalDate: addDays(current, -1),
+      },
+    });
+
+    const { runBillingJobs } = await import('../billing-jobs.js');
+    const result = await runBillingJobs({ companyIds: [COMPANY_ID] });
+    expect(result.errors).toEqual([]);
+
+    const subscription = await prisma.subscription.findFirstOrThrow({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(subscription.status).toBe(SubscriptionStatus.active);
   });
 });

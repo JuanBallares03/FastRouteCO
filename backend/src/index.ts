@@ -12,6 +12,10 @@ import platformRoutes from "./modules/companies/companies.routes.js";
 import offeringRoutes from "./modules/billing/offerings.routes.js";
 import companyRoutes from "./modules/company/company.routes.js";
 import billingRoutes from "./modules/billing/billing.routes.js";
+import {
+  startBillingJobScheduler,
+  stopBillingJobScheduler,
+} from "./modules/billing/billing-jobs.js";
 import orderRoutes from "./modules/orders/orders.routes.js";
 import routeRoutes from "./modules/routes/routes.routes.js";
 import paymentRoutes from "./modules/billing/payments.routes.js";
@@ -58,6 +62,7 @@ await initRealtime(server);
 
 server.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
+  startBillingJobScheduler();
 });
 
 let shuttingDown = false;
@@ -74,6 +79,7 @@ async function shutdown(signal: string) {
   forceExit.unref();
 
   try {
+    stopBillingJobScheduler();
     await closeRealtime();
     await closeRateLimitStore();
     await new Promise<void>((resolve) => server.close(() => resolve()));

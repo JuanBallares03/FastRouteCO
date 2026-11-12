@@ -614,6 +614,29 @@ gunzip -c backups/fastrouteco_<timestamp>.sql.gz | \
   psql -U postgres -d fastrouteco
 ```
 
+### Billing jobs
+
+The backend starts an in-process scheduler that runs the billing job every day
+at `00:10` in `America/Bogota`. The job closes pay-per-use periods, expires
+trials and subscriptions, resets annual-plan credits, and sends the expiry and
+renewal notices. It is idempotent and uses a PostgreSQL advisory lock, so
+running it from several backend replicas or from cron at the same time does not
+duplicate work.
+
+To run it manually or from an external cron/systemd timer:
+
+```bash
+# development
+pnpm --dir backend billing:jobs
+
+# production container
+docker compose --env-file production.env -f docker-compose.prod.yml exec backend \
+  node dist/scripts/billing-jobs.js
+```
+
+Set `BILLING_JOBS_DISABLED=true` in the backend environment to disable the
+in-process scheduler when an external timer is preferred.
+
 ### Updates
 
 ```bash

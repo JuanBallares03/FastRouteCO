@@ -19,6 +19,7 @@ import {
   NotFoundError,
 } from '../../lib/errors.js';
 import {
+  addDays,
   addMonths,
   daysBetween,
   parseBusinessDate,
@@ -233,7 +234,8 @@ export async function syncCompanySubscription(companyId: string) {
   if (!subscription) return null;
 
   const currentDate = today();
-  if (subscription.renewalDate && subscription.renewalDate < currentDate) {
+  const isPayPerUse = subscription.plan.modality === 'pay_per_use';
+  if (!isPayPerUse && subscription.renewalDate && subscription.renewalDate < currentDate) {
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
@@ -252,7 +254,7 @@ export async function syncCompanySubscription(companyId: string) {
 
   if (isTrialPlan(subscription.plan) && subscription.renewalDate) {
     const remaining = daysBetween(currentDate, subscription.renewalDate);
-    if (remaining <= 2 && remaining >= 0) {
+    if (remaining === 2) {
       await notifyOnceToday(
         prisma,
         companyId,
@@ -260,7 +262,7 @@ export async function syncCompanySubscription(companyId: string) {
         `Tu prueba gratuita termina en ${remaining} día(s). Elige un plan o pago por uso para continuar.`
       );
     }
-  } else if (subscription.renewalDate) {
+  } else if (!isPayPerUse && subscription.renewalDate) {
     const remaining = daysBetween(currentDate, subscription.renewalDate);
     if (remaining <= 3 && remaining >= 0) {
       await notifyOnceToday(
@@ -515,6 +517,18 @@ export async function processClosingUsageCharges(companyId: string) {
     },
   });
   for (const charge of openCharges) {
+    const periodEndDate = addDays(addMonths(charge.periodStartDate, 1), -1);
+    if (Number(charge.amount) <= 0) {
+      await prisma.usageCharge.update({
+        where: { id: charge.id },
+        data: { status: UsageChargeStatus.charged, periodEndDate },
+      });
+      continue;
+    }
+    await prisma.usageCharge.update({
+      where: { id: charge.id },
+      data: { periodEndDate },
+    });
     try {
       await processUsageCharge(companyId, charge.id);
     } catch (error) {
@@ -1225,6 +1239,13 @@ async function approvePayment(paymentId: string, transaction: WompiTransaction) 
   });
 }
 
+async function expireActiveSubscription(tx: BillingClient, companyId: string) {
+  await tx.subscription.updateMany({
+    where: { companyId, status: SubscriptionStatus.active },
+    data: { status: SubscriptionStatus.expired, endDate: today() },
+  });
+}
+
 async function rejectPayment(paymentId: string, transaction: WompiTransaction) {
   await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUnique({ where: { id: paymentId } });
@@ -1252,15 +1273,15 @@ async function rejectPayment(paymentId: string, transaction: WompiTransaction) {
         where: { id: rest[0], companyId: payment.companyId },
         data: { status: UsageChargeStatus.rejected },
       });
-      await tx.subscription.updateMany({
-        where: { companyId: payment.companyId, status: SubscriptionStatus.active },
-        data: { status: SubscriptionStatus.expired, endDate: today() },
-      });
+      await expireActiveSubscription(tx, payment.companyId);
+    } else if (kind === 'subscription') {
+      await expireActiveSubscription(tx, payment.companyId);
     } else if (kind === 'pay_per_use') {
       await tx.company.update({
         where: { id: payment.companyId },
         data: { cardReference: null },
       });
+      await expireActiveSubscription(tx, payment.companyId);
     }
 
     await createAdminNotifications(
@@ -1408,7 +1429,8 @@ async function applyUsageCharge(
     data: {
       status: UsageChargeStatus.charged,
       paymentId,
-      periodEndDate: charge.periodEndDate ?? today(),
+      periodEndDate:
+        charge.periodEndDate ?? addDays(addMonths(charge.periodStartDate, 1), -1),
     },
   });
   await createAdminNotifications(

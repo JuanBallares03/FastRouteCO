@@ -16,7 +16,9 @@
     "db:seed:admin": "tsx scripts/seed-admin.ts",
     "db:seed:demo": "tsx scripts/seed-demo.ts",
     "db:test:setup": "tsx scripts/setup-test-db.ts",
-    "osm:import": "tsx src/scripts/osm-import.ts"
+    "osm:import": "tsx src/scripts/osm-import.ts",
+    "billing:jobs": "tsx src/scripts/billing-jobs.ts",
+    "billing:jobs:prod": "node dist/scripts/billing-jobs.js"
   },
   "keywords": [],
   "author": "",
