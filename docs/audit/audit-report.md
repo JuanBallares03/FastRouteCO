@@ -16,7 +16,7 @@ Sources of truth: `README.md` (RF01–RF31, RNF01–RNF11), `docs/user-stories/u
 | AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Fixed in `9be71f3` |
 | AUD-08 | Performance | High | CWE-400 / A04 | `backend/src/lib/routing.ts:190-238` | Nearest-intersection queries scan every `Intersection` node | Fixed in `658031e` |
 | AUD-09 | Performance | High | CWE-400 / A04 | `backend/src/modules/reports/reports.service.ts:32-35`, `95-100`, `157` | Report summary loads every GPS point in the range into memory | Fixed in `096b19f` |
-| AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Open — requires schema migration approval |
+| AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Fixed in `850c758` |
 | AUD-11 | Architecture | High | N/A (build-plan, scheduled processes) | `backend/src/modules/billing/billing.service.ts:434-499` | Billing close, early charge, trial expiry and renewals have no scheduled execution | Open — requires scheduler and billing-rule decision |
 | AUD-12 | Reliability | High | CWE-703 / A04 | `backend/src/modules/orders/orders.service.ts:185-204` | Editing an order during a Nominatim outage erases its existing coordinates | Fixed in `9dd21d6` |
 | AUD-13 | Reliability | High | CWE-754 / A04 | `backend/src/index.ts:54`, `backend/src/lib/realtime.ts:38` | The API does not start if Redis is down and has no graceful shutdown | Fixed in `f6b9190` |
@@ -135,7 +135,7 @@ Top 5 risks:
 1. **Severity:** High. As data grows, lists and reports degrade to sequential scans on the production server.
 2. **CWE / OWASP:** N/A. Affected requirement: RNF01 and RNF03/RNF05 performance.
 3. **Scenario:** `/api/v1/orders?status=pending`, `/api/v1/routes?date=...`, incidents by company/status, payments by company, usage charges by company/period and the reports query all filter by `companyId` plus date or status. `schema.prisma` only defines `RouteLocation(routeId, capturedAt)`, `RefreshToken(userId)` and `Notification(userId)`. PostgreSQL must scan full tables, and the report query scans `routes` by company and date.
-4. **Fix:** Add composite indexes in a Prisma migration: `Order(companyId, status, createdAt)`, `Route(companyId, routeDate, status)`, `RouteStop(routeId)`, `RouteStop(orderId)` (partial unique is better, see AUD-06), `Incident(companyId, status, reportedAt)`, `Payment(companyId, status, createdAt)`, `UsageCharge(companyId, status, periodStartDate)`, `CreditTransaction(companyId, type, transactionDate)` and `User(companyId, role, isActive)`. This changes the database schema and needs approval before implementation.
+4. **Fix:** Added eight indexes in migration `20261112005812_add_performance_indexes` and mirrored them in `schema.prisma`: `Order(companyId, status, createdAt)`, `Route(companyId, routeDate, status)`, `RouteStop(orderId)` (non-unique; the optional unique constraint was not applied), `Incident(routeId, status, reportedAt)`, `Payment(companyId, status, createdAt)`, `UsageCharge(companyId, status, periodStartDate)`, `CreditTransaction(companyId, type, transactionDate)` and `User(companyId, role, isActive)`. Two adjustments to the original list: `Incident` has no `companyId` column, so the index uses `routeId` (the company filter goes through `Route`); and `RouteStop(routeId)` was omitted because the existing `@@unique([routeId, sequence])` already covers that prefix, so the slot was used for `RouteStop(orderId)`, which backs order assignment lookups. The migration was applied to the development and test databases; `prisma migrate status` reports the schema up to date and the eight index names were verified in PostgreSQL.
 5. **Possible false positive:** Some indexes may already exist in migrations but not in the Prisma schema. The schema is the source used by `prisma migrate`, so the omission is still a defect.
 
 ### AUD-11 — Scheduled billing and expiry processes do not exist
@@ -284,7 +284,6 @@ Top 5 risks:
 
 ## Recommendations not fixed
 
-- AUD-10 requires a database schema migration.
 - AUD-11 changes the documented lazy-billing behavior and needs a business decision before adding a scheduler.
 - AUD-19 requires dependency updates, which need approval.
 - AUD-22 and AUD-23 require a web authentication/CSP design change; they are Medium and can be scheduled after deployment blockers.
@@ -299,5 +298,5 @@ Executed after the fixes on 2026-11-11:
 - `mobile`: lint and typecheck pass; 24 tests pass.
 - `pnpm lint`, `pnpm test` and `pnpm build` pass at the workspace root.
 
-Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-09, AUD-12 to AUD-18). AUD-07 was closed after the RNF01 measurement and the 10-stop limit.
-Still open by design: AUD-10 (schema migration approval), AUD-11 (scheduler and billing-rule decision), AUD-19 (dependency approval), and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
+Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-09, AUD-12 to AUD-18). AUD-07 was closed after the RNF01 measurement and the 10-stop limit; AUD-10 was closed after the approved index migration.
+Still open by design: AUD-11 (scheduler and billing-rule decision), AUD-19 (dependency approval), and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
