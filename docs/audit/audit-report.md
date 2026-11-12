@@ -13,7 +13,7 @@ Sources of truth: `README.md` (RF01–RF31, RNF01–RNF11), `docs/user-stories/u
 | AUD-04 | Security | Critical | CWE-362, CWE-841 / A04 | `backend/src/modules/billing/billing.service.ts:1056-1126` | Concurrent Wompi webhooks can apply the same payment twice | Fixed in `c3ea9ca` |
 | AUD-05 | Architecture | High | CWE-362 / A04 | `backend/src/modules/billing/billing.service.ts:346-416`, `1188-1200` | Credit and pay-per-use counters use read-modify-write and lose updates under concurrency | Fixed in `96bb399` |
 | AUD-06 | Architecture | High | CWE-362 / A04 | `backend/src/modules/routes/routes.service.ts:198-268`, `276-370`, `backend/prisma/schema.prisma:387-408` | Two requests can assign the same order to two routes; no unique constraint on `route_stops.order_id` | Fixed in `358438c` |
-| AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Open — requires stop cap and RNF01 measurement |
+| AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Fixed in `9be71f3` |
 | AUD-08 | Performance | High | CWE-400 / A04 | `backend/src/lib/routing.ts:190-238` | Nearest-intersection queries scan every `Intersection` node | Fixed in `658031e` |
 | AUD-09 | Performance | High | CWE-400 / A04 | `backend/src/modules/reports/reports.service.ts:32-35`, `95-100`, `157` | Report summary loads every GPS point in the range into memory | Fixed in `096b19f` |
 | AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Open — requires schema migration approval |
@@ -98,12 +98,20 @@ Top 5 risks:
 4. **Fix:** Claim the order before creating the stop. In the transaction, run `tx.order.updateMany({ where: { id: orderId, companyId, status: OrderStatus.pending }, data: { status: OrderStatus.assigned } })` and throw a conflict if `count === 0`; do the same for the bulk `createRoute` path with `status: pending` and verify the updated count equals the requested count. Keep the existing pre-checks for friendly errors. Adding a partial unique index on `route_stops.order_id` would be the durable constraint, but that is a schema change and needs approval.
 5. **Possible false positive:** None while there is no unique constraint and the check is outside the write path.
 
-### AUD-07 — 2-opt has no time budget or stop cap and RNF01 is unmeasured
+### AUD-07 — Route optimization had no stop cap and RNF01 was unmeasured
 
-1. **Severity:** High. The 10-second optimization requirement cannot be guaranteed, and a large route can exhaust CPU and block a Node.js worker.
+1. **Severity:** High. The 10-second optimization requirement could not be guaranteed, and a large route could exhaust CPU and block a Node.js worker.
 2. **CWE / OWASP:** CWE-400 Uncontrolled Resource Consumption; OWASP A04:2021.
 3. **Scenario:** A company creates a route with hundreds of stops. `twoOptImprove` runs `while (improved)` and rebuilds the full path for every `(start, end)` pair; each pass is O(n²) and every candidate evaluation is O(n), so the loop is O(n³) per pass and can iterate many times. The HTTP request holds the event loop and the database transaction open while Neo4j runs one Dijkstra query per origin. No maximum number of stops is defined in `docs/build-plan.md`, so the failure point is not bounded.
-4. **Fix:** Add a hard time budget (`performance.now()` deadline) and a maximum number of improvement passes to `twoOptImprove`, and return the best path found. Read the maximum stops per route from a single setting once the business rule is defined. Measure the full path with a realistic OSRM/Neo4j graph and record the result in the audit. Do not invent a stop limit while it is `[TO BE DEFINED]`.
+4. **Fix:** Measured the full optimization on 2026-11-11 with the real Ibagué graph (31,006 intersections and 60,905 directed segments imported from OSM). The script samples 10/25/50 stops from 12,761 real intersections within 3 km of the city center (4.4389, -75.2322), runs each case 5 times, discards the first run as warm-up and reports the median and maximum of the valid samples (`approximate=false`). Node heap limit: 384 MB.
+
+   | Stops | Valid samples | Matrix median | Matrix max | Total median | Total max | Peak RSS |
+   |---|---|---|---|---|---|---|
+   | 10 | 4/4 | 6,235.2 ms | 6,561.3 ms | 6,235.4 ms | 6,561.6 ms | 87 MB |
+   | 25 | 4/4 | 25,596.1 ms | 26,537.5 ms | 25,597.1 ms | 26,538.7 ms | 87 MB |
+   | 50 | 4/4 | 88,375.8 ms | 88,849.7 ms | 88,390.0 ms | 88,854.6 ms | 87 MB |
+
+   The distance matrix accounts for ~99.9 % of the total; 2-opt stays below 25 ms. The business decision is a hard limit of **10 stops per route**, the only measured case that meets RNF01 (10 s) with the current routing implementation. The limit is `MAX_ROUTE_STOPS = 10` in `backend/src/modules/routes/constants.ts`; the validation schema rejects requests with more than 10 stops, and the create, append, assign, reassign and optimize paths enforce it. The measurement script is `backend/src/scripts/measure-optimization.ts`, and the OSM importer now sends a User-Agent to Overpass. The matrix, not 2-opt, is the bottleneck: raising the cap requires optimizing or replacing the Neo4j matrix query.
 5. **Possible false positive:** With the current `DEFAULT_BBOX` and small school routes, the algorithm may stay under 10 s. This does not remove the unbounded worst case.
 
 ### AUD-08 — Nearest-intersection queries scan the whole graph
@@ -276,7 +284,7 @@ Top 5 risks:
 
 ## Recommendations not fixed
 
-- AUD-07 and AUD-10 require a business decision about the maximum number of stops and a database schema migration.
+- AUD-10 requires a database schema migration.
 - AUD-11 changes the documented lazy-billing behavior and needs a business decision before adding a scheduler.
 - AUD-19 requires dependency updates, which need approval.
 - AUD-22 and AUD-23 require a web authentication/CSP design change; they are Medium and can be scheduled after deployment blockers.
@@ -284,12 +292,12 @@ Top 5 risks:
 
 ## Final check
 
-Executed after the fixes on 2026-11-10:
+Executed after the fixes on 2026-11-11:
 
-- `backend`: lint and typecheck pass; 192 tests pass; production build passes.
+- `backend`: lint and typecheck pass; 197 tests pass; production build passes.
 - `web`: lint and typecheck pass; 10 tests pass; production build passes (Vite reports a 1.63 MB main chunk warning, no build error).
 - `mobile`: lint and typecheck pass; 24 tests pass.
 - `pnpm lint`, `pnpm test` and `pnpm build` pass at the workspace root.
 
-Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-06, AUD-08, AUD-09, AUD-12 to AUD-18).
-Still open by design: AUD-07 (stop cap and RNF01 measurement), AUD-10 (schema migration approval), AUD-11 (scheduler and billing-rule decision), AUD-19 (dependency approval), and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
+Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-09, AUD-12 to AUD-18). AUD-07 was closed after the RNF01 measurement and the 10-stop limit.
+Still open by design: AUD-10 (schema migration approval), AUD-11 (scheduler and billing-rule decision), AUD-19 (dependency approval), and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
