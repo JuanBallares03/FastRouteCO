@@ -1,9 +1,9 @@
 import 'dotenv/config';
 import { prisma } from '../lib/prisma.js';
-import { runBillingJobs } from '../modules/billing/billing-jobs.js';
+import { runBillingJobsAndRecord } from '../modules/billing/billing-jobs.js';
 
 async function main() {
-  const result = await runBillingJobs();
+  const result = await runBillingJobsAndRecord();
   console.log('[billing-jobs] Result:', JSON.stringify(result, null, 2));
   await prisma.$disconnect();
   if (result.errors.length > 0) {

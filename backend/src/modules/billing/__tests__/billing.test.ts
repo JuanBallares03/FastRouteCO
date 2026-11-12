@@ -86,6 +86,9 @@ async function cleanup() {
   await prisma.plan.deleteMany({ where: { name: { startsWith: 'Billing Test ' } } });
   await prisma.creditPackage.deleteMany({ where: { name: { startsWith: 'Billing Test ' } } });
   await prisma.module.deleteMany({ where: { code: { startsWith: 'billing-test-' } } });
+  await prisma.systemSetting.deleteMany({
+    where: { key: 'billing_jobs_last_run' },
+  });
 }
 
 async function resetCompanyState() {
@@ -438,6 +441,47 @@ describe('Company billing', () => {
     });
     expect(subscription.billingCycle).toBe(BillingCycle.annual);
     expect(subscription.paymentId).toBe(payment.id);
+    const balance = await prisma.creditBalance.findUniqueOrThrow({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(balance.planCredits).toBe(10);
+  });
+
+  it('resets monthly plan credits when the renewal is approved on the anniversary', async () => {
+    await prisma.creditBalance.update({
+      where: { companyId: COMPANY_ID },
+      data: { planCredits: 0 },
+    });
+
+    const start = await request(app)
+      .post('/api/v1/company/billing/subscription')
+      .set(authHeader(adminToken))
+      .send({ planId, billingCycle: 'monthly' });
+    expect(start.status).toBe(201);
+
+    const payment = await prisma.payment.findUniqueOrThrow({
+      where: { id: start.body.paymentId },
+    });
+    const event = signedEvent({
+      id: `tx-${randomUUID()}`,
+      status: 'APPROVED',
+      amount_in_cents: 10000000,
+      currency: 'COP',
+      reference: buildPaymentReference(payment.id, 'subscription', planId, 'monthly'),
+      payment_method_type: 'CARD',
+    });
+    const res = await request(app).post('/api/v1/payments/wompi/events').send(event);
+
+    expect(res.status).toBe(200);
+    const subscription = await prisma.subscription.findFirstOrThrow({
+      where: { companyId: COMPANY_ID, status: SubscriptionStatus.active },
+    });
+    const current = parseBusinessDate(todayInBogota());
+    expect(subscription.billingCycle).toBe(BillingCycle.monthly);
+    expect(subscription.startDate.toISOString()).toBe(current.toISOString());
+    expect(subscription.renewalDate?.toISOString()).toBe(
+      addMonths(current, 1).toISOString()
+    );
     const balance = await prisma.creditBalance.findUniqueOrThrow({
       where: { companyId: COMPANY_ID },
     });
@@ -852,6 +896,51 @@ describe('Billing jobs', () => {
         where: { companyId: COMPANY_ID, purpose: PaymentPurpose.usage },
       })
     ).toBe(1);
+  });
+
+  it('resets annual plan credits on the monthly anniversary', async () => {
+    const current = parseBusinessDate(todayInBogota());
+    await prisma.subscription.updateMany({
+      where: { companyId: COMPANY_ID },
+      data: {
+        billingCycle: BillingCycle.annual,
+        startDate: addMonths(current, -1),
+        renewalDate: addMonths(current, 11),
+      },
+    });
+    await prisma.creditBalance.update({
+      where: { companyId: COMPANY_ID },
+      data: { planCredits: 0 },
+    });
+
+    const { runBillingJobs } = await import('../billing-jobs.js');
+    const result = await runBillingJobs({ companyIds: [COMPANY_ID] });
+    expect(result.errors).toEqual([]);
+
+    const balance = await prisma.creditBalance.findUniqueOrThrow({
+      where: { companyId: COMPANY_ID },
+    });
+    expect(balance.planCredits).toBe(10);
+    expect(
+      await prisma.notification.count({
+        where: { companyId: COMPANY_ID, type: 'credits_reset' },
+      })
+    ).toBe(1);
+  });
+
+  it('records the last run date so a restart does not repeat it', async () => {
+    await prisma.systemSetting.deleteMany({
+      where: { key: 'billing_jobs_last_run' },
+    });
+
+    const { runBillingJobsAndRecord } = await import('../billing-jobs.js');
+    const result = await runBillingJobsAndRecord({ companyIds: [COMPANY_ID] });
+    expect(result.errors).toEqual([]);
+
+    const setting = await prisma.systemSetting.findUnique({
+      where: { key: 'billing_jobs_last_run' },
+    });
+    expect(setting?.value).toEqual({ date: todayInBogota() });
   });
 
   it('keeps pay per use active after its billing date', async () => {
