@@ -25,6 +25,7 @@ import supportRoutes from "./modules/support/support.routes.js";
 import monitoringRoutes from "./modules/monitoring/monitoring.routes.js";
 import reportRoutes from "./modules/reports/reports.routes.js";
 import studentRoutes from "./modules/students/students.routes.js";
+import healthRoutes from "./modules/health/health.routes.js";
 import { errorHandler } from "./middleware/error-handler.js";
 
 const app = express();
@@ -36,9 +37,7 @@ app.use(cors({ origin: env.WEB_APP_URL, credentials: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
+app.use("/health", healthRoutes);
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/platform", platformRoutes);

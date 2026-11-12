@@ -113,6 +113,10 @@ export async function initRealtime(
   return io;
 }
 
+export function getRealtimeRedisClient(): Redis | null {
+  return pubClient;
+}
+
 export function emitToCompany(companyId: string, event: string, payload: unknown): void {
   io?.to(`company:${companyId}`).emit(event, payload);
 }
