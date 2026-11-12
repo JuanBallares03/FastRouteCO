@@ -17,7 +17,7 @@ Sources of truth: `README.md` (RF01–RF31, RNF01–RNF11), `docs/user-stories/u
 | AUD-08 | Performance | High | CWE-400 / A04 | `backend/src/lib/routing.ts:190-238` | Nearest-intersection queries scan every `Intersection` node | Fixed in `658031e` |
 | AUD-09 | Performance | High | CWE-400 / A04 | `backend/src/modules/reports/reports.service.ts:32-35`, `95-100`, `157` | Report summary loads every GPS point in the range into memory | Fixed in `096b19f` |
 | AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Fixed in `850c758` |
-| AUD-11 | Architecture | High | N/A (build-plan, scheduled processes) | `backend/src/modules/billing/billing.service.ts:434-499` | Billing close, early charge, trial expiry and renewals have no scheduled execution | Open — requires scheduler and billing-rule decision |
+| AUD-11 | Architecture | High | N/A (build-plan, scheduled processes) | `backend/src/modules/billing/billing-jobs.ts` | Billing close, early charge, trial expiry and renewals have no scheduled execution | Fixed in `9bb3918` |
 | AUD-12 | Reliability | High | CWE-703 / A04 | `backend/src/modules/orders/orders.service.ts:185-204` | Editing an order during a Nominatim outage erases its existing coordinates | Fixed in `9dd21d6` |
 | AUD-13 | Reliability | High | CWE-754 / A04 | `backend/src/index.ts:54`, `backend/src/lib/realtime.ts:38` | The API does not start if Redis is down and has no graceful shutdown | Fixed in `f6b9190` |
 | AUD-14 | Security | High | CWE-212 / A01 | `mobile/src/features/auth/AuthContext.tsx:137-147` | Sign-out leaves the cached route, offline queue and evidence photos on the device | Fixed in `da49c06` |
@@ -143,8 +143,8 @@ Top 5 risks:
 1. **Severity:** High. Companies can keep expired trials or subscriptions, usage periods are not closed, and early charges only happen when someone optimizes again.
 2. **CWE / OWASP:** N/A. Affected requirement: audit section 4.2 (scheduled processes) and the billing rules in the README/build-plan.
 3. **Scenario:** A company's trial expires at midnight. The administrator stops using the app. No process runs, so the company stays `active` in the database, no expiry notification is sent, and the next request may still be allowed until a lazy check runs. A pay-per-use company that stops optimizing is never charged for the open period. An annual plan's monthly credit reset only happens when somebody opens billing.
-4. **Fix:** Define the execution model before implementing it. The build-plan currently documents lazy billing, so switching to a scheduler changes a business rule. The minimal implementation inside the current stack is a CLI entry point (`backend/src/scripts/billing-jobs.ts`) that iterates companies and calls `syncCompanySubscription`, `processClosingUsageCharges`, annual credit reset and trial-expiry notifications, guarded by a PostgreSQL advisory lock to prevent concurrent runs and documented as a cron/systemd timer in `America/Bogota` in the deployment README. Do not implement until the business decision is confirmed.
-5. **Possible false positive:** If lazy billing is an accepted design deviation, the missing scheduler is a documented risk rather than a bug. It still leaves inactive companies uncharged and unnotified.
+4. **Fix:** Added `runBillingJobs` in `backend/src/modules/billing/billing-jobs.ts`. It takes a transaction-scoped PostgreSQL advisory lock (`pg_try_advisory_xact_lock`), iterates companies, and calls `syncCompanySubscription` (trial and paid-plan expiry, RF27 notices, annual-plan credit reset) and `processClosingUsageCharges` (previous-month close, zero-amount close, and charge). The API starts the job daily at `00:10 America/Bogota` from `startBillingJobScheduler`; `pnpm billing:jobs` and `node dist/scripts/billing-jobs.js` run it manually or from an external cron/systemd timer, and `BILLING_JOBS_DISABLED=true` disables the in-process timer. A rejected subscription or pay-per-use charge expires the active subscription immediately; pay-per-use stays active after its billing date so the closing charge can run. The deployment README documents the scheduler, CLI and disable flag. Tests cover trial-expiry idempotency, period close and `periodEndDate`, pay-per-use continuity and rejection expiry.
+5. **Possible false positive:** The in-process timer requires the API process to be running. Deployments that prefer an external timer can use the documented CLI entry point; the advisory lock prevents duplicate runs when both are active.
 
 ### AUD-12 — Order edit erases coordinates during a geocoder outage
 
@@ -284,7 +284,6 @@ Top 5 risks:
 
 ## Recommendations not fixed
 
-- AUD-11 changes the documented lazy-billing behavior and needs a business decision before adding a scheduler.
 - AUD-19 requires dependency updates, which need approval.
 - AUD-22 and AUD-23 require a web authentication/CSP design change; they are Medium and can be scheduled after deployment blockers.
 - AUD-25 requires a retention period; it is `[TO BE DEFINED]`.
@@ -293,10 +292,10 @@ Top 5 risks:
 
 Executed after the fixes on 2026-11-11:
 
-- `backend`: lint and typecheck pass; 197 tests pass; production build passes.
+- `backend`: lint and typecheck pass; 201 tests pass; production build passes.
 - `web`: lint and typecheck pass; 10 tests pass; production build passes (Vite reports a 1.63 MB main chunk warning, no build error).
 - `mobile`: lint and typecheck pass; 24 tests pass.
 - `pnpm lint`, `pnpm test` and `pnpm build` pass at the workspace root.
 
-Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-09, AUD-12 to AUD-18). AUD-07 was closed after the RNF01 measurement and the 10-stop limit; AUD-10 was closed after the approved index migration.
-Still open by design: AUD-11 (scheduler and billing-rule decision), AUD-19 (dependency approval), and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
+Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-09, AUD-11 to AUD-18). AUD-07 was closed after the RNF01 measurement and the 10-stop limit; AUD-10 was closed after the approved index migration; AUD-11 was closed after the daily billing and expiry job was added.
+Still open by design: AUD-19 (dependency approval) and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
