@@ -47,13 +47,18 @@ export async function initRealtime(
     await Promise.all([pubClient.connect(), subClient.connect()]);
     io.adapter(createAdapter(pubClient, subClient, { key: 'fastrouteco:socket.io' }));
   } catch (error) {
-    console.error(
-      '[realtime] Redis unavailable, falling back to the in-memory adapter',
-      error instanceof Error ? error.message : error
-    );
     await Promise.all([closeClient(pubClient), closeClient(subClient)]);
     pubClient = null;
     subClient = null;
+
+    const reason = error instanceof Error ? error.message : String(error);
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`Redis is required in production: ${reason}`, { cause: error });
+    }
+    console.error(
+      '[realtime] Redis unavailable, falling back to the in-memory adapter',
+      reason
+    );
   }
 
   io.use(async (socket, next) => {

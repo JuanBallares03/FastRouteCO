@@ -1,9 +1,10 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { createServer } from 'node:http';
 import { initRealtime, closeRealtime } from '../realtime.js';
 
 describe('realtime', () => {
   afterEach(async () => {
+    vi.unstubAllEnvs();
     await closeRealtime();
   });
 
@@ -19,6 +20,14 @@ describe('realtime', () => {
     });
 
     expect(io.of('/').adapter.constructor.name).not.toBe('RedisAdapter');
+  });
+
+  it('fails fast when Redis is unavailable in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+
+    await expect(
+      initRealtime(createServer(), { redisUrl: 'redis://127.0.0.1:1' })
+    ).rejects.toThrow('Redis is required in production');
   });
 
   it('reuses the same server instance on repeated calls', async () => {

@@ -58,7 +58,12 @@ app.use("/api/v1/company", studentRoutes);
 app.use(errorHandler);
 
 const server = createServer(app);
-await initRealtime(server);
+try {
+  await initRealtime(server);
+} catch (error) {
+  console.error("Fatal: realtime initialization failed", error);
+  process.exit(1);
+}
 
 server.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
