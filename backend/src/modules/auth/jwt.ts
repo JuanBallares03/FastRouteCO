@@ -33,12 +33,53 @@ export function signRefreshToken(
   });
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function parseAccessPayload(payload: unknown): AccessTokenPayload {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new Error('Invalid access token');
+  }
+
+  const { sub, email, role, companyId, type } = payload as Record<string, unknown>;
+  if (type !== 'access') {
+    throw new Error('Invalid access token type');
+  }
+  if (
+    !isNonEmptyString(sub) ||
+    !isNonEmptyString(email) ||
+    !isNonEmptyString(role) ||
+    !(companyId === null || typeof companyId === 'string')
+  ) {
+    throw new Error('Invalid access token payload');
+  }
+
+  return { sub, email, role, companyId, type: 'access' };
+}
+
+function parseRefreshPayload(payload: unknown): RefreshTokenPayload {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new Error('Invalid refresh token');
+  }
+
+  const { sub, jti, type } = payload as Record<string, unknown>;
+  if (type !== 'refresh') {
+    throw new Error('Invalid refresh token type');
+  }
+  if (!isNonEmptyString(sub) || !isNonEmptyString(jti)) {
+    throw new Error('Invalid refresh token payload');
+  }
+
+  return { sub, jti, type: 'refresh' };
+}
+
 export function verifyAccessToken(token: string): AccessTokenPayload {
-  return jwt.verify(token, env.JWT_SECRET) as AccessTokenPayload;
+  return parseAccessPayload(jwt.verify(token, env.JWT_SECRET));
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
-  return jwt.verify(token, env.JWT_REFRESH_SECRET) as RefreshTokenPayload;
+  return parseRefreshPayload(jwt.verify(token, env.JWT_REFRESH_SECRET));
 }
 
 export function decodeToken(token: string): jwt.JwtPayload | null {
