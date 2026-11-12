@@ -189,6 +189,7 @@ model User {
   refreshTokens RefreshToken[]
   invitations   UserInvitation[]
 
+  @@index([companyId, role, isActive])
   @@map("users")
 }
 
@@ -337,6 +338,7 @@ model CreditTransaction {
   purchase          CreditPurchase?        @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
   optimization      RouteOptimization?     @relation(fields: [optimizationId], references: [id], onDelete: SetNull)
 
+  @@index([companyId, type, transactionDate])
   @@map("credit_transactions")
 }
 
@@ -360,6 +362,7 @@ model Order {
   branch          Branch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
   routeStops      RouteStop[]
 
+  @@index([companyId, status, createdAt])
   @@map("orders")
 }
 
@@ -381,6 +384,7 @@ model Route {
   locations       RouteLocation[]
   incidents       Incident[]
 
+  @@index([companyId, routeDate, status])
   @@map("routes")
 }
 
@@ -404,6 +408,7 @@ model RouteStop {
   evidencePhotos       EvidencePhoto[]
   incidents            Incident[]
 
+  @@index([orderId])
   @@unique([routeId, sequence])
   @@map("route_stops")
 }
@@ -467,6 +472,7 @@ model Incident {
   stop              RouteStop?         @relation(fields: [stopId], references: [id], onDelete: SetNull)
   messages          IncidentMessage[]
 
+  @@index([routeId, status, reportedAt])
   @@map("incidents")
 }
 
@@ -569,6 +575,7 @@ model Payment {
   creditPurchases     CreditPurchase[]  @relation("CreditPurchasePayment")
   usageCharges        UsageCharge[]
 
+  @@index([companyId, status, createdAt])
   @@map("payments")
 }
 
@@ -587,6 +594,7 @@ model UsageCharge {
   payment             Payment?             @relation(fields: [paymentId], references: [id], onDelete: SetNull)
   routeOptimizations  RouteOptimization[]
 
+  @@index([companyId, status, periodStartDate])
   @@map("usage_charges")
 }
 
