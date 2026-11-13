@@ -227,12 +227,12 @@ export async function assignOrder(
       data: { status: OrderStatus.assigned },
     });
     if (claimed.count === 0) {
-      throw new ConflictError('El pedido ya estǭ en una ruta', 'ORDER_ALREADY_ASSIGNED');
+      throw new ConflictError('El pedido ya está en una ruta', 'ORDER_ALREADY_ASSIGNED');
     }
 
     const existingStop = await tx.routeStop.findFirst({ where: { orderId } });
     if (existingStop) {
-      throw new ConflictError('El pedido ya estǭ en una ruta', 'ORDER_ALREADY_ASSIGNED');
+      throw new ConflictError('El pedido ya está en una ruta', 'ORDER_ALREADY_ASSIGNED');
     }
 
     let target = await tx.route.findFirst({
@@ -350,7 +350,7 @@ export async function createRoute(
         data: { status: OrderStatus.assigned },
       });
       if (claimed.count !== uniqueOrderIds.length) {
-        throw new ConflictError('Uno o mǭs pedidos ya estǭn en una ruta', 'ORDER_ALREADY_ASSIGNED');
+        throw new ConflictError('Uno o más pedidos ya están en una ruta', 'ORDER_ALREADY_ASSIGNED');
       }
     }
 

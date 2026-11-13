@@ -86,7 +86,7 @@ async function createOrder(companyId = COMPANY_ID, overrides: Record<string, unk
     data: {
       companyId,
       type: OrderType.delivery,
-      address: `Calle ${orderCounter} # 1-2, IbaguÃ©`,
+      address: `Calle ${orderCounter} # 1-2, Ibagué`,
       latitude: 4.4389,
       longitude: -75.2322,
       priority: OrderPriority.normal,

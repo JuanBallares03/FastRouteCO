@@ -142,7 +142,7 @@ export function createRateLimiter(options: RateLimitOptions): RequestHandler {
       if (count > options.limit) {
         res.setHeader('Retry-After', resetSeconds);
         res.status(429).json({
-          message: 'Demasiados intentos. Intenta de nuevo mǭs tarde.',
+          message: 'Demasiados intentos. Intenta de nuevo más tarde.',
           code: 'RATE_LIMITED',
         });
         return;
