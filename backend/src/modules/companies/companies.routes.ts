@@ -16,7 +16,7 @@ import {
   createCompanyAdminSchema,
   updateCompanyAdminStatusSchema,
   listCompanyAdminsSchema,
-} from './validation.js';
+} from './companies.validation.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/auth.js';
 import { authorize } from '../../middleware/auth.js';

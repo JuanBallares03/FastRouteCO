@@ -30,7 +30,7 @@ import {
   routeLocationsSchema,
   startRouteSchema,
   stopParamsSchema,
-} from './validation.js';
+} from './routes.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 

@@ -27,7 +27,7 @@ import type {
   ReassignRouteInput,
   RouteLocationsInput,
   StartRouteInput,
-} from './validation.js';
+} from './routes.validation.js';
 import { respondWithError } from '../../middleware/error-handler.js';
 
 interface AuthenticatedRequest extends Request {

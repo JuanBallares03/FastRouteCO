@@ -12,12 +12,12 @@ import {
   getOrderSchema,
   listOrdersSchema,
   updateOrderSchema,
-} from './validation.js';
+} from './orders.validation.js';
 import {
   assignOrderHandler,
   suggestDriversHandler,
 } from '../routes/routes.controller.js';
-import { assignOrderSchema, suggestDriversSchema } from '../routes/validation.js';
+import { assignOrderSchema, suggestDriversSchema } from '../routes/routes.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 

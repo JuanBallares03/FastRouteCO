@@ -13,7 +13,7 @@ import {
   acceptInvitationSchema,
   logoutSchema,
   resendInvitationSchema,
-} from './validation.middleware.js';
+} from './auth.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import { createRateLimiter } from '../../lib/rate-limit.js';
