@@ -9,26 +9,14 @@ import {
   createCompanyAdmin,
   updateCompanyAdminStatus,
 } from './companies.service.js';
+import { respondWithError } from '../../middleware/error-handler.js';
 
 export async function createCompanyHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const company = await createCompany(req.body);
     res.status(201).json(company);
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'La empresa debe tener flota propia') {
-        res.status(400).json({ message: error.message });
-        return;
-      }
-      if (error.message === 'El NIT ya está registrado') {
-        res.status(409).json({ message: error.message });
-        return;
-      }
-      if (error.message === 'No hay plan de prueba gratuita disponible') {
-        res.status(500).json({ message: error.message });
-        return;
-      }
-    }
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -83,10 +71,7 @@ export async function updateCompanyStatusHandler(req: Request, res: Response, ne
     const result = await updateCompanyStatus(id, isActive);
     res.json(result);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Empresa no encontrada') {
-      res.status(404).json({ message: error.message });
-      return;
-    }
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -97,10 +82,7 @@ export async function listCompanyAdminsHandler(req: Request, res: Response, next
     const admins = await listCompanyAdmins(id);
     res.json(admins);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Empresa no encontrada') {
-      res.status(404).json({ message: error.message });
-      return;
-    }
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -111,16 +93,7 @@ export async function createCompanyAdminHandler(req: Request, res: Response, nex
     const { user, invitationUrl } = await createCompanyAdmin(id, req.body);
     res.status(201).json({ user, invitationUrl });
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'Empresa no encontrada') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-      if (error.message === 'El email ya está registrado') {
-        res.status(409).json({ message: error.message });
-        return;
-      }
-    }
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -133,10 +106,7 @@ export async function updateCompanyAdminStatusHandler(req: Request, res: Respons
     const result = await updateCompanyAdminStatus(id, adminId, isActive);
     res.json(result);
   } catch (error) {
-    if (error instanceof Error && error.message === 'Administrador no encontrado') {
-      res.status(404).json({ message: error.message });
-      return;
-    }
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }

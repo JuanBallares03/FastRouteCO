@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma.js';
 import { sendCompanyConfirmationEmail } from '../../lib/email.js';
 import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { createInvitationForUser } from '../auth/auth.service.js';
+import { AppError, BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
 
 function getColombiaDate(): Date {
   return parseBusinessDate(todayInBogota());
@@ -23,7 +24,7 @@ export async function createCompany(data: {
   hasOwnFleet: boolean;
 }) {
   if (!data.hasOwnFleet) {
-    throw new Error('La empresa debe tener flota propia');
+    throw new BadRequestError('La empresa debe tener flota propia');
   }
 
   const existingCompany = await prisma.company.findUnique({
@@ -31,7 +32,7 @@ export async function createCompany(data: {
   });
 
   if (existingCompany) {
-    throw new Error('El NIT ya está registrado');
+    throw new ConflictError('El NIT ya está registrado');
   }
 
   const freeTrialPlan = await prisma.plan.findFirst({
@@ -43,7 +44,7 @@ export async function createCompany(data: {
   });
 
   if (!freeTrialPlan) {
-    throw new Error('No hay plan de prueba gratuita disponible');
+    throw new AppError('No hay plan de prueba gratuita disponible', 500);
   }
 
   const now = getColombiaDate();
@@ -193,7 +194,7 @@ export async function updateCompanyStatus(id: string, isActive: boolean) {
   });
 
   if (!company) {
-    throw new Error('Empresa no encontrada');
+    throw new NotFoundError('Empresa no encontrada');
   }
 
   const newStatus = isActive ? CompanyStatus.active : CompanyStatus.inactive;
@@ -224,7 +225,7 @@ export async function listCompanyAdmins(companyId: string) {
   });
 
   if (!company) {
-    throw new Error('Empresa no encontrada');
+    throw new NotFoundError('Empresa no encontrada');
   }
 
   const admins = await prisma.user.findMany({
@@ -250,12 +251,12 @@ export async function createCompanyAdmin(
 ) {
   const company = await prisma.company.findUnique({ where: { id: companyId } });
   if (!company) {
-    throw new Error('Empresa no encontrada');
+    throw new NotFoundError('Empresa no encontrada');
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
   if (existingUser) {
-    throw new Error('El email ya está registrado');
+    throw new ConflictError('El email ya está registrado');
   }
 
   const user = await prisma.user.create({
@@ -285,7 +286,7 @@ export async function updateCompanyAdminStatus(
   });
 
   if (!admin) {
-    throw new Error('Administrador no encontrado');
+    throw new NotFoundError('Administrador no encontrado');
   }
 
   await prisma.$transaction(async (tx) => {

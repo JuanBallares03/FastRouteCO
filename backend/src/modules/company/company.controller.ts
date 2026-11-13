@@ -13,11 +13,9 @@ import {
   updateDriver,
   updateDriverStatus,
   updateDriverAvailability,
-  NotFoundError,
-  ConflictError,
-  PlanLimitError,
 } from './company.service.js';
 import { DriverStatus } from '@prisma/client';
+import { respondWithError } from '../../middleware/error-handler.js';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -61,35 +59,9 @@ export async function updateCompanyHandler(req: AuthenticatedRequest, res: Respo
     const company = await updateCompany(companyId, req.body);
     res.json(company);
   } catch (error) {
-    console.error('[updateCompanyHandler] Error:', error);
-    if (error instanceof Error) {
-      if (error.message === 'Empresa no encontrada') {
-        res.status(404).json({ message: error.message });
-        return;
-      }
-      if (error.message === 'El email ya está registrado') {
-        res.status(409).json({ message: error.message });
-        return;
-      }
-    }
+    if (respondWithError(error, res)) return;
     next(error);
   }
-}
-
-function handleServiceError(error: unknown, res: Response): boolean {
-  if (error instanceof NotFoundError) {
-    res.status(404).json({ message: error.message });
-    return true;
-  }
-  if (error instanceof ConflictError) {
-    res.status(409).json({ message: error.message });
-    return true;
-  }
-  if (error instanceof PlanLimitError) {
-    res.status(400).json({ message: error.message });
-    return true;
-  }
-  return false;
 }
 
 export async function listBranchesHandler(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -117,7 +89,7 @@ export async function createBranchHandler(req: AuthenticatedRequest, res: Respon
     const branch = await createBranch(companyId, req.body);
     res.status(201).json(branch);
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -134,7 +106,7 @@ export async function updateBranchHandler(req: AuthenticatedRequest, res: Respon
     const branch = await updateBranch(companyId, id, req.body);
     res.json(branch);
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -164,7 +136,7 @@ export async function createSupervisorHandler(req: AuthenticatedRequest, res: Re
     const result = await createSupervisor(companyId, req.body);
     res.status(201).json(result);
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -180,7 +152,7 @@ export async function updateSupervisorStatusHandler(req: AuthenticatedRequest, r
     const { id } = req.params as { id: string };
     res.json(await updateSupervisorStatus(companyId, id, req.body.isActive));
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -210,7 +182,7 @@ export async function createDriverHandler(req: AuthenticatedRequest, res: Respon
     const result = await createDriver(companyId, req.body);
     res.status(201).json(result);
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -226,7 +198,7 @@ export async function updateDriverHandler(req: AuthenticatedRequest, res: Respon
     const { id } = req.params as { id: string };
     res.json(await updateDriver(companyId, id, req.body));
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -242,7 +214,7 @@ export async function updateDriverStatusHandler(req: AuthenticatedRequest, res: 
     const { id } = req.params as { id: string };
     res.json(await updateDriverStatus(companyId, id, req.body.isActive));
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }
@@ -258,7 +230,7 @@ export async function updateDriverAvailabilityHandler(req: AuthenticatedRequest,
     const { id } = req.params as { id: string };
     res.json(await updateDriverAvailability(companyId, id, req.body.status as DriverStatus));
   } catch (error) {
-    if (handleServiceError(error, res)) return;
+    if (respondWithError(error, res)) return;
     next(error);
   }
 }

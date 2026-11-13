@@ -1,27 +1,8 @@
 import { Prisma, SubscriptionStatus, UserRole, DriverStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { createInvitationForUser, revokeAllUserRefreshTokens } from '../auth/auth.service.js';
+import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
 
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'NotFoundError';
-  }
-}
-
-export class ConflictError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConflictError';
-  }
-}
-
-export class PlanLimitError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'PlanLimitError';
-  }
-}
 
 async function getActiveSubscription(companyId: string) {
   return prisma.subscription.findFirst({
@@ -65,7 +46,7 @@ export async function updateCompany(
   });
 
   if (!company) {
-    throw new Error('Empresa no encontrada');
+    throw new NotFoundError('Empresa no encontrada');
   }
 
   if (data.email && data.email !== company.email) {
@@ -73,7 +54,7 @@ export async function updateCompany(
       where: { email: data.email },
     });
     if (existing) {
-      throw new Error('El email ya está registrado');
+      throw new ConflictError('El email ya está registrado');
     }
   }
 
@@ -102,14 +83,14 @@ export async function createBranch(
 ) {
   const subscription = await getActiveSubscription(companyId);
   if (!subscription) {
-    throw new PlanLimitError('La empresa no tiene un plan activo');
+    throw new BadRequestError('La empresa no tiene un plan activo');
   }
 
   const maxBranches = subscription.plan.maxBranches;
   if (maxBranches !== null) {
     const count = await prisma.branch.count({ where: { companyId } });
     if (count >= maxBranches) {
-      throw new PlanLimitError(`El plan activo permite máximo ${maxBranches} sede(s)`);
+      throw new BadRequestError(`El plan activo permite máximo ${maxBranches} sede(s)`);
     }
   }
 
@@ -238,7 +219,7 @@ export async function createDriver(
 ) {
   const subscription = await getActiveSubscription(companyId);
   if (!subscription) {
-    throw new PlanLimitError('La empresa no tiene un plan activo');
+    throw new BadRequestError('La empresa no tiene un plan activo');
   }
 
   const maxDrivers = subscription.plan.maxDrivers;
@@ -247,7 +228,7 @@ export async function createDriver(
       where: { companyId, role: UserRole.driver },
     });
     if (count >= maxDrivers) {
-      throw new PlanLimitError(`El plan activo permite máximo ${maxDrivers} conductor(es)`);
+      throw new BadRequestError(`El plan activo permite máximo ${maxDrivers} conductor(es)`);
     }
   }
 
