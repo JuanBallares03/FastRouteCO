@@ -93,7 +93,7 @@ Deliver these five items:
 
 ## 6. Report format
 
-Write `docs/audit/audit-report.md`:
+Write `docs/audit/code-audit-report.md`:
 
 1. **Summary table first:**
 

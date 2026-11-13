@@ -18,7 +18,7 @@ Important: the AWS Free plan closes the account after 6 months or when the credi
 
 ## 2. Preconditions (before deploying)
 
-- [ ] `docs/audit/audit-report.md` has no open Critical or High findings.
+- [ ] `docs/audit/code-audit-report.md` has no open Critical or High findings.
 - [ ] Lint, typecheck, test and build green in backend, web and mobile.
 - [ ] CI green on `main`.
 - [ ] Every [TO BE DEFINED] item that blocks production is decided, or documented as a known limitation.
