@@ -19,15 +19,15 @@ Sources of truth: `README.md` (RF01–RF31, RNF01–RNF11), `docs/user-stories/u
 | AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Fixed in `850c758` |
 | AUD-11 | Architecture | High | N/A (build-plan, scheduled processes) | `backend/src/modules/billing/billing-jobs.ts` | Billing close, early charge, trial expiry and renewals have no scheduled execution | Fixed in `9bb3918` |
 | AUD-12 | Reliability | High | CWE-703 / A04 | `backend/src/modules/orders/orders.service.ts:185-204` | Editing an order during a Nominatim outage erases its existing coordinates | Fixed in `9dd21d6` |
-| AUD-13 | Reliability | High | CWE-754 / A04 | `backend/src/index.ts:54`, `backend/src/lib/realtime.ts:38` | The API does not start if Redis is down and has no graceful shutdown | Fixed in `f6b9190` |
+| AUD-13 | Reliability | High | CWE-754 / A04 | `backend/src/index.ts:54`, `backend/src/lib/realtime.ts:38` | The API does not start if Redis is down and has no graceful shutdown | Fixed in `f6b9190`; production fail-fast in `ab4c965` |
 | AUD-14 | Security | High | CWE-212 / A01 | `mobile/src/features/auth/AuthContext.tsx:137-147` | Sign-out leaves the cached route, offline queue and evidence photos on the device | Fixed in `da49c06` |
 | AUD-15 | Reliability | High | N/A (RNF07) | `mobile/src/features/auth/AuthContext.tsx:98-102` | A cold start without network deletes the local session and logs the driver out | Fixed in `14cc738` |
 | AUD-16 | Security | High | CWE-307 / A07 | `backend/src/index.ts:27-30`, `backend/src/modules/auth/auth.routes.ts:22-27` | No rate limiting on login, refresh, invitation or card-setup endpoints | Fixed in `b77bfea` |
 | AUD-17 | Testing | High | N/A (CI) | `.github/workflows/ci.yml:1-119` | CI only installs, tests and builds the backend | Fixed in `55b6d9d` |
 | AUD-18 | Reliability | High | N/A (deployment) | `backend/prisma/seed.ts:174` | Extra closing brace makes `pnpm db:seed` fail on a fresh deployment | Fixed in `451dd5f` |
-| AUD-19 | Dependencies | High | N/A (CVEs) | `pnpm-lock.yaml` | `pnpm audit` reports 8 high, 7 moderate and 6 low vulnerabilities | Open — requires dependency approval |
-| AUD-20 | Reliability | Medium | CWE-754 / A05 | `backend/src/index.ts:32-34` | `/health` always returns 200 without checking PostgreSQL, Redis or Neo4j | Open |
-| AUD-21 | Security | Medium | CWE-345 / A07 | `backend/src/modules/auth/jwt.ts:36-42` | Access and refresh token payloads are not checked for `type` | Open |
+| AUD-19 | Dependencies | High | N/A (CVEs) | `pnpm-lock.yaml` | `pnpm audit` reports 8 high, 7 moderate and 6 low vulnerabilities | Fixed in `e42c5ac`; 2 moderate and 1 low remain in Expo tooling |
+| AUD-20 | Reliability | Medium | CWE-754 / A05 | `backend/src/lib/health.ts`, `backend/src/modules/health/health.routes.ts` | `/health` always returns 200 without checking PostgreSQL, Redis or Neo4j | Fixed in `189f828` |
+| AUD-21 | Security | Medium | CWE-345 / A07 | `backend/src/modules/auth/jwt.ts:35-70` | Access and refresh token payloads are not checked for `type` | Fixed in `6b44fab` |
 | AUD-22 | Security | Medium | CWE-922 / A02 | `web/src/context/AuthContext.tsx:56-58`, `74-76` | Access and refresh tokens are stored in `localStorage` | Open |
 | AUD-23 | Security | Medium | CWE-693 / A05 | `deploy/Caddyfile:15-21` | No Content-Security-Policy header | Open |
 | AUD-24 | Reliability | Medium | CWE-1188 / A05 | `backend/src/env.ts:17-38` | Missing environment variables only produce a warning | Open |
@@ -162,6 +162,8 @@ Top 5 risks:
 4. **Fix:** Wrap `initRealtime` in a bounded connect attempt (for example a 5 s timeout with `connectTimeout`/`maxRetriesPerRequest`). On failure, start the HTTP server with the default in-memory Socket.IO adapter and log a critical alert; the adapter can be initialized on the next restart. Add `SIGTERM`/`SIGINT` handlers in `index.ts` that call `server.close()`, `closeRealtime()`, `prisma.$disconnect()` and exit. Add a unit test for the shutdown sequence with mocked clients.
 5. **Possible false positive:** Failing fast on a required dependency is a valid design. The risk is that the current failure is an unhandled hang during startup, not a controlled, observable fail-fast.
 
+**Resolution:** `f6b9190` added a bounded Redis connection and graceful shutdown. `ab4c965` keeps the in-memory fallback in development but aborts startup in production when Redis cannot connect, so a multi-instance deployment cannot silently lose shared realtime state.
+
 ### AUD-14 — Sign-out leaves route data and evidence on the device
 
 1. **Severity:** High. Personal data (student names, addresses, GPS trail, photos) remains readable to the next person who uses the shared device.
@@ -210,6 +212,8 @@ Top 5 risks:
 4. **Fix:** Update within the current major versions: `express`/`body-parser` to a release that includes `body-parser >= 2.4.0`, `axios` to a release that includes `follow-redirects >= 1.16.2`, and the Expo SDK patch that updates `node-forge` if available. This is a dependency update and needs approval before running `pnpm update`.
 5. **Possible false positive:** Audit results change over time and some paths are development-only. Re-run `pnpm audit --prod` after the update and document the remaining advisories.
 
+**Resolution:** `e42c5ac` applied the overrides and Expo patch. `pnpm audit --prod` now reports 0 high, 2 moderate and 0 low; the full audit reports 0 high, 2 moderate and 1 low. The remaining advisories are in Expo/glob/minimatch tooling and do not affect the production backend runtime.
+
 ### AUD-20 — `/health` does not check dependencies
 
 1. **Severity:** Medium. A healthy-looking process can be unable to serve requests.
@@ -218,6 +222,8 @@ Top 5 risks:
 4. **Fix:** Make `/health` execute `prisma.$queryRaw\`SELECT 1\`` and a Redis `PING` (and optionally a short Neo4j `RETURN 1`), with a timeout. Return `503` with a per-dependency status when a critical dependency is unavailable. Keep the current response shape for compatibility and add a test with a mocked failing client.
 5. **Possible false positive:** If Caddy or the deployment only uses the endpoint for liveness, not readiness, the current behavior is intentional. The repository does not document that distinction.
 
+**Resolution:** `189f828` replaced the static handler with `backend/src/lib/health.ts` and `backend/src/modules/health/health.routes.ts`. PostgreSQL and Redis are critical (503), Neo4j is degraded (200), each check has a 2 s timeout, and the response keeps `status` and `timestamp` while adding `checks`. Tests inject failing checkers.
+
 ### AUD-21 — JWT payload `type` is not validated
 
 1. **Severity:** Medium. A token signed with one secret is accepted by the other verifier if the secrets are ever equal or misconfigured, and the code does not assert the intended token kind.
@@ -225,6 +231,8 @@ Top 5 risks:
 3. **Scenario:** An operator sets `JWT_SECRET` and `JWT_REFRESH_SECRET` to the same value. An access token (with `type: 'access'`) can be sent to `/auth/refresh`; `verifyRefreshToken` accepts it because it only verifies the signature, then looks up `jti`, which is absent and fails later. Conversely, a refresh token can be used as a Bearer access token; `authenticate` only verifies the signature, and `payload.sub` is present, so it accesses the API for up to 7 days. The `type` field exists but is never checked.
 4. **Fix:** In `jwt.ts`, after `jwt.verify`, assert `payload.type === 'access'` in `verifyAccessToken` and `payload.type === 'refresh'` in `verifyRefreshToken`; throw on mismatch. Also validate the required fields (`sub`, `jti` for refresh). Add unit tests for both directions.
 5. **Possible false positive:** The current deployment uses distinct secrets, so the cross-token path is not exploitable today. The missing check is still a defense-in-depth defect and the condition is not enforced anywhere.
+
+**Resolution:** `6b44fab` validates `type` and required claims (`sub`, `email`, `role`, `companyId` for access; `sub`, `jti` for refresh), rejects string or malformed payloads, and returns only the validated fields. Unit tests cover both token directions and missing claims.
 
 ### AUD-22 — Web tokens are stored in `localStorage`
 
@@ -284,18 +292,18 @@ Top 5 risks:
 
 ## Recommendations not fixed
 
-- AUD-19 requires dependency updates, which need approval.
 - AUD-22 and AUD-23 require a web authentication/CSP design change; they are Medium and can be scheduled after deployment blockers.
 - AUD-25 requires a retention period; it is `[TO BE DEFINED]`.
+- AUD-24, AUD-26, AUD-27 and AUD-28 remain scheduled Medium/Low hardening items.
 
 ## Final check
 
-Executed after the fixes on 2026-11-11:
+Executed after the fixes on 2026-11-12:
 
-- `backend`: lint and typecheck pass; 201 tests pass; production build passes.
+- `backend`: lint and typecheck pass; 217 tests pass; production build passes.
 - `web`: lint and typecheck pass; 10 tests pass; production build passes (Vite reports a 1.63 MB main chunk warning, no build error).
 - `mobile`: lint and typecheck pass; 24 tests pass.
 - `pnpm lint`, `pnpm test` and `pnpm build` pass at the workspace root.
 
-Fixed: all Critical findings and every High finding that did not require a business or schema decision (AUD-01 to AUD-09, AUD-11 to AUD-18). AUD-07 was closed after the RNF01 measurement and the 10-stop limit; AUD-10 was closed after the approved index migration; AUD-11 was closed after the daily billing and expiry job was added.
-Still open by design: AUD-19 (dependency approval) and Medium/Low findings AUD-20 to AUD-28, which are outside the Critical/High remediation scope.
+Fixed: all Critical findings and every High finding (AUD-01 to AUD-19), plus Medium findings AUD-20 and AUD-21. AUD-07 was closed after the RNF01 measurement and the 10-stop limit; AUD-10 was closed after the approved index migration; AUD-11 was closed after the daily billing and expiry job was added; AUD-19 was closed after the dependency overrides; AUD-20 now checks PostgreSQL, Redis and Neo4j; AUD-21 validates JWT `type` and required claims.
+Still open by design: Medium/Low findings AUD-22 to AUD-28, which are outside the Critical/High remediation scope.

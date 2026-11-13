@@ -598,7 +598,8 @@ import peak; keep swappiness low so normal operation stays in RAM.
 
 8. Caddy requests the HTTPS certificate automatically once DNS points to the
    VM. Open `https://<domain>` to verify the panel and `https://<domain>/health`
-   for the API.
+   for the API. The endpoint returns `503` when PostgreSQL or Redis is down and
+   `200` with `"status":"degraded"` when only Neo4j is unavailable.
 
 ### Backups
 
