@@ -81,7 +81,3 @@ export function verifyAccessToken(token: string): AccessTokenPayload {
 export function verifyRefreshToken(token: string): RefreshTokenPayload {
   return parseRefreshPayload(jwt.verify(token, env.JWT_REFRESH_SECRET));
 }
-
-export function decodeToken(token: string): jwt.JwtPayload | null {
-  return jwt.decode(token) as jwt.JwtPayload | null;
-}

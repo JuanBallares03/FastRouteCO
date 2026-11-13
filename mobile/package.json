@@ -55,8 +55,7 @@
     "ios": "eas build --platform ios",
     "lint": "expo lint",
     "test": "jest --passWithNoTests",
-    "typecheck": "tsc --noEmit",
-    "reset-project": "node ./scripts/reset-project.js"
+    "typecheck": "tsc --noEmit"
   },
   "private": true
 }

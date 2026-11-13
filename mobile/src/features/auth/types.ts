@@ -1,5 +1,3 @@
-export const DRIVER_ROLE = 'driver' as const;
-
 export type UserRole = 'driver' | 'company_admin' | 'supervisor' | 'platform_admin';
 
 export interface AuthUser {

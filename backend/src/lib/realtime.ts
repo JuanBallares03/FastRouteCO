@@ -121,10 +121,6 @@ export function emitToCompany(companyId: string, event: string, payload: unknown
   io?.to(`company:${companyId}`).emit(event, payload);
 }
 
-export function emitToUser(userId: string, event: string, payload: unknown): void {
-  io?.to(`user:${userId}`).emit(event, payload);
-}
-
 async function closeClient(client: Redis | null): Promise<void> {
   if (!client) return;
   if (client.status === 'ready') {

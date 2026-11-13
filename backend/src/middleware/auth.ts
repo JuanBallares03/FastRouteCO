@@ -83,21 +83,3 @@ export function authorize(...allowedRoles: UserRole[]) {
     next();
   };
 }
-
-export function authorizeCompanyAccess() {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      res.status(401).json({ message: 'No autenticado' });
-      return;
-    }
-    if (req.user.role === 'platform_admin') {
-      next();
-      return;
-    }
-    if (!req.user.companyId) {
-      res.status(403).json({ message: 'Sin empresa asociada' });
-      return;
-    }
-    next();
-  };
-}

@@ -115,9 +115,6 @@ export const authApi = {
   acceptInvitation: (token: string, password: string) =>
     api.post('/auth/accept-invitation', { token, password }),
 
-  refresh: (refreshToken: string) =>
-    api.post('/auth/refresh', { refreshToken }),
-
   logout: (refreshToken?: string) =>
     api.post('/auth/logout', { refreshToken }),
 
@@ -149,9 +146,6 @@ export const platformApi = {
 
   updateCompanyStatus: (id: string, isActive: boolean) =>
     api.patch(`/platform/companies/${id}/status`, { isActive }),
-
-  getCompanyAdmins: (companyId: string) =>
-    api.get(`/platform/companies/${companyId}/admins`),
 
   createCompanyAdmin: (companyId: string, data: {
     fullName: string;
@@ -235,8 +229,6 @@ export const orderApi = {
     page?: number;
     pageSize?: number;
   }) => api.get('/orders', { params }),
-
-  getOrder: (id: string) => api.get(`/orders/${id}`),
 
   createOrder: (data: OrderPayload) => api.post('/orders', data),
 
@@ -328,7 +320,6 @@ export const incidentApi = {
 export const billingApi = {
   getBilling: () => api.get('/company/billing'),
   getOfferings: () => api.get('/company/billing/offerings'),
-  getUsage: () => api.get('/company/billing/usage'),
   getTransactions: (params?: { page?: number; pageSize?: number }) =>
     api.get('/company/billing/transactions', { params }),
   getPayments: (params?: { page?: number; pageSize?: number }) =>

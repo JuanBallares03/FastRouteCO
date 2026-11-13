@@ -24,8 +24,3 @@ export function getRealtimeSocket(): Socket | null {
   });
   return socket;
 }
-
-export function resetRealtimeSocket(): void {
-  socket?.disconnect();
-  socket = null;
-}

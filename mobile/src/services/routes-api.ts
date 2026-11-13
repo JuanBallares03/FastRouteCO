@@ -4,7 +4,6 @@ import type {
   DriverRoute,
   EvidenceUpload,
   LocationSample,
-  RouteStop,
 } from '@/features/route/types';
 import { api } from './http';
 
@@ -112,7 +111,3 @@ export const routesApi = {
     return data;
   },
 };
-
-export function findStop(route: DriverRoute, stopId: string): RouteStop | null {
-  return route.stops.find((stop) => stop.id === stopId) ?? null;
-}

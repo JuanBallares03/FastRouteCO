@@ -213,20 +213,6 @@ export async function revokeAllUserRefreshTokens(userId: string): Promise<void> 
   });
 }
 
-export async function revokeAllCompanyRefreshTokens(companyId: string): Promise<void> {
-  const userIds = await prisma.user.findMany({
-    where: { companyId },
-    select: { id: true },
-  });
-  const ids = userIds.map((u) => u.id);
-  if (ids.length > 0) {
-    await prisma.refreshToken.updateMany({
-      where: { userId: { in: ids }, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-  }
-}
-
 export async function acceptInvitation(
   tokenRaw: string,
   password: string
