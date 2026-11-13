@@ -1,6 +1,6 @@
 # Refactoring proposal — FastRouteCO
 
-Status: proposal for review. No source file has been changed yet.
+Status: approved with adjustments; implementation in progress.
 
 ## Purpose and constraints
 
@@ -44,6 +44,23 @@ existing conventions are already correct:
 - `docs/design/` is intentionally in Spanish and will not be translated.
 - `.env` files are not read during this review; only `.env.example` files were
   used to confirm variable names.
+
+### 1.1 UTF-8 encoding check
+
+The source was scanned for invalid UTF-8 sequences, Unicode replacement
+characters and suspicious mojibake. No invalid UTF-8 was found. Five corrupted
+characters remain in Spanish strings and one in test data:
+
+| File | Current | Correct |
+|---|---|---|
+| `backend/src/lib/rate-limit.ts` | `mǭs` | `más` |
+| `backend/src/modules/routes/routes.service.ts` | `ya estǭ` | `ya está` |
+| `backend/src/modules/routes/routes.service.ts` | `mǭs ... estǭn` | `más ... están` |
+| `backend/src/modules/routes/__tests__/routes.test.ts` | `IbaguÃ©` | `Ibagué` |
+
+The reviewed strings, including `El NIT ya está registrado` and
+`El email ya está registrado`, are correctly encoded. The corrupted strings will
+be corrected in a dedicated commit without changing behavior.
 
 Proposed language-adjacent cleanup (template documentation only):
 
@@ -153,7 +170,7 @@ four inconsistencies remain.
 |---|---|---|---|---|
 | Validation file naming | `auth/validation.middleware.ts`, `companies/validation.ts`, `company/validation.ts`, `orders/validation.ts`, `routes/validation.ts` | Rename to `auth.validation.ts`, `companies.validation.ts`, `company.validation.ts`, `orders.validation.ts`, `routes.validation.ts` and update imports | The rest of the modules already use `<module>.validation.ts` | Low |
 | Controller handler naming | `backend/src/modules/auth/auth.controller.ts` | Rename `login`, `refresh`, `logout`, `me` to `loginHandler`, `refreshHandler`, `logoutHandler`, `meHandler`; update `auth.routes.ts` | Every other controller uses the `Handler` suffix | Low |
-| Untyped domain errors | `backend/src/modules/companies/companies.service.ts`, `backend/src/modules/companies/companies.controller.ts`, `backend/src/modules/company/company.service.ts`, `backend/src/modules/company/company.controller.ts` | Replace generic `Error` and local `NotFoundError`/`ConflictError`/`PlanLimitError` classes with the typed errors in `backend/src/lib/errors.ts`; use `respondWithError` as the single fallback | The controllers currently compare error message strings, which is brittle and duplicates HTTP mapping | Medium |
+| Untyped domain errors | `backend/src/modules/companies/companies.service.ts`, `backend/src/modules/companies/companies.controller.ts`, `backend/src/modules/company/company.service.ts`, `backend/src/modules/company/company.controller.ts` | Replace generic `Error` and local `NotFoundError`/`ConflictError`/`PlanLimitError` classes with the typed errors in `backend/src/lib/errors.ts`; use `respondWithError` as the single fallback | The controllers currently compare error-message strings, which is brittle and duplicates HTTP mapping | Medium |
 | Order assignment ownership | `backend/src/modules/orders/orders.routes.ts`, `backend/src/modules/orders/orders.controller.ts`, `backend/src/modules/orders/orders.service.ts`, `backend/src/modules/routes/routes.controller.ts`, `backend/src/modules/routes/routes.service.ts`, `backend/src/modules/routes/validation.ts` | Move `suggestDrivers`, `assignOrder`, their handlers and their schemas into the `orders` module; keep the URL `/api/v1/orders/:id/assign` and `/api/v1/orders/:id/driver-suggestions`; export the private `findDriver` helper from `routes.service.ts` (or move it to a shared route helper) | The endpoints belong to the orders API but are implemented in the routes module | Medium |
 
 Typed-error details:
@@ -217,7 +234,24 @@ dependency direction explicit without creating a shared package.
 Risk: medium. The change is import-only and is verified by typecheck, lint,
 tests and the production build.
 
-### 3.3 Mobile: feature colocation
+This reorganization is applied last, after every other change. If it becomes
+risky or produces errors that are not import-related, it is stopped and recorded
+as a recommendation instead of being forced.
+
+### 3.3 Web: TypeScript strict mode
+
+`web/tsconfig.app.json` and `web/tsconfig.node.json` currently omit `strict`.
+The project already builds with zero type errors, so the change is limited to:
+
+```json
+"strict": true
+```
+
+Verification uses `pnpm --filter web typecheck` (or `tsc -b`) and the production
+build. If strict mode exposes real errors, the commit is stopped and the errors
+are reported instead of being silenced with `any`.
+
+### 3.4 Mobile: feature colocation
 
 The mobile app already uses `src/features` and keeps route files in `src/app`,
 which matches Expo Router conventions. Only the API clients are still outside
@@ -232,7 +266,7 @@ the feature folders.
 `services/http.ts` (shared axios client) and `services/realtime.ts` (shared
 Socket.IO client) stay in `services/`.
 
-### 3.4 Health module
+### 3.5 Health module
 
 `backend/src/modules/health/health.routes.ts` has no controller or service
 because it only exposes an injectable infrastructure check (`checkHealth`) used
@@ -254,18 +288,23 @@ layers would not improve the architecture.
 ## 5. Proposed commit sequence
 
 1. `docs(refactoring): add refactoring proposal` — this document.
-2. `chore: remove unused code and template assets` — dead exports, duplicate
+2. `docs(refactoring): refine proposal` — strict-mode commit, web
+   reorganization moved to the end, wording and encoding notes.
+3. `fix(backend): correct mojibake in Spanish strings`.
+4. `chore: remove unused code and template assets` — dead exports, duplicate
    validation file, starter assets, template script and local log artifacts.
-3. `chore(deps): remove unused dependencies` — `pnpm remove` for web and mobile,
+5. `chore(deps): remove unused dependencies` — `pnpm remove` for web and mobile,
    update `app.json`, refresh the lockfile.
-4. `refactor(backend): standardize module validation file names`.
-5. `refactor(backend): use typed errors in company modules`.
-6. `refactor(backend): move order assignment into orders module`.
-7. `refactor(backend): rename auth controller handlers`.
-8. `refactor(web): organize source into feature folders`.
-9. `refactor(mobile): colocate feature API clients`.
-10. `docs: replace template application READMEs`.
-11. `docs(refactoring): update refactoring report` — record what was applied,
+6. `refactor(backend): standardize module validation file names`.
+7. `refactor(backend): use typed errors in company modules`.
+8. `refactor(backend): move order assignment into orders module`.
+9. `refactor(backend): rename auth controller handlers`.
+10. `refactor(mobile): colocate feature API clients`.
+11. `docs: replace template application READMEs`.
+12. `refactor(web): enable TypeScript strict mode`.
+13. `refactor(web): organize source into feature folders` — applied last; if it
+    fails or becomes risky, it is stopped and documented as a recommendation.
+14. `docs(refactoring): update refactoring report` — record what was applied,
     optimized folders, naming conventions and structural fixes.
 
 ## 6. Verification plan
