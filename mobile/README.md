@@ -1,56 +1,47 @@
-# Welcome to your Expo app 👋
+# FastRouteCO mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Driver application for FastRouteCO, built with Expo and React Native. Drivers
+receive their daily route, register arrivals and completions, capture evidence
+photos and continue working when the connection is interrupted.
 
-## Get started
+## Stack
 
-1. Install dependencies
+- Expo SDK 58 and Expo Router
+- React Native and TypeScript
+- Expo Location, Camera, SQLite and Secure Store
+- Axios and Socket.IO client
 
-   ```bash
-   npm install
-   ```
+## Commands
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Run commands from the repository root:
 
 ```bash
-npm run reset-project
+pnpm --filter mobile dev
+pnpm --filter mobile lint
+pnpm --filter mobile test
+pnpm --filter mobile typecheck
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Use `pnpm --filter mobile android` for a local Android build and
+`pnpm --filter mobile ios` for an EAS iOS build.
 
-### Other setup steps
+## Environment
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Copy `.env.example` to `.env` and set:
 
-## Learn more
+- `EXPO_PUBLIC_API_URL`: backend API base URL.
+- `EXPO_PUBLIC_WS_URL`: real-time server URL.
+- `EXPO_PUBLIC_MAP_STYLE_URL`: map style URL.
 
-To learn more about developing your project with Expo, look at the following resources:
+Never commit `.env` files.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Structure
 
-## Join the community
+- `src/app`: Expo Router screens and layouts.
+- `src/features`: auth, route and incident domain logic, including API clients.
+- `src/components`: shared UI components.
+- `src/services`: shared HTTP and Socket.IO clients.
+- `src/theme`: colors, spacing and typography.
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Location tracking runs while the route screen is active and the app is in the
+foreground. See the repository root `README.md` for backend and database setup.
