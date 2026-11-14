@@ -1,9 +1,9 @@
 import { Router, type Router as ExpressRouter } from 'express';
 import {
-  login,
-  refresh,
-  logout,
-  me,
+  loginHandler,
+  refreshHandler,
+  logoutHandler,
+  meHandler,
   acceptInvitationHandler,
   resendInvitationHandler,
 } from './auth.controller.js';
@@ -41,16 +41,16 @@ const invitationLimiter = createRateLimiter({
   skip: skipInTests,
 });
 
-router.post('/login', loginLimiter, validate(loginSchema), login);
-router.post('/refresh', refreshLimiter, validate(refreshSchema), refresh);
-router.post('/logout', validate(logoutSchema), logout);
+router.post('/login', loginLimiter, validate(loginSchema), loginHandler);
+router.post('/refresh', refreshLimiter, validate(refreshSchema), refreshHandler);
+router.post('/logout', validate(logoutSchema), logoutHandler);
 router.post(
   '/accept-invitation',
   invitationLimiter,
   validate(acceptInvitationSchema),
   acceptInvitationHandler
 );
-router.get('/me', authenticate, me);
+router.get('/me', authenticate, meHandler);
 router.post(
   '/resend-invitation/:userId',
   invitationLimiter,

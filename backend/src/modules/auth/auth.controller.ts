@@ -17,7 +17,7 @@ interface AuthenticatedRequest extends Request {
   user?: AuthUser;
 }
 
-export async function login(req: Request, res: Response, next: NextFunction) {
+export async function loginHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password } = req.body;
     const result = await validateUserCredentials(email, password);
@@ -51,7 +51,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function refresh(req: Request, res: Response, next: NextFunction) {
+export async function refreshHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { refreshToken } = req.body;
     const tokens = await rotateRefreshToken(refreshToken);
@@ -74,7 +74,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function logout(req: Request, res: Response, next: NextFunction) {
+export async function logoutHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { refreshToken } = req.body;
     if (refreshToken) {
@@ -87,7 +87,7 @@ export async function logout(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function me(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export async function meHandler(req: AuthenticatedRequest, res: Response, next: NextFunction) {
   try {
     const user = req.user;
     if (!user) {
