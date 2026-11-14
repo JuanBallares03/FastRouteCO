@@ -197,7 +197,9 @@ describe('Orders Module', () => {
         .send({ ...baseOrder, address: 'CALLE INVALIDA 123' });
 
       expect(res.status).toBe(400);
-      expect(res.body.message).toContain('geocodificar');
+      expect(res.body.code).toBe('ADDRESS_NOT_FOUND');
+      expect(res.body.message).toContain('No encontramos esa dirección');
+      expect(await prisma.order.count({ where: { companyId: COMPANY_ID } })).toBe(0);
     });
 
     it('keeps working without coordinates when the geocoder is unavailable', async () => {
