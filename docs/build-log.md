@@ -45,6 +45,8 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-08 | Phase 6 | Web dashboards, reports, support, monitoring, settings and students screens | `12636c7` |
 | 2026-11-08 | Fix | Validation middleware applies parsed defaults and coercions across modules | `d82de2e` |
 | 2026-11-08 | Chore | Unused MCP servers disabled, leaving only Context7 | `2c59c37` |
+| 2026-11-13 | Mobile | Background GPS with expo-location foreground service, secure-store token hydration, SQLite queue sync and foreground fallback (RF13, RNF02, RNF07, RNF10) | `0646928` |
+
 
 ## Phase 1 — Access, companies and users
 

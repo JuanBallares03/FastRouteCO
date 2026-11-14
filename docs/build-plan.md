@@ -109,6 +109,15 @@ These decisions were reviewed and approved. Do not reopen them; if one becomes a
 
 Deliverables: the three projects running, Docker Compose services healthy, the initial Prisma migration applied, `.env.example` files in `backend/`, `web/` and `mobile/` without secrets, CI green and a README section explaining how to run each app (including the API URL for the Android emulator and physical devices).
 
+#### Background GPS (RF13, RNF02, RNF07, RNF10)
+
+- `expo-location` `startLocationUpdatesAsync` and `expo-task-manager`. The task is defined at the top level of `mobile/src/features/route/background-location-task.ts` and imported from the root layout, so it registers when the app starts and can run without React.
+- On Android it runs a location foreground service with the persistent Spanish notification "FastRouteCO está registrando tu recorrido". `app.json` enables background location and the foreground service through the `expo-location` config plugin.
+- Permissions are requested in order: foreground first, then background with a Spanish explanation. If the driver denies background permission, tracking falls back to `watchPositionAsync` in the foreground and the app shows a clear notice (RNF10).
+- Tracking starts when the route starts and stops when the route is finished or the driver signs out.
+- Each background point is written to the existing SQLite `offline_queue` with its real capture timestamp and sent by the existing queue flush. Because the task runs outside React, it loads the tokens from `expo-secure-store` before synchronizing.
+- Update interval is 5 seconds (RNF02).
+
 ### Phase 1 — Access, companies and users
 
 Decisions already taken (do not reopen them; if one becomes a problem, explain why and ask before changing it):
