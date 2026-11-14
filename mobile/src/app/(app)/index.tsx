@@ -28,7 +28,10 @@ import type {
   RouteStop,
   StopStatus,
 } from '@/features/route/types';
-import { useRouteTracking } from '@/features/route/use-route-tracking';
+import {
+  useRouteTracking,
+  type TrackingMode,
+} from '@/features/route/use-route-tracking';
 import {
   getApiErrorCode,
   getApiErrorMessage,
@@ -83,6 +86,19 @@ function formatTime(value: string | null): string | null {
   });
 }
 
+function trackingMessage(mode: TrackingMode): string {
+  switch (mode) {
+    case 'background':
+      return 'Registrando tu recorrido en segundo plano.';
+    case 'foreground':
+      return 'El recorrido se registra solo con la app abierta. Activa la ubicación en segundo plano para registrar todo el trayecto.';
+    case 'denied':
+      return 'Permiso de ubicación inactivo. Actívalo para registrar el recorrido.';
+    default:
+      return 'Preparando el registro de ubicación...';
+  }
+}
+
 export default function MyRouteScreen() {
   const [route, setRoute] = useState<DriverRoute | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,7 +107,7 @@ export default function MyRouteScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [cameraStopId, setCameraStopId] = useState<string | null>(null);
-  const { isTracking } = useRouteTracking(route);
+  const { mode: trackingMode } = useRouteTracking(route, isLoading);
 
   const refreshPendingCount = useCallback(async () => {
     setPendingCount(await getPendingActionCount());
@@ -487,11 +503,7 @@ export default function MyRouteScreen() {
 
             {isInProgress ? (
               <View style={styles.trackingBanner}>
-                <Text style={styles.trackingText}>
-                  {isTracking
-                    ? 'Registrando ubicación de la ruta.'
-                    : 'Permiso de ubicación inactivo. Actívalo para registrar el recorrido.'}
-                </Text>
+                <Text style={styles.trackingText}>{trackingMessage(trackingMode)}</Text>
               </View>
             ) : null}
 

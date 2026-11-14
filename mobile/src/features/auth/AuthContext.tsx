@@ -12,6 +12,7 @@ import { isAuthenticationError, setSessionExpiredHandler } from '@/services/http
 import { NON_DRIVER_MESSAGE, LoginBlockedError, isDriverRole } from './auth-errors';
 import { clearSession, loadSession, saveSession } from './session-storage';
 import { clearOfflineData } from '../route/offline-db';
+import { stopBackgroundTracking } from '../route/background-location';
 import { clearEvidencePhotos } from '../route/evidence-files';
 import { tokenStore } from './token-store';
 import type { AuthUser } from './types';
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const resetSession = useCallback(async () => {
+    await stopBackgroundTracking().catch(() => undefined);
     tokenStore.clear();
     await Promise.all([
       clearSession().catch(() => undefined),

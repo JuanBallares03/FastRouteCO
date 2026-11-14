@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import {
   clearSession,
   loadSession,
+  loadTokens,
   saveSession,
   saveTokens,
 } from '../session-storage';
@@ -67,6 +68,16 @@ describe('session storage', () => {
     });
 
     await expect(loadSession()).resolves.toEqual(session);
+  });
+
+  it('restores only the tokens needed by background tasks', async () => {
+    secureStore.getItemAsync.mockImplementation(async (key: string) => {
+      if (key === 'fastroute.accessToken') return 'access-token';
+      if (key === 'fastroute.refreshToken') return 'refresh-token';
+      return null;
+    });
+
+    await expect(loadTokens()).resolves.toEqual(session.tokens);
   });
 
   it('ignores corrupted user data', async () => {

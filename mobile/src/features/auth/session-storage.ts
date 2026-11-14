@@ -47,6 +47,19 @@ export async function saveTokens(tokens: AuthTokens): Promise<void> {
   ]);
 }
 
+export async function loadTokens(): Promise<AuthTokens | null> {
+  const [accessToken, refreshToken] = await Promise.all([
+    getValue(ACCESS_TOKEN_KEY),
+    getValue(REFRESH_TOKEN_KEY),
+  ]);
+
+  if (!accessToken || !refreshToken) {
+    return null;
+  }
+
+  return { accessToken, refreshToken };
+}
+
 export async function saveSession(session: StoredSession): Promise<void> {
   await Promise.all([
     saveTokens(session.tokens),

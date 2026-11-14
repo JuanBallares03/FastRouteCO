@@ -216,6 +216,10 @@ export function getPendingActionCount(): Promise<number> {
   });
 }
 
+export function enqueueLocations(routeId: string, locations: LocationSample[]): Promise<void> {
+  return enqueueAction({ type: 'location', routeId, locations });
+}
+
 export function enqueueLocation(routeId: string, location: LocationSample): Promise<void> {
-  return enqueueAction({ type: 'location', routeId, locations: [location] });
+  return enqueueLocations(routeId, [location]);
 }
