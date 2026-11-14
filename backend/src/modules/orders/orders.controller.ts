@@ -1,14 +1,17 @@
 import type { NextFunction, Request, Response } from 'express';
 import { OrderPriority, OrderStatus } from '@prisma/client';
 import {
+  assignOrder,
   cancelOrder,
   createOrder,
   getOrderById,
   listOrders,
+  suggestDrivers,
   updateOrder,
   type CreateOrderInput,
   type UpdateOrderInput,
 } from './orders.service.js';
+import type { AssignOrderInput } from './orders.validation.js';
 import { respondWithError } from '../../middleware/error-handler.js';
 
 interface AuthenticatedRequest extends Request {
@@ -124,6 +127,40 @@ export async function cancelOrderHandler(
 
     const { id } = req.params as { id: string };
     res.json(await cancelOrder(companyId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function suggestDriversHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await suggestDrivers(companyId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function assignOrderHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await assignOrder(companyId, id, req.body as AssignOrderInput));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

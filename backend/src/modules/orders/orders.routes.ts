@@ -1,23 +1,22 @@
 import { Router, type Router as ExpressRouter } from 'express';
 import {
+  assignOrderHandler,
   cancelOrderHandler,
   createOrderHandler,
   getOrderHandler,
   listOrdersHandler,
+  suggestDriversHandler,
   updateOrderHandler,
 } from './orders.controller.js';
 import {
+  assignOrderSchema,
   cancelOrderSchema,
   createOrderSchema,
   getOrderSchema,
   listOrdersSchema,
+  suggestDriversSchema,
   updateOrderSchema,
 } from './orders.validation.js';
-import {
-  assignOrderHandler,
-  suggestDriversHandler,
-} from '../routes/routes.controller.js';
-import { assignOrderSchema, suggestDriversSchema } from '../routes/routes.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 

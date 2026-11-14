@@ -152,21 +152,4 @@ export type CompleteStopInput = z.infer<typeof completeStopSchema>['body'];
 export type ReassignRouteInput = z.infer<typeof reassignRouteSchema>['body'];
 export type ReassignStopInput = z.infer<typeof reassignStopSchema>['body'];
 
-export const suggestDriversSchema = z.object({
-  params: z.object({
-    id: z.string().uuid({ message: 'ID de pedido inválido' }),
-  }),
-});
-
-export const assignOrderSchema = z.object({
-  params: z.object({
-    id: z.string().uuid({ message: 'ID de pedido inválido' }),
-  }),
-  body: z.object({
-    driverId: z.string().uuid({ message: 'ID de conductor inválido' }),
-    routeDate: businessDate.optional(),
-  }),
-});
-
 export type CreateRouteInput = z.infer<typeof createRouteSchema>['body'];
-export type AssignOrderInput = z.infer<typeof assignOrderSchema>['body'];

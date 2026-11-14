@@ -1,13 +1,21 @@
 import {
+  DriverStatus,
   OrderChannel,
   OrderPriority,
   OrderStatus,
   OrderType,
   Prisma,
+  RouteStatus,
+  StopStatus,
+  UserRole,
 } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { getGeocoder } from '../../lib/geocoding.js';
+import { haversineMeters } from '../../lib/geo.js';
+import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
+import { ACTIVE_ROUTE_STATUSES, MAX_ROUTE_STOPS } from '../routes/constants.js';
+import { findDriver, getRouteById } from '../routes/routes.service.js';
 
 export interface CreateOrderInput {
   type: OrderType;
@@ -259,4 +267,167 @@ export async function cancelOrder(companyId: string, orderId: string) {
   });
 
   return { id: orderId, status: OrderStatus.cancelled };
+}
+
+export async function suggestDrivers(companyId: string, orderId: string) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId } });
+  if (!order) {
+    throw new NotFoundError('Pedido no encontrado', 'ORDER_NOT_FOUND');
+  }
+  if (order.status !== OrderStatus.pending) {
+    throw new ConflictError('Solo se pueden asignar pedidos pendientes', 'ORDER_NOT_PENDING');
+  }
+
+  const drivers = await prisma.user.findMany({
+    where: {
+      companyId,
+      role: UserRole.driver,
+      isActive: true,
+      driver: { status: DriverStatus.available },
+    },
+    include: { driver: true },
+  });
+
+  const orderLocation =
+    order.latitude !== null && order.longitude !== null
+      ? { latitude: Number(order.latitude), longitude: Number(order.longitude) }
+      : null;
+
+  const suggestions = await Promise.all(
+    drivers.map(async (driver) => {
+      const [lastLocation, pendingStops] = await Promise.all([
+        prisma.routeLocation.findFirst({
+          where: { route: { driverId: driver.id, companyId } },
+          orderBy: { capturedAt: 'desc' },
+          select: { latitude: true, longitude: true, capturedAt: true },
+        }),
+        prisma.routeStop.count({
+          where: {
+            status: StopStatus.pending,
+            route: {
+              driverId: driver.id,
+              companyId,
+              status: { in: ACTIVE_ROUTE_STATUSES },
+            },
+          },
+        }),
+      ]);
+
+      const driverLocation = lastLocation
+        ? {
+            latitude: Number(lastLocation.latitude),
+            longitude: Number(lastLocation.longitude),
+          }
+        : null;
+
+      const distanceMeters =
+        orderLocation && driverLocation
+          ? haversineMeters(driverLocation, orderLocation)
+          : null;
+
+      return {
+        driverId: driver.id,
+        fullName: driver.fullName,
+        phone: driver.phone,
+        distanceMeters,
+        pendingStops,
+        lastLocation: driverLocation
+          ? { ...driverLocation, capturedAt: lastLocation?.capturedAt ?? null }
+          : null,
+      };
+    })
+  );
+
+  return suggestions.sort((a, b) => {
+    const distanceA = a.distanceMeters ?? Number.POSITIVE_INFINITY;
+    const distanceB = b.distanceMeters ?? Number.POSITIVE_INFINITY;
+    if (distanceA !== distanceB) return distanceA - distanceB;
+    if (a.pendingStops !== b.pendingStops) return a.pendingStops - b.pendingStops;
+    return a.fullName.localeCompare(b.fullName);
+  });
+}
+
+export async function assignOrder(
+  companyId: string,
+  orderId: string,
+  data: { driverId: string; routeDate?: string }
+) {
+  const order = await prisma.order.findFirst({ where: { id: orderId, companyId } });
+  if (!order) {
+    throw new NotFoundError('Pedido no encontrado', 'ORDER_NOT_FOUND');
+  }
+  if (order.status !== OrderStatus.pending) {
+    throw new ConflictError('Solo se pueden asignar pedidos pendientes', 'ORDER_NOT_PENDING');
+  }
+
+  const driver = await findDriver(companyId, data.driverId);
+  if (driver.driver?.status !== DriverStatus.available) {
+    throw new ConflictError('El conductor no está disponible', 'DRIVER_NOT_AVAILABLE');
+  }
+
+  let routeDate: Date;
+  try {
+    routeDate = parseBusinessDate(data.routeDate ?? todayInBogota());
+  } catch {
+    throw new BadRequestError('Fecha de ruta inválida', 'INVALID_ROUTE_DATE');
+  }
+
+  const route = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.order.updateMany({
+      where: { id: orderId, companyId, status: OrderStatus.pending },
+      data: { status: OrderStatus.assigned },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictError('El pedido ya está en una ruta', 'ORDER_ALREADY_ASSIGNED');
+    }
+
+    const existingStop = await tx.routeStop.findFirst({ where: { orderId } });
+    if (existingStop) {
+      throw new ConflictError('El pedido ya está en una ruta', 'ORDER_ALREADY_ASSIGNED');
+    }
+
+    let target = await tx.route.findFirst({
+      where: {
+        companyId,
+        driverId: data.driverId,
+        routeDate,
+        status: { in: [RouteStatus.created, RouteStatus.optimized] },
+      },
+      orderBy: { id: 'asc' },
+    });
+
+    if (!target) {
+      target = await tx.route.create({
+        data: {
+          companyId,
+          driverId: data.driverId,
+          routeDate,
+          status: RouteStatus.created,
+        },
+      });
+    }
+
+    const stopCount = await tx.routeStop.count({ where: { routeId: target.id } });
+    if (stopCount >= MAX_ROUTE_STOPS) {
+      throw new ConflictError(
+        `La ruta no puede superar ${MAX_ROUTE_STOPS} paradas`,
+        'ROUTE_STOP_LIMIT_EXCEEDED'
+      );
+    }
+
+    const aggregate = await tx.routeStop.aggregate({
+      where: { routeId: target.id },
+      _max: { sequence: true },
+    });
+    const nextSequence = (aggregate._max.sequence ?? 0) + 1;
+
+    await tx.routeStop.create({
+      data: { routeId: target.id, orderId, sequence: nextSequence },
+    });
+
+    return target;
+  });
+
+  const assigned = await getRouteById(companyId, route.id);
+  return { orderId, driverId: data.driverId, route: assigned };
 }

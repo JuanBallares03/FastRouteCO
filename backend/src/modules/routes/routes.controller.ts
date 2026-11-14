@@ -2,7 +2,6 @@ import type { NextFunction, Request, Response } from 'express';
 import { RouteStatus } from '@prisma/client';
 import {
   arriveAtStop,
-  assignOrder,
   completeDriverStop,
   createEvidenceSignature,
   createRoute,
@@ -17,11 +16,9 @@ import {
   reassignStop,
   recordRouteLocations,
   startDriverRoute,
-  suggestDrivers,
 } from './routes.service.js';
 import type {
   ArriveAtStopInput,
-  AssignOrderInput,
   CompleteStopInput,
   CreateRouteInput,
   ReassignRouteInput,
@@ -115,39 +112,6 @@ export async function getRouteHandler(
   }
 }
 
-export async function suggestDriversHandler(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
-
-    const { id } = req.params as { id: string };
-    res.json(await suggestDrivers(companyId, id));
-  } catch (error) {
-    if (respondWithError(error, res)) return;
-    next(error);
-  }
-}
-
-export async function assignOrderHandler(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
-
-    const { id } = req.params as { id: string };
-    res.json(await assignOrder(companyId, id, req.body as AssignOrderInput));
-  } catch (error) {
-    if (respondWithError(error, res)) return;
-    next(error);
-  }
-}
 
 export async function optimizeRouteHandler(
   req: AuthenticatedRequest,
