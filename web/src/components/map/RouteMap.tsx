@@ -1,6 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { LngLatBounds, Map as MapLibreMap, Marker, NavigationControl } from 'maplibre-gl';
+import {
+  LngLatBounds,
+  Map as MapLibreMap,
+  Marker,
+  NavigationControl,
+  setWorkerUrl,
+} from 'maplibre-gl';
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
+
+setWorkerUrl(workerUrl);
 
 export interface RouteMapStop {
   id: string;
