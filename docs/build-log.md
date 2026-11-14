@@ -46,6 +46,9 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-08 | Fix | Validation middleware applies parsed defaults and coercions across modules | `d82de2e` |
 | 2026-11-08 | Chore | Unused MCP servers disabled, leaving only Context7 | `2c59c37` |
 | 2026-11-13 | Mobile | Background GPS with expo-location foreground service, secure-store token hydration, SQLite queue sync and foreground fallback (RF13, RNF02, RNF07, RNF10) | `0646928` |
+| 2026-11-13 | Backend | Configurable Nominatim URL with public development default, identifying user agent, Colombia-only results, cache and one request per second (HU-28, RF15) | `158fc0f` |
+| 2026-11-13 | Fix | Orders with an address not found on the map are rejected with `ADDRESS_NOT_FOUND` and not stored without coordinates (HU-28 R01) | `260a280` |
+| 2026-11-13 | Backend | Re-geocode command for existing orders without coordinates (HU-28, RF15) | `9ec0dd0` |
 
 
 ## Phase 1 — Access, companies and users
