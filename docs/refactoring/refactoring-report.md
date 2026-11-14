@@ -1,6 +1,6 @@
 # Refactoring proposal — FastRouteCO
 
-Status: approved with adjustments; implementation in progress.
+Status: applied. All approved changes are implemented and verified.
 
 ## Purpose and constraints
 
@@ -49,9 +49,10 @@ existing conventions are already correct:
 
 The source was scanned for invalid UTF-8 sequences, Unicode replacement
 characters and suspicious mojibake. No invalid UTF-8 was found. Five corrupted
-characters remain in Spanish strings and one in test data:
+characters in Spanish strings and one in test data were corrected in commit
+`3865695`:
 
-| File | Current | Correct |
+| File | Before | After |
 |---|---|---|
 | `backend/src/lib/rate-limit.ts` | `mǭs` | `más` |
 | `backend/src/modules/routes/routes.service.ts` | `ya estǭ` | `ya está` |
@@ -59,17 +60,21 @@ characters remain in Spanish strings and one in test data:
 | `backend/src/modules/routes/__tests__/routes.test.ts` | `IbaguÃ©` | `Ibagué` |
 
 The reviewed strings, including `El NIT ya está registrado` and
-`El email ya está registrado`, are correctly encoded. The corrupted strings will
-be corrected in a dedicated commit without changing behavior.
+`El email ya está registrado`, are correctly encoded. A UTF-8 BOM at the start of
+`backend/src/modules/billing/offerings.service.ts` is valid UTF-8 and was left
+unchanged.
 
-Proposed language-adjacent cleanup (template documentation only):
+Language-adjacent cleanup applied (template documentation only):
 
-| File | Change | Reason | Risk |
+| File | Applied change | Reason | Risk |
 |---|---|---|---|
-| `web/README.md` | Replace the Vite/Oxlint template with a short English project README that points to the root README | The template describes tooling that is not used and will be removed | Low |
-| `mobile/README.md` | Replace the Expo template README with a short English project README that points to the root README | The template describes `reset-project`, `npm install` and starter assets that are not part of this project | Low |
+| `web/README.md` | Replaced the Vite/Oxlint template with a short English project README that points to the root README | The template described tooling that is not used and was removed | Low |
+| `mobile/README.md` | Replaced the Expo template README with a short English project README that points to the root README | The template described `reset-project`, `npm install` and starter assets that are not part of this project | Low |
 
-## 2. Dead code and unused dependencies
+## 2. Dead code and unused dependencies (applied)
+
+All removals below were applied in commits `0f8173e` and `3933921`. The tables
+record the reviewed scope at proposal time.
 
 ### 2.1 Backend dead code
 
@@ -144,10 +149,10 @@ Unused mobile dependencies to remove:
 | `expo-image` | No imports and no remaining plugin usage | Low |
 | `expo-web-browser` | No imports and no remaining plugin usage | Low |
 
-`app.json` must drop the `expo-image` and `expo-web-browser` plugin entries when
-those packages are removed. The removal will be followed by lint, typecheck,
-tests and a Metro/Expo build check; if any peer requirement is detected, the
-dependency will be restored and documented instead of forced.
+`app.json` dropped the `expo-image` and `expo-web-browser` plugin entries when
+those packages were removed. The removal was followed by lint, typecheck, tests
+and a Metro/Expo Android export; no peer requirement required restoring a
+dependency.
 
 Dependencies intentionally kept even though they are not imported directly:
 
@@ -163,14 +168,15 @@ Dependencies intentionally kept even though they are not imported directly:
 
 ### 3.1 Backend: router, controller, service and validation
 
-The modules already follow the router/controller/service/validation split, but
-four inconsistencies remain.
+The modules already followed the router/controller/service/validation split.
+Four inconsistencies were fixed in commits `dccc3ad`, `3b681b0`, `cac0b63` and
+`2e54e63`.
 
-| Item | Files | Proposed change | Reason | Risk |
+| Item | Files | Applied change | Reason | Risk |
 |---|---|---|---|---|
 | Validation file naming | `auth/validation.middleware.ts`, `companies/validation.ts`, `company/validation.ts`, `orders/validation.ts`, `routes/validation.ts` | Rename to `auth.validation.ts`, `companies.validation.ts`, `company.validation.ts`, `orders.validation.ts`, `routes.validation.ts` and update imports | The rest of the modules already use `<module>.validation.ts` | Low |
 | Controller handler naming | `backend/src/modules/auth/auth.controller.ts` | Rename `login`, `refresh`, `logout`, `me` to `loginHandler`, `refreshHandler`, `logoutHandler`, `meHandler`; update `auth.routes.ts` | Every other controller uses the `Handler` suffix | Low |
-| Untyped domain errors | `backend/src/modules/companies/companies.service.ts`, `backend/src/modules/companies/companies.controller.ts`, `backend/src/modules/company/company.service.ts`, `backend/src/modules/company/company.controller.ts` | Replace generic `Error` and local `NotFoundError`/`ConflictError`/`PlanLimitError` classes with the typed errors in `backend/src/lib/errors.ts`; use `respondWithError` as the single fallback | The controllers currently compare error-message strings, which is brittle and duplicates HTTP mapping | Medium |
+| Untyped domain errors | `backend/src/modules/companies/companies.service.ts`, `backend/src/modules/companies/companies.controller.ts`, `backend/src/modules/company/company.service.ts`, `backend/src/modules/company/company.controller.ts` | Replace generic `Error` and local `NotFoundError`/`ConflictError`/`PlanLimitError` classes with the typed errors in `backend/src/lib/errors.ts`; use `respondWithError` as the single fallback | The controllers compared error-message strings, which was brittle and duplicated HTTP mapping | Medium |
 | Order assignment ownership | `backend/src/modules/orders/orders.routes.ts`, `backend/src/modules/orders/orders.controller.ts`, `backend/src/modules/orders/orders.service.ts`, `backend/src/modules/routes/routes.controller.ts`, `backend/src/modules/routes/routes.service.ts`, `backend/src/modules/routes/validation.ts` | Move `suggestDrivers`, `assignOrder`, their handlers and their schemas into the `orders` module; keep the URL `/api/v1/orders/:id/assign` and `/api/v1/orders/:id/driver-suggestions`; export the private `findDriver` helper from `routes.service.ts` (or move it to a shared route helper) | The endpoints belong to the orders API but are implemented in the routes module | Medium |
 
 Typed-error details:
@@ -190,9 +196,9 @@ Typed-error details:
 
 ### 3.2 Web: feature-based structure
 
-The web currently mixes role folders (`platform-admin`, `company-admin`,
-`supervisor`) with domain folders (`orders`, `routes`, `reports`, `students`)
-and keeps every API client in a single 392-line file. Proposed target:
+The web mixed role folders (`platform-admin`, `company-admin`, `supervisor`)
+with domain folders (`orders`, `routes`, `reports`, `students`) and kept every
+API client in a single 383-line file. The applied structure is:
 
 ```text
 web/src/
@@ -202,62 +208,62 @@ web/src/
 │   ├── map/
 │   └── ui/
 ├── features/
-│   ├── auth/         (api, context, login and set-password pages)
-│   ├── platform/     (platform companies, plans, platform support, monitoring, settings)
-│   ├── company/      (company dashboard, company profile, branches, supervisors, drivers)
-│   ├── billing/      (billing page and billing API)
-│   ├── orders/
-│   ├── routes/
+│   ├── auth/         (api, AuthContext, login and set-password pages)
+│   ├── platform/     (platform companies, plans, monitoring, settings; API)
+│   ├── company/      (company dashboard, profile, branches, supervisors, drivers; API)
+│   ├── billing/      (billing page and API)
+│   ├── orders/       (orders page and API)
+│   ├── routes/       (route pages and API)
 │   ├── incidents/    (API only; no dedicated page)
-│   ├── reports/
-│   ├── students/
-│   └── support/
+│   ├── reports/      (reports page and API)
+│   ├── students/     (students page and API)
+│   ├── support/      (company and platform support pages; API)
+│   ├── supervisor/   (supervisor layout and dashboard)
+│   ├── monitoring/   (API only)
+│   └── settings/     (API only)
 ├── lib/              (shared validation and formatting helpers)
 ├── services/         (http client and Socket.IO client)
 └── main.tsx
 ```
 
-Changes:
+Applied changes in commit `73ca719`:
 
-- Move `services/api.ts` groups into `features/<domain>/api.ts`; keep the axios
-  instance, token helpers and interceptors in `services/http.ts`.
-- Move `context/AuthContext.tsx` into `features/auth/`.
-- Move page files into `features/<domain>/pages/`.
-- Extract the duplicated full-screen spinner in `App.tsx` into
+- Split the groups from `services/api.ts` into `features/<domain>/api.ts`; the
+  axios instance, token helpers and interceptors live in `services/http.ts`.
+- Moved `context/AuthContext.tsx` into `features/auth/`.
+- Moved page files into `features/<domain>/pages/`.
+- Extracted the duplicated full-screen spinner from `App.tsx` into
   `components/layout/FullScreenLoader.tsx`.
-- Update imports. No route, class name, label or API call changes.
+- Moved `App.tsx` to `app/App.tsx`.
+- Updated imports. No route, class name, label or API call changed.
 
 Cross-feature imports remain allowed when a page needs shared domain data (for
 example, the orders page reads the company driver list). This keeps the
 dependency direction explicit without creating a shared package.
 
-Risk: medium. The change is import-only and is verified by typecheck, lint,
-tests and the production build.
-
-This reorganization is applied last, after every other change. If it becomes
-risky or produces errors that are not import-related, it is stopped and recorded
-as a recommendation instead of being forced.
+The change was import-only and was verified by typecheck, lint, tests and the
+production build. It was applied last as planned.
 
 ### 3.3 Web: TypeScript strict mode
 
-`web/tsconfig.app.json` and `web/tsconfig.node.json` currently omit `strict`.
-The project already builds with zero type errors, so the change is limited to:
+`web/tsconfig.app.json` and `web/tsconfig.node.json` now enable strict mode.
+The change was limited to:
 
 ```json
 "strict": true
 ```
 
-Verification uses `pnpm --filter web typecheck` (or `tsc -b`) and the production
-build. If strict mode exposes real errors, the commit is stopped and the errors
-are reported instead of being silenced with `any`.
+It was applied in commit `871b8b3`. `pnpm --filter web typecheck`,
+`tsc -b --force`, the production build and the full test suite passed without
+errors or new `any` annotations.
 
 ### 3.4 Mobile: feature colocation
 
-The mobile app already uses `src/features` and keeps route files in `src/app`,
-which matches Expo Router conventions. Only the API clients are still outside
-the feature folders.
+The mobile app already used `src/features` and kept route files in `src/app`,
+which matches Expo Router conventions. The API clients were still outside the
+feature folders and were moved in commit `c5001d0`.
 
-| Move | Reason | Risk |
+| Applied move | Reason | Risk |
 |---|---|---|
 | `services/auth-api.ts` → `features/auth/api.ts` | Auth API belongs to the auth feature | Low |
 | `services/routes-api.ts` → `features/route/api.ts` | Route API belongs to the route feature | Low |
@@ -270,8 +276,8 @@ Socket.IO client) stay in `services/`.
 
 `backend/src/modules/health/health.routes.ts` has no controller or service
 because it only exposes an injectable infrastructure check (`checkHealth`) used
-directly by tests. It will remain as the documented exception; adding empty
-layers would not improve the architecture.
+directly by tests. It remains the documented exception; adding empty layers
+would not improve the architecture.
 
 ## 4. Naming conventions to record in the final report
 
@@ -285,7 +291,7 @@ layers would not improve the architecture.
 | Mobile | Route files in `src/app`; domain logic in `src/features/<domain>`; shared client in `src/services` |
 | Dependencies | Stable versions only; remove when no import, script or configuration references them |
 
-## 5. Proposed commit sequence
+## 5. Commit sequence (completed)
 
 1. `docs(refactoring): add refactoring proposal` — this document.
 2. `docs(refactoring): refine proposal` — strict-mode commit, web
@@ -302,30 +308,37 @@ layers would not improve the architecture.
 10. `refactor(mobile): colocate feature API clients`.
 11. `docs: replace template application READMEs`.
 12. `refactor(web): enable TypeScript strict mode`.
-13. `refactor(web): organize source into feature folders` — applied last; if it
-    fails or becomes risky, it is stopped and documented as a recommendation.
+13. `refactor(web): organize source into feature folders` — applied last and
+    completed successfully.
 14. `docs(refactoring): update refactoring report` — record what was applied,
     optimized folders, naming conventions and structural fixes.
 
-## 6. Verification plan
+Implementation commits, in order: `a993b7e`, `ad67561`, `3865695`, `0f8173e`,
+`3933921`, `dccc3ad`, `3b681b0`, `cac0b63`, `2e54e63`, `c5001d0`, `131ef86`,
+`871b8b3`, `73ca719`. The final report update is this commit.
 
-For every commit, run the checks of the affected application:
+## 6. Verification results
 
-- Backend: `pnpm --filter backend lint`, `typecheck`, `test`, `build`.
-- Web: `pnpm --filter web lint`, `typecheck`, `test`, `build`.
-- Mobile: `pnpm --filter mobile lint`, `typecheck`, `test`.
-- Dependency-removal commit: run all three applications plus `pnpm install`
-  from the lockfile to confirm the workspace resolves.
+The affected application was checked after each commit. The full workspace was
+checked again after the web reorganization:
 
-Every commit must keep the same test counts or explain a legitimate change.
-Tests are not modified except for imports if a moved module is referenced
-directly; the current tests are HTTP-level and do not import the moved modules.
+| Check | Result |
+|---|---|
+| Root `pnpm lint` | Pass; backend, web and mobile |
+| Root `pnpm test` | Pass; backend 16 files/217 tests, web 2 files/10 tests, mobile 6 suites/24 tests |
+| Root `pnpm build` | Pass; backend build, web production build and mobile typecheck |
+| Web `tsc -b --force` | Pass with strict mode enabled |
+| Mobile Android Expo export | Pass; 1437 modules |
+
+Test counts did not change. The only test file touched was the UTF-8 fixture in
+`backend/src/modules/routes/__tests__/routes.test.ts`. The lockfile was updated
+by `pnpm remove`; subsequent workspace checks resolved from it.
 
 ## 7. Items reviewed and intentionally not changed
 
 - Spanish user-facing text and messages: preserved.
 - `respondWithError` versus `next(error)` in existing controllers: the current
-  behavior around 5xx system alerts is preserved; no global rewrite is proposed.
+  behavior around 5xx system alerts is preserved; no global rewrite was proposed.
 - Auth domain errors (`InvalidCredentialsError`, `UserInactiveError`,
   `CompanyInactiveError`, `InvalidPasswordError`): they are already typed and
   mapped explicitly; converting them would change tests and add no user value.
