@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { authApi } from '@/services/auth-api';
+import { authApi } from './api';
 import { isAuthenticationError, setSessionExpiredHandler } from '@/services/http';
 import { NON_DRIVER_MESSAGE, LoginBlockedError, isDriverRole } from './auth-errors';
 import { clearSession, loadSession, saveSession } from './session-storage';

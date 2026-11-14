@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
-import { isOfflineError, routesApi } from '@/services/routes-api';
+import { isOfflineError, routesApi } from './api';
 import { enqueueLocation } from './offline-queue';
 import type { DriverRoute, LocationSample } from './types';
 

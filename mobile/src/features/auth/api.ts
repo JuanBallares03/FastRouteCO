@@ -4,7 +4,7 @@ import type {
   LoginResponse,
   UserRole,
 } from '@/features/auth/types';
-import { api } from './http';
+import { api } from '@/services/http';
 
 interface WireUser {
   id: string;

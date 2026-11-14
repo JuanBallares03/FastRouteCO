@@ -5,7 +5,7 @@ import type {
   EvidenceUpload,
   LocationSample,
 } from '@/features/route/types';
-import { api } from './http';
+import { api } from '@/services/http';
 
 interface TodayRouteResponse {
   route: DriverRoute | null;

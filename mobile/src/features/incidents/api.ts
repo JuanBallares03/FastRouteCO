@@ -1,4 +1,4 @@
-import { api } from './http';
+import { api } from '@/services/http';
 
 export type IncidentCategory = 'incident' | 'question';
 export type IncidentStatus = 'open' | 'in_progress' | 'resolved';
