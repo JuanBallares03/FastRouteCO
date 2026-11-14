@@ -39,7 +39,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Permite a FastRouteCO registrar tu ubicación durante la ruta."
+          "locationWhenInUsePermission": "Permite a FastRouteCO registrar tu ubicación durante la ruta.",
+          "locationAlwaysAndWhenInUsePermission": "Permite a FastRouteCO registrar tu recorrido también cuando la app está en segundo plano.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
