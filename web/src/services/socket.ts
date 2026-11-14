@@ -1,5 +1,5 @@
 import { io, type Socket } from 'socket.io-client';
-import { API_URL, getAccessToken } from './api';
+import { API_URL, getAccessToken } from './http';
 
 export const SOCKET_URL = API_URL.replace(/\/api\/v1\/?$/, '');
 
