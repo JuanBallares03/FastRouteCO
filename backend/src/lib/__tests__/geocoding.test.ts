@@ -20,10 +20,11 @@ const sleep = vi.fn(async (delayMs: number) => {
   clock += delayMs;
 });
 
-function createGeocoder(): NominatimGeocoder {
+function createGeocoder(options: { viewbox?: string } = {}): NominatimGeocoder {
   return new NominatimGeocoder('https://nominatim.example/', 'FastRouteCO/1.0', {
     now: () => clock,
     sleep,
+    ...options,
   });
 }
 
@@ -38,9 +39,10 @@ afterEach(() => {
 
 describe('Nominatim geocoder', () => {
   it('sends the configured user agent and Colombia-only query parameters', async () => {
-    const fetchMock = vi.fn(
-      async (_input: string | URL | Request, _init?: RequestInit) =>
-        okResponse([{ lat: '4.4389', lon: '-75.2322', display_name: 'Ibagué, Tolima' }])
+    const fetchMock = vi.fn<
+      (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+    >(async () =>
+      okResponse([{ lat: '4.4389', lon: '-75.2322', display_name: 'Ibagué, Tolima' }])
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -60,12 +62,28 @@ describe('Nominatim geocoder', () => {
     expect(parsed.searchParams.get('format')).toBe('jsonv2');
     expect(parsed.searchParams.get('limit')).toBe('1');
     expect(parsed.searchParams.get('countrycodes')).toBe('co');
+    expect(parsed.searchParams.get('viewbox')).toBe('-75.35,4.60,-75.05,4.30');
+    expect(parsed.searchParams.get('bounded')).toBe('1');
     expect(init).toMatchObject({
       headers: {
         'User-Agent': 'FastRouteCO/1.0',
         Accept: 'application/json',
       },
     });
+  });
+
+  it('uses the configured viewbox for the bounded area', async () => {
+    const fetchMock = vi.fn<
+      (input: string | URL | Request, init?: RequestInit) => Promise<Response>
+    >(async () => okResponse([{ lat: '4.6', lon: '-74.1', display_name: 'Bogotá' }]));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createGeocoder({ viewbox: '-74.30,4.90,-73.90,4.40' }).geocode('Calle 10');
+
+    const [url] = fetchMock.mock.calls[0];
+    const parsed = new URL(String(url));
+    expect(parsed.searchParams.get('viewbox')).toBe('-74.30,4.90,-73.90,4.40');
+    expect(parsed.searchParams.get('bounded')).toBe('1');
   });
 
   it('reuses cached results for equivalent addresses', async () => {

@@ -42,6 +42,7 @@ interface NominatimGeocoderOptions {
   minIntervalMs?: number;
   now?: () => number;
   sleep?: (delayMs: number) => Promise<void>;
+  viewbox?: string;
 }
 
 function defaultSleep(delayMs: number): Promise<void> {
@@ -59,6 +60,7 @@ export class NominatimGeocoder implements Geocoder {
   private readonly minIntervalMs: number;
   private readonly now: () => number;
   private readonly sleep: (delayMs: number) => Promise<void>;
+  private readonly viewbox: string;
   private lastRequestAt: number | null = null;
   private queue: Promise<unknown> = Promise.resolve();
 
@@ -68,6 +70,7 @@ export class NominatimGeocoder implements Geocoder {
     this.minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
     this.now = options.now ?? (() => Date.now());
     this.sleep = options.sleep ?? defaultSleep;
+    this.viewbox = options.viewbox ?? IBAGUE_VIEWBOX;
   }
 
   private runFetch(params: URLSearchParams): Promise<Response> {
@@ -110,8 +113,8 @@ export class NominatimGeocoder implements Geocoder {
       format: 'jsonv2',
       limit: '1',
       countrycodes: 'co',
-      viewbox: IBAGUE_VIEWBOX,
-      bounded: '0',
+      viewbox: this.viewbox,
+      bounded: '1',
     });
 
     let response: Response;
@@ -154,10 +157,13 @@ export class NominatimGeocoder implements Geocoder {
   }
 }
 
-let activeGeocoder: Geocoder = new NominatimGeocoder(
-  env.NOMINATIM_URL,
-  env.NOMINATIM_USER_AGENT
-);
+function createNominatimGeocoder(): NominatimGeocoder {
+  return new NominatimGeocoder(env.NOMINATIM_URL, env.NOMINATIM_USER_AGENT, {
+    viewbox: env.NOMINATIM_VIEWBOX,
+  });
+}
+
+let activeGeocoder: Geocoder = createNominatimGeocoder();
 
 export function getGeocoder(): Geocoder {
   return activeGeocoder;
@@ -168,5 +174,5 @@ export function setGeocoder(geocoder: Geocoder): void {
 }
 
 export function resetGeocoder(): void {
-  activeGeocoder = new NominatimGeocoder(env.NOMINATIM_URL, env.NOMINATIM_USER_AGENT);
+  activeGeocoder = createNominatimGeocoder();
 }
