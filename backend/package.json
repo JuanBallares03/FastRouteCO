@@ -28,7 +28,7 @@
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "@socket.io/redis-adapter": "^8.3.0",
-    "axios": "^1.20.0",
+    "axios": "^1.21.1",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
@@ -36,9 +36,9 @@
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
-    "neo4j-driver": "^6.2.0",
+    "neo4j-driver": "^6.3.0",
     "pg": "^8.23.1",
-    "resend": "^6.34.1",
+    "resend": "^6.38.0",
     "socket.io": "^4.8.4",
     "zod": "^4.6.7"
   },
@@ -51,12 +51,12 @@
     "@types/node": "^26.6.5",
     "@types/supertest": "^7.2.1",
     "cross-env": "^10.1.0",
-    "dotenv": "^18.0.8",
+    "dotenv": "^18.0.10",
     "prisma": "7.10.1",
-    "supertest": "^7.3.1",
+    "supertest": "^7.3.2",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
-    "typescript-eslint": "^8.71.2",
-    "vitest": "^5.0.5"
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
   }
 }
