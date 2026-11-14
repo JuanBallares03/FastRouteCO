@@ -61,7 +61,7 @@ async function geocodeAddress(address: string): Promise<GeocodingOutcome> {
 
   if (!result) {
     throw new BadRequestError(
-      'No se pudo geocodificar la dirección. Verifica que sea válida.',
+      'No encontramos esa dirección en el mapa. Revisa la dirección o escribe un lugar conocido de Ibagué',
       'ADDRESS_NOT_FOUND'
     );
   }

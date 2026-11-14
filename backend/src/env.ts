@@ -42,6 +42,7 @@ export const env = {
   WEB_APP_URL: process.env.WEB_APP_URL ?? 'http://localhost:5173',
   NOMINATIM_URL: process.env.NOMINATIM_URL ?? 'http://localhost:8080',
   NOMINATIM_USER_AGENT: process.env.NOMINATIM_USER_AGENT ?? 'FastRouteCO/1.0',
+  NOMINATIM_VIEWBOX: process.env.NOMINATIM_VIEWBOX ?? '-75.35,4.60,-75.05,4.30',
   OVERPASS_URL: process.env.OVERPASS_URL ?? 'https://overpass-api.de/api/interpreter',
   ROUTING_AVG_SPEED_KMH: parseFloat(process.env.ROUTING_AVG_SPEED_KMH ?? '25'),
   ROUTING_ROAD_FACTOR: parseFloat(process.env.ROUTING_ROAD_FACTOR ?? '1.3'),
