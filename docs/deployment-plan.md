@@ -9,6 +9,7 @@ Instructions for the coding agent (OpenCode) and the team to deploy FastRouteCO 
 | Cloud provider | Azure for Students (university requirement: AWS, Google Cloud or Azure) |
 | Budget | 49 USD of credit, no credit card, expiring on 2027-02-27. The VM is stopped and deallocated when it is not in use |
 | Server | One Azure `Standard_B2pls_v2` ARM64 VM: 2 vCPU, 4 GB of RAM, Ubuntu 24.04 LTS ARM64, 30 GB disk |
+| Region | West US 3 (cheapest); East US is the fallback (tied for second cheapest with East US 2, North Central US and West US 2) |
 | Domain | `<public-ip>.sslip.io` with automatic HTTPS in Caddy; no domain purchase |
 | Runtime | Docker Compose with backend, PostgreSQL, Redis, Neo4j + APOC and Nominatim (Tolima extract) |
 | Web panel | Served from the same VM by Caddy with automatic HTTPS |
@@ -17,34 +18,54 @@ Instructions for the coding agent (OpenCode) and the team to deploy FastRouteCO 
 
 Important: Azure for Students includes 750 free hours per month of `B1s`, `B2pts_v2` and `B2ats_v2` for new customers during the first 12 months, but the last two have only 1 GB of RAM, so they cannot run this stack. The 4 GB VM is not part of that allowance and is paid from the 49 USD credit. The credit expires on 2027-02-27 and any unused balance is lost, so monitor Cost Management and stop and deallocate the VM when it is not in use. Keep backups outside Azure.
 
-### 1.1 Cost estimate and credit duration
+### 1.1 Region and cost estimate
 
-List prices from the Azure Retail Prices API for East US, Linux, on 2026-11-15. They are conservative: student free allowances, taxes or a different region can change them.
+Prices from the Azure Retail Prices API for Linux, on-demand, 730 hours per month, queried on 2026-11-15. The 30 GB OS disk is billed as Standard SSD E4 32 GiB LRS. Sorted from cheapest to most expensive:
+
+| Region | `Standard_B2pls_v2` | Static public IP | E4 disk | Total per month |
+|---|---:|---:|---:|---:|
+| West US 3 (`westus3`) | 21.90 USD | 3.65 USD | 2.40 USD | **27.95 USD** |
+| East US (`eastus`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| East US 2 (`eastus2`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| North Central US (`northcentralus`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| West US 2 (`westus2`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| Central US (`centralus`) | 27.74 USD | 3.65 USD | 2.40 USD | 33.79 USD |
+| West US (`westus`) | 29.20 USD | 3.65 USD | 2.40 USD | 35.25 USD |
+| South Central US (`southcentralus`) | 29.42 USD | 3.65 USD | 2.40 USD | 35.47 USD |
+| West Central US (`westcentralus`) | 29.42 USD | 3.65 USD | 2.40 USD | 35.47 USD |
+| Brazil South (`brazilsouth`) | not offered | 3.65 USD | 4.48 USD | N/A |
+
+- **Primary region: West US 3**, the cheapest at 27.95 USD per month. It is in Washington state, so latency to Colombia is higher than East US; the choice follows price.
+- **Fallback region: East US**, tied for second cheapest at 30.58 USD per month with East US 2, North Central US and West US 2. East US is the closest of those four to Colombia.
+- **Brazil South does not offer `Standard_B2pls_v2`**, so it cannot host the VM even though its public IP is the same price and its disk is more expensive.
+- Student free allowances, taxes or a later price change can alter these values; check Cost Management and the pricing calculator before creating resources.
+
+Selected configuration (West US 3):
 
 | Item | Assumption | Monthly cost |
 |---|---|---:|
-| `Standard_B2pls_v2` VM | 730 hours running | 24.53 USD |
+| `Standard_B2pls_v2` VM | 730 hours running | 21.90 USD |
 | Static public IP | Standard SKU, IPv4, 730 hours | 3.65 USD |
-| OS disk | 30 GB, billed as Standard SSD E4 32 GiB LRS | 4.48 USD |
-| **Total** | **VM running 24/7** | **32.66 USD** |
+| OS disk | 30 GB, billed as Standard SSD E4 32 GiB LRS | 2.40 USD |
+| **Total** | **VM running 24/7** | **27.95 USD** |
 
-- The static public IP and the disk keep billing while the VM is deallocated: about **8.13 USD per month**. Only the compute part stops.
+- The static public IP and the disk keep billing while the VM is deallocated: about **6.05 USD per month**. Only the compute part stops.
 - Releasing the static public IP stops its charge, but `<public-ip>.sslip.io` changes and Caddy must issue a new certificate.
 - If the account still has the 12-month student allowance for managed disks (P6 64 GiB Premium SSD), the disk line may be covered; check **Cost Management**. This estimate assumes no allowance to stay conservative.
 - Outbound bandwidth includes 100 GB per month; excess traffic is billed separately.
 
-Credit duration, using the same prices and 8-hour demo days:
+Credit duration in West US 3, using 8-hour demo days:
 
 | Demo days per week | Demo hours per month | Compute | Fixed IP + disk | Total per month | Credit lasts |
 |---|---:|---:|---:|---:|---|
-| 1 | 35 | 1.17 USD | 8.13 USD | 9.30 USD | About 160 days |
-| 2 | 69 | 2.33 USD | 8.13 USD | 10.46 USD | About 142 days |
-| 3 | 104 | 3.50 USD | 8.13 USD | 11.63 USD | About 128 days |
-| 7 (24/7) | 730 | 24.53 USD | 8.13 USD | 32.66 USD | About 46 days |
+| 1 | 35 | 1.04 USD | 6.05 USD | 7.09 USD | About 210 days |
+| 2 | 69 | 2.09 USD | 6.05 USD | 8.14 USD | About 183 days |
+| 3 | 104 | 3.13 USD | 6.05 USD | 9.18 USD | About 163 days |
+| 7 (24/7) | 730 | 21.90 USD | 6.05 USD | 27.95 USD | About 53 days |
 
-- Running 24/7, the 49 USD run out after about 46 days, around 2026-12-30.
-- With demo-only use (1-3 days per week, 8 hours each) the credit lasts beyond the 2027-02-27 expiry, with about 9-17 USD left unused. The expiry date is the real limit.
-- Formula for other schedules: `monthly cost = 8.13 + 0.0336 × demo hours per month`. One demo day of 8 hours adds about 0.27 USD.
+- Running 24/7, the 49 USD run out after about 53 days, around 2027-01-07.
+- With demo-only use (1-3 days per week, 8 hours each) the credit lasts beyond the 2027-02-27 expiry, with about 18-25 USD left unused. The expiry date is the real limit.
+- Formula for other schedules: `monthly cost = 6.05 + 0.03 × demo hours per month`. One demo day of 8 hours adds about 0.24 USD.
 - Check the real balance in **Cost Management + Billing → Credits** and keep a reminder for 2027-02-27.
 
 ## 2. Preconditions (before deploying)
@@ -83,7 +104,7 @@ Commits: one per item, for example `chore(deploy): add production docker compose
 ## 4. Azure setup (team, with OpenCode guidance)
 
 1. **Check the subscription.** Open **Cost Management + Billing** and confirm the Azure for Students subscription is active, the remaining credit is 49 USD (or what is left) and the expiry is 2027-02-27. No credit card is needed.
-2. **Create the resource group.** Use `rg-fastrouteco-prod` in East US (or the region chosen in the quota check). Keep every resource in the same region: static public IPs and managed disks are regional.
+2. **Create the resource group.** Use `rg-fastrouteco-prod` in West US 3 (or East US if West US 3 has no quota). Keep every resource in the same region: static public IPs and managed disks are regional.
 3. **Create the VM.**
    - Size: `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GiB of RAM).
    - Image: **Ubuntu Server 24.04 LTS (ARM64)**, generation 2.
@@ -113,7 +134,7 @@ Commits: one per item, for example `chore(deploy): add production docker compose
    az vm deallocate --resource-group rg-fastrouteco-prod --name fastrouteco-vm
    az vm start --resource-group rg-fastrouteco-prod --name fastrouteco-vm
    ```
-   A plain stop that keeps the VM allocated still bills compute. Deallocation releases compute; the OS disk and the static public IP keep billing at about **8.13 USD per month**. For demo-only use, enable **Auto-shutdown** (VM → Operations → Auto-shutdown) at a fixed time in `America/Bogota`.
+   A plain stop that keeps the VM allocated still bills compute. Deallocation releases compute; the OS disk and the static public IP keep billing at about **6.05 USD per month**. For demo-only use, enable **Auto-shutdown** (VM → Operations → Auto-shutdown) at a fixed time in `America/Bogota`.
 8. **Swap file.** Create a 4 GB swap file and make it persistent:
    ```bash
    sudo fallocate -l 4G /swapfile
@@ -140,22 +161,23 @@ Commits: one per item, for example `chore(deploy): add production docker compose
 
 ### 4.1 Quota fallback for `Standard_B2pls_v2`
 
-Check availability and quota before creating the VM:
+Check West US 3 before creating the VM:
 
 ```bash
-az vm list-skus --location eastus --size Standard_B2pls_v2 --all --output table
-az vm list-usage --location eastus --output table
+az vm list-skus --location westus3 --size Standard_B2pls_v2 --all --output table
+az vm list-usage --location westus3 --output table
 ```
 
 If the SKU shows `NotAvailableForSubscription`, or the `standardBpsv2Family` quota is zero:
 
-1. Try another region that offers `Bpsv2`: `eastus2`, `westus3`, `centralus`, `westus2`, `northeurope` or `swedencentral`. On 2026-11-15, `brazilsouth` did not list `Standard_B2pls_v2`. Recreate the resource group, VM, static IP and NSG in that region.
-2. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
+1. Use East US, the documented fallback. East US 2, North Central US and West US 2 cost the same, so they are equivalent alternatives. Recreate the resource group, VM, static IP and NSG in the chosen region.
+2. If those regions are unavailable, try another region that offers `Bpsv2`: `centralus`, `northeurope` or `swedencentral`. On 2026-11-15, `brazilsouth` did not offer `Standard_B2pls_v2`.
+3. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
    - `Standard_B2als_v2` (AMD, 2 vCPU, 4 GiB): about 27.45 USD per month in East US.
    - `Standard_B2s` (2 vCPU, 4 GiB, older generation, widely available): about 30.37 USD per month in East US.
-3. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of RAM and do not meet the 4 GB requirement, even though they are in the free 750-hour allowance.
-4. If the quota is zero in the student subscription, request an increase in **Subscriptions → Usage + quotas**. Student subscriptions can be denied; the x64 fallback is faster.
-5. Every image also publishes `amd64`, so switching from ARM64 to x64 needs no `docker-compose.prod.yml` change. Rebuild the images on the new VM and update the region and size in this plan and the README.
+4. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of RAM and do not meet the 4 GB requirement, even though they are in the free 750-hour allowance.
+5. If the quota is zero in the student subscription, request an increase in **Subscriptions → Usage + quotas**. Student subscriptions can be denied; the x64 fallback is faster.
+6. Every image also publishes `amd64`, so switching from ARM64 to x64 needs no `docker-compose.prod.yml` change. Rebuild the images on the new VM and update the region and size in this plan and the README.
 
 ## 5. External services
 

@@ -444,9 +444,10 @@ Without these steps, Gradle's CMake tasks will fail with path-length errors duri
 ## Production deployment
 
 The production stack is defined in `docker-compose.prod.yml` and targets a
-single Azure for Students ARM64 `Standard_B2pls_v2` VM: 2 vCPU, 4 GB of RAM,
-Ubuntu 24.04 LTS ARM64, a 30 GB disk and a 4 GB swap file. It runs on 49 USD of
-Azure for Students credit (no credit card) that expires on 2027-02-27. The VM is
+single Azure for Students ARM64 `Standard_B2pls_v2` VM in West US 3 (the
+cheapest region; East US is the fallback): 2 vCPU, 4 GB of RAM, Ubuntu 24.04
+LTS ARM64, a 30 GB disk and a 4 GB swap file. It runs on 49 USD of Azure for
+Students credit (no credit card) that expires on 2027-02-27. The VM is
 stopped and deallocated when it is not in use to save credit. Docker Compose
 runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima extract) and the
 backend. Caddy serves the web panel from the same VM and provides automatic
@@ -512,8 +513,8 @@ image consistent with the VM.
 1. In **Cost Management + Billing**, confirm the Azure for Students
    subscription is active, the remaining credit (49 USD) and the expiry
    (2027-02-27). No credit card is needed.
-2. Create the resource group `rg-fastrouteco-prod` in East US (or the region
-   chosen after checking quota).
+2. Create the resource group `rg-fastrouteco-prod` in West US 3 (or East US if
+   West US 3 has no quota).
 3. Create the VM:
    - Size **Standard_B2pls_v2** (ARM64, 2 vCPU, 4 GB RAM). See "Quota fallback"
      if it is unavailable.
@@ -531,26 +532,28 @@ image consistent with the VM.
 
 #### Quota fallback for Standard_B2pls_v2
 
-Check availability and quota before creating the VM:
+Check West US 3 before creating the VM:
 
 ```bash
-az vm list-skus --location eastus --size Standard_B2pls_v2 --all --output table
-az vm list-usage --location eastus --output table
+az vm list-skus --location westus3 --size Standard_B2pls_v2 --all --output table
+az vm list-usage --location westus3 --output table
 ```
 
 If the SKU shows `NotAvailableForSubscription` or the `standardBpsv2Family`
 quota is zero:
 
-1. Try another region that offers `Bpsv2`: `eastus2`, `westus3`, `centralus`,
-   `westus2`, `northeurope` or `swedencentral`. On 2026-11-15, `brazilsouth`
-   did not list `Standard_B2pls_v2`.
-2. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
+1. Use East US, the documented fallback. East US 2, North Central US and West
+   US 2 cost the same and are equivalent alternatives.
+2. If those regions are unavailable, try `centralus`, `northeurope` or
+   `swedencentral`. On 2026-11-15, `brazilsouth` did not offer
+   `Standard_B2pls_v2`.
+3. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
    `Standard_B2als_v2` (AMD, about 27.45 USD per month in East US) or
    `Standard_B2s` (older generation, widely available, about 30.37 USD per
    month in East US).
-3. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of
+4. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of
    RAM, even though they are in the free 750-hour allowance.
-4. Every image also publishes `amd64`, so switching to x64 needs no
+5. Every image also publishes `amd64`, so switching to x64 needs no
    `docker-compose.prod.yml` change. Rebuild on the new VM and update `DOMAIN`
    if the public IP changes.
 
@@ -599,7 +602,7 @@ az vm start --resource-group rg-fastrouteco-prod --name fastrouteco-vm
 
 A plain stop that keeps the VM allocated still bills compute. Deallocation
 releases compute; the OS disk and the static public IP keep billing at about
-**8.13 USD per month**. For demo-only use, enable **Auto-shutdown** (VM →
+**6.05 USD per month**. For demo-only use, enable **Auto-shutdown** (VM →
 Operations → Auto-shutdown) at a fixed time in `America/Bogota`.
 
 #### Swap file
