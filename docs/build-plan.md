@@ -67,11 +67,10 @@ FastRouteCO/
 - Urgent order priority influence on optimization `[TO BE DEFINED]`: the algorithm does not prioritize urgent orders yet.
 - Mobile local storage for offline mode `[TO BE DEFINED]`. Current implementation: `expo-sqlite` database `fastrouteco.db` with an `offline_queue` table for pending actions and a `route_cache` table for the cached route. Evidence photos stay in the `evidence/` folder because they are files, not records. On first start, legacy `fastrouteco-offline-queue.json` and `fastrouteco-route-cache.json` files are imported and removed.
 - Geofence radius `[TO BE DEFINED]`: 100 m is a provisional value on backend and mobile, with no HU, RF or RNF defining it. It must be validated with field tests before delivery.
-- Hosting `[TO BE DEFINED]`.
 - Geocoding service: public Nominatim in development and self-hosted Nominatim with a Tolima extract in production. The URL comes from `NOMINATIM_URL` and the backend talks to it through its own geocoder interface, so the provider can change without touching the rest of the code.
 - Companies in other cities `[TO BE DEFINED]`: Nominatim searches are bounded to the Ibagué/Tolima viewbox configured in `NOMINATIM_VIEWBOX`, so addresses outside that box are rejected as not found. The operating area will later derive from the company's branch city (or another per-company criterion).
 - Production map tile provider `[TO BE DEFINED]`. OpenFreeMap is used only in development.
-- Hosting: AWS, on the free plan with credits (up to 200 USD for 6 months) and a budget of 0 USD, at most about 10 USD per month. A single EC2 ARM64 (Graviton) `t4g.medium` instance with 4 GB of RAM, Ubuntu LTS ARM64, a 30 GB disk and a 4 GB swap file. Docker Compose runs the backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract) on that VM. The web panel is served from the same VM behind a reverse proxy with automatic HTTPS. PostgreSQL backups run as a scheduled `pg_dump` script on the same VM, keeping the last 7 daily dumps.
+- Hosting: Azure for Students (the university requires AWS, Google Cloud or Azure), with 49 USD of credit that expires on 2027-02-27 and no credit card. A single ARM64 `Standard_B2pls_v2` VM (2 vCPU, 4 GB of RAM, Ubuntu 24.04 LTS ARM64) with a 30 GB disk and a 4 GB swap file, in West US 3 (cheapest) with East US as fallback. Azure for Students' 750 free hours cover `B1s`, `B2pts_v2` and `B2ats_v2`, but the last two have 1 GB of RAM, so the 4 GB VM is paid from the credit; the VM is stopped and deallocated when it is not in use. Docker Compose runs the backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract) on that VM. The web panel is served from the same VM behind Caddy with automatic HTTPS for `<public-ip>.sslip.io`, without buying a domain. PostgreSQL backups run as a scheduled `pg_dump` script on the same VM, keeping the last 7 daily dumps.
 - Prices of plans, pay-per-use, credit packages and the school module `[TO BE DEFINED]`. Seed data uses placeholder values, none of them approved: Basic 129,900, Pro 349,900 and Premium 899,900 COP per month; pay-per-use membership 59,900 COP, 2 included drivers, 29,900 COP per additional driver and 700 COP per optimization. Annual plan prices remain undefined (`null`). The school module keeps its 499,000 COP placeholder until it is decided whether it is charged once or per period.
 
 ## Development tools
@@ -142,7 +141,7 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
-Progress: Phases 0–6 are implemented, committed and verified locally. Phase 7 in-repository work is done; the VM, domain, production credentials, map tile provider and mobile store builds remain external.
+Progress: Phases 0–6 are implemented, committed and verified locally. Phase 7 in-repository work is done; the Azure VM, the `<public-ip>.sslip.io` hostname, production credentials, map tile provider and mobile store builds remain external.
 
 ### Phase 2 — Orders, routes and routing engine
 
@@ -199,27 +198,27 @@ Provisional seed values (all `[TO BE DEFINED]`, not approved):
 
 ### Phase 7 — Deployment
 
-Hosting decision (corrected 2026-11-09: the university requires AWS, Google Cloud or Azure):
+Hosting decision (moved to Azure on 2026-11-15: the university requires AWS, Google Cloud or Azure, and Azure for Students has 49 USD of credit without a credit card):
 
 | Area | Decision |
 |---|---|
-| Host | AWS EC2 ARM64 (Graviton) `t4g.medium`: 2 vCPU, 4 GB RAM, Ubuntu LTS ARM64, 30 GB disk. Free plan with credits (up to 200 USD for 6 months); budget 0 USD, at most about 10 USD per month. |
+| Host | Azure for Students VM `Standard_B2pls_v2` ARM64: 2 vCPU, 4 GB RAM, Ubuntu 24.04 LTS ARM64, 30 GB disk, in West US 3 (cheapest) with East US as fallback. 49 USD of credit expiring on 2027-02-27; the VM is stopped and deallocated when it is not in use. |
 | Memory | 4 GB RAM plus a 4 GB swap file. Service memory limits are tuned to fit (see the README consumption table). |
 | Runtime | Docker Compose on the VM: backend, PostgreSQL, Redis, Neo4j with APOC and Nominatim (Tolima extract). |
-| Web panel | Served from the same VM by a reverse proxy with automatic HTTPS. |
+| Web panel | Served from the same VM by Caddy with automatic HTTPS for `<public-ip>.sslip.io`; no domain purchase. |
 | Backups | Scheduled `pg_dump` on the same VM, one daily dump, keeping the last 7. |
-| AWS setup | Budget alert, security group (SSH only from the operator IP, 80 and 443 open, nothing else) and swap file, documented in the README. |
+| Azure setup | Budget alert in Cost Management, resource group, static public IP, network security group (SSH only from the operator IP, 80 and 443 open, nothing else) and swap file, documented in the README. |
 
 Phase 7 work inside the repository:
 
 - Production `docker-compose` and reverse-proxy configuration.
 - Production `.env.example` files with variable names only.
-- Verify every image has an ARM64 manifest (especially Nominatim and Neo4j).
+- Verify every image has a manifest for the chosen architecture (ARM64 is the current choice; every image also publishes amd64, especially Nominatim and Neo4j).
 - Deployment steps in the README.
 
 Still external to the repository (ask before touching):
 
-- The VM itself, the domain, and production credentials for Wompi, Resend and Cloudinary.
+- The Azure VM itself, the `<public-ip>.sslip.io` hostname, and production credentials for Wompi, Resend and Cloudinary.
 - The production map tile provider `[TO BE DEFINED]`.
 - Mobile builds for Android and iOS with EAS Build (RNF05).
 - 99% availability during the companies' operating hours (RNF03) and scalability (RNF06).

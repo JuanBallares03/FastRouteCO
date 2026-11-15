@@ -311,7 +311,7 @@ each successful optimization is charged instead of consuming credits.
 
 **TypeScript version:** 6.0.x (TypeScript 7.x not yet supported by typescript-eslint; see [typescript-eslint#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940))
 
-**Pending:** local storage for the mobile app offline mode, stop-order optimization algorithm and hosting.
+**Pending:** local storage for the mobile app offline mode and stop-order optimization algorithm.
 
 **Initial city:** Ibagué, Colombia.
 
@@ -444,15 +444,19 @@ Without these steps, Gradle's CMake tasks will fail with path-length errors duri
 ## Production deployment
 
 The production stack is defined in `docker-compose.prod.yml` and targets a
-single AWS EC2 ARM64 (Graviton) `t4g.medium` instance: 2 vCPU, 4 GB of RAM,
-Ubuntu LTS ARM64, a 30 GB disk and a 4 GB swap file. It runs on the AWS free
-plan with credits (up to 200 USD for 6 months) and a budget of 0 USD, at most
-about 10 USD per month. Docker Compose runs PostgreSQL, Redis, Neo4j with APOC,
-Nominatim (Tolima extract) and the backend. Caddy serves the web panel from the
-same VM and provides automatic HTTPS as the reverse proxy.
+single Azure for Students ARM64 `Standard_B2pls_v2` VM in West US 3 (the
+cheapest region; East US is the fallback): 2 vCPU, 4 GB of RAM, Ubuntu 24.04
+LTS ARM64, a 30 GB disk and a 4 GB swap file. It runs on 49 USD of Azure for
+Students credit (no credit card) that expires on 2027-02-27. The VM is
+stopped and deallocated when it is not in use to save credit. Docker Compose
+runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima extract) and the
+backend. Caddy serves the web panel from the same VM and provides automatic
+HTTPS for `<public-ip>.sslip.io`, without buying a domain.
 
 Only ports 80 and 443 are published. PostgreSQL, Redis, Neo4j, Nominatim and
-the backend stay on the internal Docker network.
+the backend stay on the internal Docker network. See
+`docs/deployment-plan.md` for the monthly cost estimate and the credit
+duration.
 
 ### Memory budget (4 GB)
 
@@ -482,65 +486,124 @@ to a separate instance or switch its `IMPORT_STYLE` to `address`.
 
 ### ARM64 images
 
-Every base image has a `linux/arm64` manifest, verified with
-`docker buildx imagetools inspect`:
+The chosen architecture is ARM64. Every image also publishes `linux/amd64`, so
+the x64 fallback in `docs/deployment-plan.md` needs no `docker-compose.prod.yml`
+change. Verified with `docker buildx imagetools inspect` on 2026-11-15:
 
-| Image | ARM64 |
-|---|---|
-| `node:22-alpine` | yes |
-| `postgres:16-alpine` | yes |
-| `redis:7-alpine` | yes |
-| `neo4j:5-community` | yes |
+| Image | ARM64 | AMD64 |
+|---|---|---|
+| `node:22-alpine` | yes | yes |
+| `postgres:16-alpine` | yes | yes |
+| `redis:7-alpine` | yes | yes |
+| `neo4j:5-community` | yes | yes |
+| `mediagis/nominatim:5.3` | yes | yes |
+| `caddy:2-alpine` | yes | yes |
 
-`mediagis/nominatim:5.3` also publishes `linux/arm64` (manifest
-`sha256:35a584f18eab044f7241082c877900de771e50adeb22e73196ff5ec151fae386`).
-`caddy:2-alpine` publishes `linux/arm64` as well.
+`mediagis/nominatim:5.3` ARM64 manifest:
+`sha256:35a584f18eab044f7241082c877900de771e50adeb22e73196ff5ec151fae386`.
 
-Build the images on the VM itself, not on another architecture. Prisma
-downloads its native engine at build time, so building natively on ARM64 keeps
-the runtime image consistent with the VM.
+Build the images on the VM itself for the VM's architecture. Prisma downloads
+its native engine at build time, so building natively on ARM64 keeps the runtime
+image consistent with the VM.
 
-### AWS setup
+### Azure setup
 
-#### Budget alert
+#### Resource group and VM
 
-1. Open **AWS Billing and Cost Management → Budgets → Create budget**.
-2. Choose **Cost budget**, monthly, amount **10 USD**.
-3. Add alerts at **80% of actual cost** and **100% of forecasted cost**, with
-   your email.
-4. Confirm the free-plan credits (up to 200 USD for 6 months) in the same
-   console and remember they expire; the 10 USD budget is the hard limit after
-   that.
-
-#### EC2 instance
-
-1. Launch a **t4g.medium** instance (2 vCPU, 4 GB RAM, ARM64/Graviton) with
-   **Ubuntu Server LTS ARM64**.
-2. Use a **30 GB gp3** root volume.
-3. Create or select an SSH key pair and keep the private key safe.
-4. Allocate an **Elastic IP** and associate it with the instance so the public
-   address does not change when the instance is stopped. Point the domain's
-   DNS `A` record to that Elastic IP.
-5. Connect with `ssh -i <key>.pem ubuntu@<elastic-ip>` and update the system:
+1. In **Cost Management + Billing**, confirm the Azure for Students
+   subscription is active, the remaining credit (49 USD) and the expiry
+   (2027-02-27). No credit card is needed.
+2. Create the resource group `rg-fastrouteco-prod` in West US 3 (or East US if
+   West US 3 has no quota).
+3. Create the VM:
+   - Size **Standard_B2pls_v2** (ARM64, 2 vCPU, 4 GB RAM). See "Quota fallback"
+     if it is unavailable.
+   - Image **Ubuntu Server 24.04 LTS ARM64** (generation 2).
+   - Authentication with an SSH public key.
+   - OS disk **30 GiB Standard SSD** (billed as E4 32 GiB). The Premium SSD
+     P6 64 GiB is an option only if the student disk allowance covers it.
+   - New **Standard SKU, static IPv4** public IP.
+   - New network security group with the rules below.
+4. Connect with `ssh -i <key> azureuser@<public-ip>` and update the system:
 
    ```bash
    sudo apt update && sudo apt upgrade -y
    ```
 
-#### Security group
+#### Quota fallback for Standard_B2pls_v2
+
+Check West US 3 before creating the VM:
+
+```bash
+az vm list-skus --location westus3 --size Standard_B2pls_v2 --all --output table
+az vm list-usage --location westus3 --output table
+```
+
+If the SKU shows `NotAvailableForSubscription` or the `standardBpsv2Family`
+quota is zero:
+
+1. Use East US, the documented fallback. East US 2, North Central US and West
+   US 2 cost the same and are equivalent alternatives.
+2. If those regions are unavailable, try `centralus`, `northeurope` or
+   `swedencentral`. On 2026-11-15, `brazilsouth` did not offer
+   `Standard_B2pls_v2`.
+3. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
+   `Standard_B2als_v2` (AMD, about 27.45 USD per month in East US) or
+   `Standard_B2s` (older generation, widely available, about 30.37 USD per
+   month in East US).
+4. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of
+   RAM, even though they are in the free 750-hour allowance.
+5. Every image also publishes `amd64`, so switching to x64 needs no
+   `docker-compose.prod.yml` change. Rebuild on the new VM and update `DOMAIN`
+   if the public IP changes.
+
+#### Static public IP
+
+Confirm the address is **Standard SKU** with **Assignment: Static** and that it
+is associated with the VM NIC. It survives deallocation, so
+`<public-ip>.sslip.io` stays stable while the VM exists. If the IP is released,
+the hostname changes and Caddy must issue a new certificate.
+
+#### Network security group
 
 Inbound rules only:
 
-| Type | Port | Source |
-|---|---|---|
-| SSH | 22 | your public IP `/32` |
-| HTTP | 80 | `0.0.0.0/0`, `::/0` |
-| HTTPS | 443 | `0.0.0.0/0`, `::/0` |
+| Priority | Name | Port | Protocol | Source | Action |
+|---:|---|---|---|---|---|
+| 100 | SSH | 22 | TCP | your public IP `/32` | Allow |
+| 110 | HTTP | 80 | TCP | Internet | Allow |
+| 120 | HTTPS | 443 | TCP | Internet | Allow |
+| 4096 | DenyAllInbound | Any | Any | Any | Deny |
 
-Remove any default SSH rule open to the world. Do not open PostgreSQL, Redis,
-Neo4j, Nominatim or the backend port: they only listen on the internal Docker
-network. Leave the default outbound rule (all traffic) so the VM can pull
-images and reach Resend, Wompi, Cloudinary and the Overpass API.
+Remove any default SSH rule open to the world. Do not open PostgreSQL (5432),
+Redis (6379), Neo4j (7474/7687), Nominatim (8080) or the backend (3000): they
+only listen on the internal Docker network. Leave the default outbound rule
+(all traffic) so the VM can pull images and reach Resend, Wompi, Cloudinary and
+the Overpass API.
+
+#### Budget alert
+
+1. Open **Cost Management + Billing → Budgets → Add**.
+2. Scope the subscription or the resource group, monthly amount **40 USD**.
+3. Add alerts at **50%, 80% and 100% of actual cost** and **100% of forecasted
+   cost**, with your email.
+4. A budget sends notifications; it does not stop resources. Deallocate the VM
+   manually or use auto-shutdown, and keep a reminder for **2027-02-27**, when
+   the credit expires.
+
+#### Stop and deallocate
+
+Use **Stop (deallocate)** in the portal or:
+
+```bash
+az vm deallocate --resource-group rg-fastrouteco-prod --name fastrouteco-vm
+az vm start --resource-group rg-fastrouteco-prod --name fastrouteco-vm
+```
+
+A plain stop that keeps the VM allocated still bills compute. Deallocation
+releases compute; the OS disk and the static public IP keep billing at about
+**6.05 USD per month**. For demo-only use, enable **Auto-shutdown** (VM →
+Operations → Auto-shutdown) at a fixed time in `America/Bogota`.
 
 #### Swap file
 
@@ -561,9 +624,9 @@ import peak; keep swappiness low so normal operation stays in RAM.
 
 ### First deployment
 
-1. Provision the AWS resources (budget alert, EC2 instance, security group and
-   swap) as described in "AWS setup" below, then point the domain's DNS `A`
-   record to the instance's Elastic IP.
+1. Provision the Azure resources (resource group, VM, static public IP, network
+   security group, budget alert and swap) as described in "Azure setup" above.
+   Do not create a DNS record and do not buy a domain.
 2. Install Docker Engine and the Docker Compose plugin on the VM.
 3. Clone the repository and create the environment files:
 
@@ -572,11 +635,12 @@ import peak; keep swappiness low so normal operation stays in RAM.
    cp backend/production.env.example backend/production.env
    ```
 
-   Fill in `production.env` (domain, database and service passwords, Wompi
-   public key, map style URL) and `backend/production.env` (JWT secrets,
-   Resend, Wompi and Cloudinary credentials). These files are ignored by Git.
-   Without the Wompi, Resend and Cloudinary values the API starts but email,
-   card setup and evidence upload fail.
+   Fill in `production.env` (`DOMAIN=<public-ip>.sslip.io`, database and
+   service passwords, Wompi public key, map style URL) and
+   `backend/production.env` (JWT secrets, Resend, Wompi and Cloudinary
+   credentials). These files are ignored by Git. Without the Wompi, Resend and
+   Cloudinary values the API starts but email, card setup and evidence upload
+   fail.
 4. Place `osm-data/tolima.osm.pbf` on the VM. You can build it once with
    `osmium extract` as described above and upload it.
 5. Build and start the stack:
@@ -596,10 +660,12 @@ import peak; keep swappiness low so normal operation stays in RAM.
    docker compose --env-file production.env -f docker-compose.prod.yml exec backend pnpm db:seed:admin
    ```
 
-8. Caddy requests the HTTPS certificate automatically once DNS points to the
-   VM. Open `https://<domain>` to verify the panel and `https://<domain>/health`
-   for the API. The endpoint returns `503` when PostgreSQL or Redis is down and
-   `200` with `"status":"degraded"` when only Neo4j is unavailable.
+8. Caddy requests the HTTPS certificate automatically for
+   `<public-ip>.sslip.io`; ports 80 and 443 must be open. Open
+   `https://<public-ip>.sslip.io` to verify the panel and
+   `https://<public-ip>.sslip.io/health` for the API. The endpoint returns `503`
+   when PostgreSQL or Redis is down and `200` with `"status":"degraded"` when
+   only Neo4j is unavailable.
 
 ### Backups
 
@@ -609,8 +675,10 @@ and keeps the last 7 files. Run it from cron on the VM:
 ```bash
 chmod +x scripts/backup-postgres.sh
 # 03:00 every day
-0 3 * * * /home/ubuntu/FastRouteCO/scripts/backup-postgres.sh
+0 3 * * * /home/azureuser/FastRouteCO/scripts/backup-postgres.sh
 ```
+
+Copy the dumps outside Azure regularly; the credit expires on 2027-02-27.
 
 Restore a dump with:
 
