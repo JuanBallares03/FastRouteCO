@@ -6,18 +6,71 @@ Instructions for the coding agent (OpenCode) and the team to deploy FastRouteCO 
 
 | Item | Decision |
 |---|---|
-| Cloud provider | AWS (university requirement: AWS, Google Cloud or Azure) |
-| Budget | AWS Free plan credits (up to 200 USD, 6 months). Team budget: 0 USD, at most about 10 USD per month |
-| Server | One EC2 ARM64 (Graviton) instance with 4 GB of RAM, type t4g.medium |
+| Cloud provider | Azure for Students (university requirement: AWS, Google Cloud or Azure) |
+| Budget | 49 USD of credit, no credit card, expiring on 2027-02-27. The VM is stopped and deallocated when it is not in use |
+| Server | One Azure `Standard_B2pls_v2` ARM64 VM: 2 vCPU, 4 GB of RAM, Ubuntu 24.04 LTS ARM64, 30 GB disk |
+| Region | West US 3 (cheapest); East US is the fallback (tied for second cheapest with East US 2, North Central US and West US 2) |
+| Domain | `<public-ip>.sslip.io` with automatic HTTPS in Caddy; no domain purchase |
 | Runtime | Docker Compose with backend, PostgreSQL, Redis, Neo4j + APOC and Nominatim (Tolima extract) |
-| Web panel | Served from the same instance by a reverse proxy with automatic HTTPS |
+| Web panel | Served from the same VM by Caddy with automatic HTTPS |
 | Mobile app | Android build with EAS Build. iOS is [TO BE DEFINED] (requires a paid Apple developer account) |
 | Production map provider | [TO BE DEFINED] |
 
-Important: the AWS Free plan closes the account after 6 months or when the credits run out, and data is deleted 90 days later. Create the AWS account only when the deployment is ready, and keep backups outside AWS.
+Important: Azure for Students includes 750 free hours per month of `B1s`, `B2pts_v2` and `B2ats_v2` for new customers during the first 12 months, but the last two have only 1 GB of RAM, so they cannot run this stack. The 4 GB VM is not part of that allowance and is paid from the 49 USD credit. The credit expires on 2027-02-27 and any unused balance is lost, so monitor Cost Management and stop and deallocate the VM when it is not in use. Keep backups outside Azure.
+
+### 1.1 Region and cost estimate
+
+Prices from the Azure Retail Prices API for Linux, on-demand, 730 hours per month, queried on 2026-11-15. The 30 GB OS disk is billed as Standard SSD E4 32 GiB LRS. Sorted from cheapest to most expensive:
+
+| Region | `Standard_B2pls_v2` | Static public IP | E4 disk | Total per month |
+|---|---:|---:|---:|---:|
+| West US 3 (`westus3`) | 21.90 USD | 3.65 USD | 2.40 USD | **27.95 USD** |
+| East US (`eastus`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| East US 2 (`eastus2`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| North Central US (`northcentralus`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| West US 2 (`westus2`) | 24.53 USD | 3.65 USD | 2.40 USD | 30.58 USD |
+| Central US (`centralus`) | 27.74 USD | 3.65 USD | 2.40 USD | 33.79 USD |
+| West US (`westus`) | 29.20 USD | 3.65 USD | 2.40 USD | 35.25 USD |
+| South Central US (`southcentralus`) | 29.42 USD | 3.65 USD | 2.40 USD | 35.47 USD |
+| West Central US (`westcentralus`) | 29.42 USD | 3.65 USD | 2.40 USD | 35.47 USD |
+| Brazil South (`brazilsouth`) | not offered | 3.65 USD | 4.48 USD | N/A |
+
+- **Primary region: West US 3**, the cheapest at 27.95 USD per month. It is in Washington state, so latency to Colombia is higher than East US; the choice follows price.
+- **Fallback region: East US**, tied for second cheapest at 30.58 USD per month with East US 2, North Central US and West US 2. East US is the closest of those four to Colombia.
+- **Brazil South does not offer `Standard_B2pls_v2`**, so it cannot host the VM even though its public IP is the same price and its disk is more expensive.
+- Student free allowances, taxes or a later price change can alter these values; check Cost Management and the pricing calculator before creating resources.
+
+Selected configuration (West US 3):
+
+| Item | Assumption | Monthly cost |
+|---|---|---:|
+| `Standard_B2pls_v2` VM | 730 hours running | 21.90 USD |
+| Static public IP | Standard SKU, IPv4, 730 hours | 3.65 USD |
+| OS disk | 30 GB, billed as Standard SSD E4 32 GiB LRS | 2.40 USD |
+| **Total** | **VM running 24/7** | **27.95 USD** |
+
+- The static public IP and the disk keep billing while the VM is deallocated: about **6.05 USD per month**. Only the compute part stops.
+- Releasing the static public IP stops its charge, but `<public-ip>.sslip.io` changes and Caddy must issue a new certificate.
+- If the account still has the 12-month student allowance for managed disks (P6 64 GiB Premium SSD), the disk line may be covered; check **Cost Management**. This estimate assumes no allowance to stay conservative.
+- Outbound bandwidth includes 100 GB per month; excess traffic is billed separately.
+
+Credit duration in West US 3, using 8-hour demo days:
+
+| Demo days per week | Demo hours per month | Compute | Fixed IP + disk | Total per month | Credit lasts |
+|---|---:|---:|---:|---:|---|
+| 1 | 35 | 1.04 USD | 6.05 USD | 7.09 USD | About 210 days |
+| 2 | 69 | 2.09 USD | 6.05 USD | 8.14 USD | About 183 days |
+| 3 | 104 | 3.13 USD | 6.05 USD | 9.18 USD | About 163 days |
+| 7 (24/7) | 730 | 21.90 USD | 6.05 USD | 27.95 USD | About 53 days |
+
+- Running 24/7, the 49 USD run out after about 53 days, around 2027-01-07.
+- With demo-only use (1-3 days per week, 8 hours each) the credit lasts beyond the 2027-02-27 expiry, with about 18-25 USD left unused. The expiry date is the real limit.
+- Formula for other schedules: `monthly cost = 6.05 + 0.03 × demo hours per month`. One demo day of 8 hours adds about 0.24 USD.
+- Check the real balance in **Cost Management + Billing → Credits** and keep a reminder for 2027-02-27.
 
 ## 2. Preconditions (before deploying)
 
+- [ ] Azure for Students subscription active, with the 49 USD credit visible in Cost Management and expiring on 2027-02-27.
 - [ ] `docs/audit/code-audit-report.md` has no open Critical or High findings.
 - [ ] Lint, typecheck, test and build green in backend, web and mobile.
 - [ ] CI green on `main`.
@@ -26,7 +79,7 @@ Important: the AWS Free plan closes the account after 6 months or when the credi
 ## 3. Work inside the repository (OpenCode)
 
 1. **Production Docker Compose** (`docker-compose.prod.yml`):
-   - All images available for `linux/arm64`. Verify each one, especially Nominatim and Neo4j.
+   - All images publish `linux/arm64` (the chosen architecture) and `linux/amd64`. Verify each one with `docker buildx imagetools inspect`, especially Nominatim and Neo4j, before switching architecture or region.
    - Memory limits so everything fits in 4 GB. Starting budget, to be validated on the server:
 
      | Service | Memory limit |
@@ -41,29 +94,96 @@ Important: the AWS Free plan closes the account after 6 months or when the credi
    - `restart: unless-stopped` on every service and health checks.
    - Only the reverse proxy publishes ports (80 and 443). Databases are never exposed.
    - Log rotation for every container.
-2. **Reverse proxy configuration:** HTTPS for the domain, web panel as static files, `/api` and Socket.IO routed to the backend.
+2. **Reverse proxy configuration:** HTTPS for `<public-ip>.sslip.io`, web panel as static files, `/api` and Socket.IO routed to the backend.
 3. **Production environment examples:** `.env.production.example` for each app, without real values.
 4. **Backups:** script that runs `pg_dump` daily on the server and keeps the last 7 copies. Neo4j is rebuilt from OpenStreetMap, so it does not need backups.
 5. **Deployment guide:** add a "Deployment" section to the README, in English, with the steps in section 4.
 
 Commits: one per item, for example `chore(deploy): add production docker compose`.
 
-## 4. Server setup (team, with OpenCode guidance)
+## 4. Azure setup (team, with OpenCode guidance)
 
-1. Create the AWS account and set a **budget alert** (for example at 10, 50 and 150 USD of credits used).
-2. Create the t4g.medium instance with Ubuntu LTS (ARM64), a 30 GB disk and an SSH key.
-3. Security group: SSH (22) only from the team's IP, HTTP (80) and HTTPS (443) open. Nothing else.
-4. Add a 4 GB swap file (needed for the Nominatim import).
-5. Install Docker and the Docker Compose plugin. Enable automatic security updates.
-6. Point the domain DNS to the instance IP.
-7. Copy the production `.env` files to the server (`chmod 600`). Never commit them.
-8. Start the services, run `prisma migrate deploy`, load the Ibagué road network into Neo4j, import the Tolima extract into Nominatim and run `pnpm db:seed:admin` to create the first Platform Administrator. Do not run the demo seed in production.
-9. Configure the daily backup and copy backups outside AWS regularly.
+1. **Check the subscription.** Open **Cost Management + Billing** and confirm the Azure for Students subscription is active, the remaining credit is 49 USD (or what is left) and the expiry is 2027-02-27. No credit card is needed.
+2. **Create the resource group.** Use `rg-fastrouteco-prod` in West US 3 (or East US if West US 3 has no quota). Keep every resource in the same region: static public IPs and managed disks are regional.
+3. **Create the VM.**
+   - Size: `Standard_B2pls_v2` (ARM64, 2 vCPU, 4 GiB of RAM).
+   - Image: **Ubuntu Server 24.04 LTS (ARM64)**, generation 2.
+   - Authentication: SSH public key. Store the private key outside the repository.
+   - OS disk: **30 GiB Standard SSD**. Azure bills the next managed-disk size, E4 32 GiB. Use the Premium SSD P6 64 GiB option only if the student disk allowance covers it.
+   - Public IP: create a new **Standard SKU, static IPv4** address and associate it with the VM.
+   - Network security group: create it with the rules below.
+4. **Network security group.** Inbound rules only:
+
+   | Priority | Name | Port | Protocol | Source | Action |
+   |---:|---|---|---|---|---|
+   | 100 | SSH | 22 | TCP | your public IP `/32` | Allow |
+   | 110 | HTTP | 80 | TCP | Internet | Allow |
+   | 120 | HTTPS | 443 | TCP | Internet | Allow |
+   | 4096 | DenyAllInbound | Any | Any | Any | Deny |
+
+   Remove any default SSH rule open to the world. Keep the default outbound rule (all traffic) so the VM can pull images and reach Resend, Wompi, Cloudinary and the Overpass API. Never open PostgreSQL (5432), Redis (6379), Neo4j (7474/7687), Nominatim (8080) or the backend (3000).
+5. **Static public IP.** Confirm the address is Standard SKU with **Assignment: Static** and that it is associated with the VM NIC. It survives deallocation, so `<public-ip>.sslip.io` stays stable while the VM exists. If the IP is released, the hostname changes and Caddy must issue a new certificate.
+6. **Budget alert.** In **Cost Management + Billing → Budgets → Add**:
+   - Scope the subscription or the resource group.
+   - Monthly amount: **40 USD**.
+   - Alerts at **50%, 80% and 100% of actual cost**, plus **100% of forecasted cost**, with your email.
+   - A budget sends notifications; it does not stop resources. Deallocate the VM manually or use auto-shutdown.
+   - Add a calendar reminder for **2027-02-27**; the credit expires and unused balance is lost.
+7. **Stop and deallocate when not in use.** Use **Stop (deallocate)** in the portal or:
+   ```bash
+   az vm deallocate --resource-group rg-fastrouteco-prod --name fastrouteco-vm
+   az vm start --resource-group rg-fastrouteco-prod --name fastrouteco-vm
+   ```
+   A plain stop that keeps the VM allocated still bills compute. Deallocation releases compute; the OS disk and the static public IP keep billing at about **6.05 USD per month**. For demo-only use, enable **Auto-shutdown** (VM → Operations → Auto-shutdown) at a fixed time in `America/Bogota`.
+8. **Swap file.** Create a 4 GB swap file and make it persistent:
+   ```bash
+   sudo fallocate -l 4G /swapfile
+   sudo chmod 600 /swapfile
+   sudo mkswap /swapfile
+   sudo swapon /swapfile
+   echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+   echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swap.conf
+   sudo sysctl --system
+   ```
+   Verify with `free -h` and `swapon --show`. The swap absorbs the Nominatim import peak; keep swappiness low so normal operation stays in RAM.
+9. **Install Docker and security updates.**
+   ```bash
+   sudo apt update && sudo apt upgrade -y
+   curl -fsSL https://get.docker.com | sudo sh
+   sudo usermod -aG docker "$USER"
+   sudo apt install -y unattended-upgrades
+   sudo dpkg-reconfigure --priority=low unattended-upgrades
+   ```
+   Log out and back in for the Docker group. Verify with `docker version` and `docker compose version`.
+10. **Domain.** The hostname is `<public-ip>.sslip.io` (for example `20.123.45.67.sslip.io`). sslip.io resolves it automatically, so do not create a DNS record and do not buy a domain. Set `DOMAIN=<public-ip>.sslip.io` in `production.env`. Caddy requests the Let's Encrypt certificate automatically on the first HTTPS request; ports 80 and 443 must be open. If the public IP changes, update `DOMAIN` and restart the `web` service.
+11. **First deployment.** Copy the production `.env` files to the server (`chmod 600`) and start the services; the backend applies Prisma migrations on start. Then load the Ibagué road network into Neo4j, import the Tolima extract into Nominatim and run `pnpm db:seed:admin` to create the first Platform Administrator. Do not run the demo seed in production.
+12. **Backups.** Configure the daily backup and copy backups outside Azure regularly.
+
+### 4.1 Quota fallback for `Standard_B2pls_v2`
+
+Check West US 3 before creating the VM:
+
+```bash
+az vm list-skus --location westus3 --size Standard_B2pls_v2 --all --output table
+az vm list-usage --location westus3 --output table
+```
+
+If the SKU shows `NotAvailableForSubscription`, or the `standardBpsv2Family` quota is zero:
+
+1. Use East US, the documented fallback. East US 2, North Central US and West US 2 cost the same, so they are equivalent alternatives. Recreate the resource group, VM, static IP and NSG in the chosen region.
+2. If those regions are unavailable, try another region that offers `Bpsv2`: `centralus`, `northeurope` or `swedencentral`. On 2026-11-15, `brazilsouth` did not offer `Standard_B2pls_v2`.
+3. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
+   - `Standard_B2als_v2` (AMD, 2 vCPU, 4 GiB): about 27.45 USD per month in East US.
+   - `Standard_B2s` (2 vCPU, 4 GiB, older generation, widely available): about 30.37 USD per month in East US.
+4. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of RAM and do not meet the 4 GB requirement, even though they are in the free 750-hour allowance.
+5. If the quota is zero in the student subscription, request an increase in **Subscriptions → Usage + quotas**. Student subscriptions can be denied; the x64 fallback is faster.
+6. Every image also publishes `amd64`, so switching from ARM64 to x64 needs no `docker-compose.prod.yml` change. Rebuild the images on the new VM and update the region and size in this plan and the README.
 
 ## 5. External services
 
 | Service | Production requirement |
 |---|---|
+| Domain | `<public-ip>.sslip.io` from sslip.io; no purchase and no DNS record |
 | Resend | Verified domain (in development it only delivers to the account email) |
 | Wompi | Production keys and webhook URL pointing to the deployed backend |
 | Cloudinary | Production account and keys |
@@ -79,7 +199,7 @@ Commits: one per item, for example `chore(deploy): add production docker compose
 - [ ] Incident with chat between driver and supervisor.
 - [ ] Payment in Wompi sandbox: plan purchase and credit package.
 - [ ] Support request answered by the Platform Administrator, with email notification.
-- [ ] HTTPS valid, no database ports reachable from the internet.
+- [ ] HTTPS valid for `<public-ip>.sslip.io`, no database ports reachable from the internet.
 
 ## 7. Rollback
 
@@ -90,13 +210,13 @@ Commits: one per item, for example `chore(deploy): add production docker compose
 
 - [ ] Git tag `v1.0.0` and a GitHub release with the Android APK.
 - [ ] README updated: description, architecture, setup, deployment and test accounts.
-- [ ] Public URL of the web panel and test accounts for each role (created for the evaluation, not real data).
+- [ ] Public URL of the web panel (`https://<public-ip>.sslip.io`) and test accounts for each role (created for the evaluation, not real data).
 - [ ] Documentation in the repository: user stories, data model, use case diagrams, component diagram, build plan and audit report.
-- [ ] Known limitations: [TO BE DEFINED] items, iOS build and the 6-month hosting period.
+- [ ] Known limitations: [TO BE DEFINED] items, iOS build, the 49 USD credit expiring on 2027-02-27, the need to deallocate the VM when it is not in use, and the sslip.io hostname changing if the public IP is released.
 
 ## 9. Rules for OpenCode
 
 - Work only inside the repository. Do not create cloud accounts or resources and do not use real keys.
-- Stop and ask when you need the server, the domain, production keys, the map provider or the EAS account.
+- Stop and ask when you need the Azure subscription, the VM, the `<public-ip>.sslip.io` hostname, production keys, the map provider or the EAS account.
 - Never read `.env` files. Never push.
 - Save tokens: short progress messages, only failures in command output.
