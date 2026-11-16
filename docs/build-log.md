@@ -112,6 +112,8 @@ As built:
 - The mobile app requests foreground location permission, sends a GPS sample every 5 seconds and keeps the full trail in `route_locations`.
 - When the API is unreachable, start, finish, arrival, completion and location actions are stored in the on-device SQLite queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
 - The last route is cached in SQLite so the driver can still see it offline.
+- The driver route screen offers Lista and Mapa views while keeping the three bottom tabs. The map shows the numbered stops in optimized order and the driver's current location, using the style from `EXPO_PUBLIC_MAP_STYLE_URL` (OpenFreeMap only in development). When offline or when the map cannot load, the app shows the stop list with a Spanish notice (CU-32, RF09, RNF08, RNF10).
+- The map component already accepts route geometry and draws it when present. The backend does not return it yet: it must calculate the Dijkstra geometry over the Ibagué road network, pending the road-network import `[TO BE DEFINED]`.
 
 ## Phase 5 — Real-time tracking, incidents and reassignment
 

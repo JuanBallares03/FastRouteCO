@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   AppState,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -12,6 +13,7 @@ import { AppButton } from '@/components/AppButton';
 import { EvidenceCameraModal } from '@/components/EvidenceCameraModal';
 import { Notice } from '@/components/Notice';
 import { Screen } from '@/components/Screen';
+import { DriverRouteMap } from '@/features/route/DriverRouteMap';
 import { uploadEvidencePhoto } from '@/features/route/cloudinary';
 import { deleteEvidencePhoto, persistEvidencePhoto } from '@/features/route/evidence-files';
 import { isInsideGeofence } from '@/features/route/geo';
@@ -20,6 +22,11 @@ import {
   flushOfflineQueue,
   getPendingActionCount,
 } from '@/features/route/offline-queue';
+import {
+  mapFallbackMessage,
+  resolveMapStyleUrl,
+  toMapStops,
+} from '@/features/route/route-map';
 import { loadCachedRoute, saveCachedRoute } from '@/features/route/route-cache';
 import type {
   Coordinates,
@@ -28,6 +35,7 @@ import type {
   RouteStop,
   StopStatus,
 } from '@/features/route/types';
+import { useCurrentLocation } from '@/features/route/use-current-location';
 import {
   useRouteTracking,
   type TrackingMode,
@@ -39,7 +47,11 @@ import {
   routesApi,
 } from '@/features/route/api';
 import { getRealtimeSocket } from '@/services/realtime';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, layout, radius, spacing, typography } from '@/theme';
+
+const MAP_STYLE_URL = resolveMapStyleUrl(process.env.EXPO_PUBLIC_MAP_STYLE_URL);
+
+type RouteViewMode = 'list' | 'map';
 
 const routeStatusLabel: Record<RouteStatus, string> = {
   created: 'Creada',
@@ -107,7 +119,24 @@ export default function MyRouteScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [cameraStopId, setCameraStopId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<RouteViewMode>('list');
+  const [isOffline, setIsOffline] = useState(false);
+  const [failedRouteId, setFailedRouteId] = useState<string | null>(null);
   const { mode: trackingMode } = useRouteTracking(route, isLoading);
+  const mapStops = useMemo(() => toMapStops(route?.stops ?? []), [route?.stops]);
+  const mapUnavailable = failedRouteId !== null && failedRouteId === route?.id;
+  const mapFallback =
+    viewMode === 'map'
+      ? mapFallbackMessage({
+          isOffline,
+          hasMapStyle: MAP_STYLE_URL !== null,
+          mapFailed: mapUnavailable,
+          stopCount: mapStops.length,
+        })
+      : null;
+  const shouldTrackForMap = viewMode === 'map' && Boolean(route) && !mapFallback;
+  const { location: driverLocation, permissionDenied: locationDenied } =
+    useCurrentLocation(shouldTrackForMap);
 
   const refreshPendingCount = useCallback(async () => {
     setPendingCount(await getPendingActionCount());
@@ -117,6 +146,7 @@ export default function MyRouteScreen() {
     const today = await routesApi.getTodayRoute();
     setRoute(today);
     await saveCachedRoute(today);
+    setIsOffline(false);
     setError(null);
   }, []);
 
@@ -127,6 +157,7 @@ export default function MyRouteScreen() {
       const cached = await loadCachedRoute();
       if (cached) {
         setRoute(cached);
+        setIsOffline(true);
         setError('Sin conexión. Estás viendo la última ruta guardada en este teléfono.');
       } else {
         setError('No pudimos cargar tu ruta. Verifica tu conexión e intenta de nuevo.');
@@ -449,6 +480,82 @@ export default function MyRouteScreen() {
     }
   }
 
+  function renderStops() {
+    if (!route) return null;
+
+    return (
+      <View style={styles.stopsSection}>
+        <Text style={styles.sectionTitle}>Paradas</Text>
+        {route.stops.map((stop) => {
+          const person = stopPerson(stop);
+          const isCompleted = stop.status === 'completed';
+
+          return (
+            <View
+              key={stop.id}
+              style={[styles.stopCard, isCompleted ? styles.stopCardCompleted : null]}
+            >
+              <View style={styles.stopHeader}>
+                <View
+                  style={[
+                    styles.sequence,
+                    isCompleted ? styles.sequenceCompleted : null,
+                  ]}
+                >
+                  <Text style={styles.sequenceText}>{stop.sequence}</Text>
+                </View>
+                <View style={styles.stopHeading}>
+                  <Text style={styles.stopType}>{stopTypeLabel(stop)}</Text>
+                  <Text style={styles.stopAddress}>{stopAddress(stop)}</Text>
+                  {person ? <Text style={styles.stopPerson}>{person}</Text> : null}
+                </View>
+                <View
+                  style={[
+                    styles.stopStatus,
+                    stop.status === 'arrived' ? styles.stopStatusArrived : null,
+                    isCompleted ? styles.stopStatusCompleted : null,
+                  ]}
+                >
+                  <Text style={styles.stopStatusText}>{stopStatusLabel[stop.status]}</Text>
+                </View>
+              </View>
+
+              {stop.notes ? <Text style={styles.stopNotes}>{stop.notes}</Text> : null}
+
+              {isCompleted ? (
+                <Text style={styles.evidenceText}>
+                  Evidencia: {stop.evidencePhotos.length}{' '}
+                  {stop.evidencePhotos.length === 1 ? 'foto' : 'fotos'}
+                  {formatTime(stop.confirmedAt)
+                    ? ` · ${formatTime(stop.confirmedAt)}`
+                    : ''}
+                </Text>
+              ) : null}
+
+              {isInProgress && !isCompleted ? (
+                <View style={styles.stopActions}>
+                  {stop.status === 'pending' ? (
+                    <AppButton
+                      title="Marcar llegada"
+                      loading={busyAction === `arrive-${stop.id}`}
+                      onPress={() => void handleArrival(stop)}
+                    />
+                  ) : (
+                    <AppButton
+                      title="Completar con foto"
+                      loading={busyAction === `complete-${stop.id}`}
+                      onPress={() => setCameraStopId(stop.id)}
+                    />
+                  )}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
+      </View>
+    );
+  }
+
   const pendingStops = route?.stops.filter((stop) => stop.status !== 'completed').length ?? 0;
   const isInProgress = route?.status === 'in_progress';
   const canFinish = isInProgress && pendingStops === 0;
@@ -549,75 +656,73 @@ export default function MyRouteScreen() {
             ) : null}
           </View>
 
-          <View style={styles.stopsSection}>
-            <Text style={styles.sectionTitle}>Paradas</Text>
-            {route.stops.map((stop) => {
-              const person = stopPerson(stop);
-              const isCompleted = stop.status === 'completed';
-
-              return (
-                <View
-                  key={stop.id}
-                  style={[styles.stopCard, isCompleted ? styles.stopCardCompleted : null]}
-                >
-                  <View style={styles.stopHeader}>
-                    <View
-                      style={[
-                        styles.sequence,
-                        isCompleted ? styles.sequenceCompleted : null,
-                      ]}
-                    >
-                      <Text style={styles.sequenceText}>{stop.sequence}</Text>
-                    </View>
-                    <View style={styles.stopHeading}>
-                      <Text style={styles.stopType}>{stopTypeLabel(stop)}</Text>
-                      <Text style={styles.stopAddress}>{stopAddress(stop)}</Text>
-                      {person ? <Text style={styles.stopPerson}>{person}</Text> : null}
-                    </View>
-                    <View
-                      style={[
-                        styles.stopStatus,
-                        stop.status === 'arrived' ? styles.stopStatusArrived : null,
-                        isCompleted ? styles.stopStatusCompleted : null,
-                      ]}
-                    >
-                      <Text style={styles.stopStatusText}>{stopStatusLabel[stop.status]}</Text>
-                    </View>
-                  </View>
-
-                  {stop.notes ? <Text style={styles.stopNotes}>{stop.notes}</Text> : null}
-
-                  {isCompleted ? (
-                    <Text style={styles.evidenceText}>
-                      Evidencia: {stop.evidencePhotos.length}{' '}
-                      {stop.evidencePhotos.length === 1 ? 'foto' : 'fotos'}
-                      {formatTime(stop.confirmedAt)
-                        ? ` · ${formatTime(stop.confirmedAt)}`
-                        : ''}
-                    </Text>
-                  ) : null}
-
-                  {isInProgress && !isCompleted ? (
-                    <View style={styles.stopActions}>
-                      {stop.status === 'pending' ? (
-                        <AppButton
-                          title="Marcar llegada"
-                          loading={busyAction === `arrive-${stop.id}`}
-                          onPress={() => void handleArrival(stop)}
-                        />
-                      ) : (
-                        <AppButton
-                          title="Completar con foto"
-                          loading={busyAction === `complete-${stop.id}`}
-                          onPress={() => setCameraStopId(stop.id)}
-                        />
-                      )}
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })}
+          <View style={styles.viewSwitcher}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: viewMode === 'list' }}
+              onPress={() => setViewMode('list')}
+              style={({ pressed }) => [
+                styles.viewOption,
+                viewMode === 'list' ? styles.viewOptionActive : null,
+                pressed ? styles.viewOptionPressed : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.viewOptionText,
+                  viewMode === 'list' ? styles.viewOptionTextActive : null,
+                ]}
+              >
+                Lista
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: viewMode === 'map' }}
+              onPress={() => setViewMode('map')}
+              style={({ pressed }) => [
+                styles.viewOption,
+                viewMode === 'map' ? styles.viewOptionActive : null,
+                pressed ? styles.viewOptionPressed : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.viewOptionText,
+                  viewMode === 'map' ? styles.viewOptionTextActive : null,
+                ]}
+              >
+                Mapa
+              </Text>
+            </Pressable>
           </View>
+
+          {viewMode === 'list' ? renderStops() : null}
+
+          {viewMode === 'map' && mapFallback ? (
+            <>
+              <Notice message={mapFallback} variant="warning" />
+              {renderStops()}
+            </>
+          ) : null}
+
+          {viewMode === 'map' && !mapFallback && MAP_STYLE_URL ? (
+            <>
+              <View style={styles.mapCard}>
+                <DriverRouteMap
+                  mapStyleUrl={MAP_STYLE_URL}
+                  stops={mapStops}
+                  driverLocation={driverLocation}
+                  onUnavailable={() => setFailedRouteId(route.id)}
+                />
+              </View>
+              {locationDenied ? (
+                <Text style={styles.mapHint}>
+                  Activa el permiso de ubicación para ver tu posición actual en el mapa.
+                </Text>
+              ) : null}
+            </>
+          ) : null}
         </>
       ) : null}
 
@@ -750,6 +855,50 @@ const styles = StyleSheet.create({
     color: colors.successText,
     fontSize: typography.body,
     fontWeight: '700',
+  },
+  viewSwitcher: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.xs,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+  },
+  viewOption: {
+    flex: 1,
+    minHeight: layout.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+  },
+  viewOptionActive: {
+    backgroundColor: colors.primary,
+  },
+  viewOptionPressed: {
+    opacity: 0.85,
+  },
+  viewOptionText: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '700',
+  },
+  viewOptionTextActive: {
+    color: colors.onPrimary,
+  },
+  mapCard: {
+    height: 430,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 2,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+  },
+  mapHint: {
+    color: colors.textSecondary,
+    fontSize: typography.small,
+    lineHeight: 20,
   },
   stopsSection: {
     gap: spacing.md,

@@ -3,20 +3,26 @@ import { colors, radius, spacing, typography } from '@/theme';
 
 interface NoticeProps {
   message: string;
-  variant?: 'error' | 'success';
+  variant?: 'error' | 'success' | 'warning';
 }
 
 export function Notice({ message, variant = 'error' }: NoticeProps) {
-  const isError = variant === 'error';
+  const variantStyle =
+    variant === 'success'
+      ? styles.success
+      : variant === 'warning'
+        ? styles.warning
+        : styles.error;
+  const textStyle =
+    variant === 'success'
+      ? styles.successText
+      : variant === 'warning'
+        ? styles.warningText
+        : styles.errorText;
 
   return (
-    <View
-      accessibilityRole="alert"
-      style={[styles.base, isError ? styles.error : styles.success]}
-    >
-      <Text style={[styles.text, isError ? styles.errorText : styles.successText]}>
-        {message}
-      </Text>
+    <View accessibilityRole="alert" style={[styles.base, variantStyle]}>
+      <Text style={[styles.text, textStyle]}>{message}</Text>
     </View>
   );
 }
@@ -35,6 +41,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.successSurface,
     borderColor: colors.successText,
   },
+  warning: {
+    backgroundColor: '#FEF9C3',
+    borderColor: '#FACC15',
+  },
   text: {
     fontSize: typography.label,
     fontWeight: '600',
@@ -45,5 +55,8 @@ const styles = StyleSheet.create({
   },
   successText: {
     color: colors.successText,
+  },
+  warningText: {
+    color: '#713F12',
   },
 });
