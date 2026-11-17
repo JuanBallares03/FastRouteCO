@@ -22,7 +22,7 @@ Repository: `JuanBallares03/FastRouteCO`, `private: false` (public). No `.env` f
 | Semgrep | all TypeScript | Not integrated | Custom CWE rules | Optional future addition; no npm dependency. |
 | Trivy | container images | Not integrated | CWE-1104 / OWASP A06:2021 | Optional future addition for Docker image CVEs. |
 
-Current dependency state: `pnpm audit` reports **0 critical, 0 high, 2 moderate and 1 low**. The remaining advisories are in Expo, ESLint and Jest tooling (`glob`, `minimatch`) and are not reachable from the production backend runtime. The CI threshold is `high` so these do not break the build.
+Current dependency state: `pnpm audit` reports **0 critical, 1 high, 2 moderate and 0 low**. The high advisory is `GHSA-fc5q-39xc-vjpf` (picomatch ReDoS) and is explicitly ignored in `pnpm-workspace.yaml` because every affected path is build or test tooling and none is reachable from the production backend runtime. The moderate advisories (`glob`, `minimatch`) are also tooling-only and stay below the CI threshold of `high`.
 
 ## Inventory before this audit
 
@@ -78,6 +78,20 @@ Secret scanning notes:
 - Gitleaks covers the history requirement. A local full-history scan of 168 commits found no leaks.
 - The Gitleaks action is free for personal accounts. The repository owner is a personal account, so no `GITLEAKS_LICENSE` is needed. A free license key is required if the repository is transferred to an organization.
 
+## Ignored advisories
+
+| Advisory | Package | Affected versions | Scope | Reason | Revisit when |
+|---|---|---|---|---|---|
+| `GHSA-fc5q-39xc-vjpf` | picomatch | `<=4.0.7` (lockfile has 2.3.2 and 4.0.7) | Build and test tooling in `web`, `mobile` and the `backend` devDependencies | ReDoS through single-branch repeated extglobs. No patched version is published (`patched_versions: null`), so a dependency upgrade is not available. | A patched version is published (upgrade picomatch or the transitive dependents), then remove the ID from `audit.ignore`. |
+
+Path analysis with `pnpm why picomatch`:
+
+- `web`: Tailwind CSS (`fast-glob`, `micromatch`, `chokidar`), Vite/Vitest, and the TypeScript ESLint toolchain.
+- `mobile`: Expo/Metro build tooling, React Native codegen and Jest.
+- `backend`: only through the `typescript-eslint` devDependency. There is no path from the backend production dependencies to picomatch.
+
+The advisory is ignored with the pnpm v12 `audit.ignore` list in `pnpm-workspace.yaml`. The exception is limited to this GHSA; `pnpm audit --audit-level=high` still runs in CI and still fails on any other high or critical advisory. Since pnpm 12.4.0, ignored advisories are excluded from the severity totals and reported separately, so the report may note that an advisory was ignored rather than showing a clean audit.
+
 ## Gaps and recommendations
 
 1. **Coverage (not integrated).** Vitest coverage needs `@vitest/coverage-v8`, a new npm dependency, so it was excluded by the no-new-dependencies rule. Jest coverage in mobile can run without a new direct dependency but is not configured. Define a coverage threshold per app before deployment.
@@ -94,7 +108,7 @@ Local results at the time of this report:
 - `pnpm lint`: pass for backend, web and mobile.
 - `pnpm test`: 16 backend files / 217 tests, 2 web files / 10 tests, 6 mobile suites / 24 tests. All pass.
 - `pnpm build`: backend `tsc`, web `tsc -b && vite build` and mobile `tsc --noEmit` pass.
-- `pnpm audit`: 0 critical, 0 high, 2 moderate, 1 low (tooling only).
+- `pnpm audit --audit-level=high`: pass after ignoring `GHSA-fc5q-39xc-vjpf`; 2 moderate advisories remain (tooling only). The exception is documented above and does not lower the CI threshold.
 - Gitleaks full history: 168 commits scanned, no leaks.
 - Workflow YAML files parsed successfully.
 
