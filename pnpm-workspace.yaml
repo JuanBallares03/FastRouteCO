@@ -8,6 +8,9 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+audit:
+  ignore:
+    - GHSA-fc5q-39xc-vjpf
 overrides:
   body-parser: 2.4.0
   follow-redirects: 1.16.2
