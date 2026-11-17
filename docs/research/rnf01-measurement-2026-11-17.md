@@ -6,7 +6,7 @@ Production measurement of route optimization against RNF01 (a route is optimized
 
 | Item | Value |
 |---|---|
-| Host | Azure `Standard_B2als_v2`, x64, 2 vCPU, 4 GB of RAM (production) |
+| Host | Azure `Standard_B2als_v2`, x64, 2 vCPU, 4 GB of RAM, West US 3 (production) |
 | Road network | Ibagué, 88,931 intersections and 175,910 segments |
 | Sample center | 4.4389, -75.2322 (Ibagué) |
 | Sample radius | 3,000 m |

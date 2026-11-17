@@ -444,10 +444,15 @@ Without these steps, Gradle's CMake tasks will fail with path-length errors duri
 ## Production deployment
 
 The production stack is defined in `docker-compose.prod.yml` and targets a
-single Azure for Students ARM64 `Standard_B2pls_v2` VM in West US 3 (the
-cheapest region; East US is the fallback): 2 vCPU, 4 GB of RAM, Ubuntu 24.04
-LTS ARM64, a 30 GB disk and a 4 GB swap file. It runs on 49 USD of Azure for
-Students credit (no credit card) that expires on 2027-02-27. The VM is
+single Azure for Students x64 (AMD) `Standard_B2als_v2` VM in West US 3: 2
+vCPU, 4 GB of RAM, Ubuntu 24.04 LTS x64, a 30 GB disk and a 4 GB swap file.
+The x64 size is used because `Standard_B2pls_v2` (ARM64) returned
+`NotAvailableForSubscription` in West US 3 for this subscription; the
+subscription only allows `eastus2`, `northcentralus`, `brazilsouth`, `westus3`
+and `canadacentral`. It runs on 49 USD of Azure for Students credit (no credit
+card) that expires on 2027-02-27. The VM costs 27.45 USD per month at 730
+hours; with the static IP and the OS disk the total is about 33.50 USD per
+month, so running it 24/7 exhausts the credit in about 44 days. The VM is
 stopped and deallocated when it is not in use to save credit. Docker Compose
 runs PostgreSQL, Redis, Neo4j with APOC, Nominatim (Tolima extract) and the
 backend. Caddy serves the web panel from the same VM and provides automatic
@@ -484,11 +489,11 @@ active. After the import, the steady state fits in 4 GB; monitor with
 `free -h` and `docker stats`. If the swap is constantly in use, move Nominatim
 to a separate instance or switch its `IMPORT_STYLE` to `address`.
 
-### ARM64 images
+### Container images
 
-The chosen architecture is ARM64. Every image also publishes `linux/amd64`, so
-the x64 fallback in `docs/deployment-plan.md` needs no `docker-compose.prod.yml`
-change. Verified with `docker buildx imagetools inspect` on 2026-11-15:
+The deployed VM is x64. Every image publishes `linux/amd64` and `linux/arm64`,
+so the x64 VM needs no `docker-compose.prod.yml` change. Verified with
+`docker buildx imagetools inspect` on 2026-11-15:
 
 | Image | ARM64 | AMD64 |
 |---|---|---|
@@ -503,7 +508,7 @@ change. Verified with `docker buildx imagetools inspect` on 2026-11-15:
 `sha256:35a584f18eab044f7241082c877900de771e50adeb22e73196ff5ec151fae386`.
 
 Build the images on the VM itself for the VM's architecture. Prisma downloads
-its native engine at build time, so building natively on ARM64 keeps the runtime
+its native engine at build time, so building natively on x64 keeps the runtime
 image consistent with the VM.
 
 ### Azure setup
@@ -513,12 +518,11 @@ image consistent with the VM.
 1. In **Cost Management + Billing**, confirm the Azure for Students
    subscription is active, the remaining credit (49 USD) and the expiry
    (2027-02-27). No credit card is needed.
-2. Create the resource group `rg-fastrouteco-prod` in West US 3 (or East US if
-   West US 3 has no quota).
+2. Create the resource group `fastrouteco-rg` in West US 3.
 3. Create the VM:
-   - Size **Standard_B2pls_v2** (ARM64, 2 vCPU, 4 GB RAM). See "Quota fallback"
-     if it is unavailable.
-   - Image **Ubuntu Server 24.04 LTS ARM64** (generation 2).
+   - Size **Standard_B2als_v2** (x64/AMD, 2 vCPU, 4 GB RAM). See "Size and
+     region note" if it is unavailable.
+   - Image **Ubuntu Server 24.04 LTS x64** (generation 2).
    - Authentication with an SSH public key.
    - OS disk **30 GiB Standard SSD** (billed as E4 32 GiB). The Premium SSD
      P6 64 GiB is an option only if the student disk allowance covers it.
@@ -530,32 +534,30 @@ image consistent with the VM.
    sudo apt update && sudo apt upgrade -y
    ```
 
-#### Quota fallback for Standard_B2pls_v2
+#### Size and region note
 
-Check West US 3 before creating the VM:
+The deployment uses `Standard_B2als_v2` because `Standard_B2pls_v2` (ARM64)
+returned `NotAvailableForSubscription` in West US 3 for the Azure for Students
+subscription. This subscription only allows deployments in `eastus2`,
+`northcentralus`, `brazilsouth`, `westus3` and `canadacentral`.
+
+Check the chosen size before creating the VM:
 
 ```bash
-az vm list-skus --location westus3 --size Standard_B2pls_v2 --all --output table
+az vm list-skus --location westus3 --size Standard_B2als_v2 --all --output table
 az vm list-usage --location westus3 --output table
 ```
 
-If the SKU shows `NotAvailableForSubscription` or the `standardBpsv2Family`
-quota is zero:
-
-1. Use East US, the documented fallback. East US 2, North Central US and West
-   US 2 cost the same and are equivalent alternatives.
-2. If those regions are unavailable, try `centralus`, `northeurope` or
-   `swedencentral`. On 2026-11-15, `brazilsouth` did not offer
-   `Standard_B2pls_v2`.
-3. If ARM quota is unavailable in every region, use an x64 4 GB B-series size:
-   `Standard_B2als_v2` (AMD, about 27.45 USD per month in East US) or
-   `Standard_B2s` (older generation, widely available, about 30.37 USD per
-   month in East US).
-4. Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of
-   RAM, even though they are in the free 750-hour allowance.
-5. Every image also publishes `amd64`, so switching to x64 needs no
-   `docker-compose.prod.yml` change. Rebuild on the new VM and update `DOMAIN`
-   if the public IP changes.
+- The deployed region is West US 3. East US 2 and North Central US cost the
+  same if West US 3 becomes unavailable.
+- Canada Central and Brazil South cost more and are not preferred.
+- If `Standard_B2als_v2` is unavailable, use another x64 4 GB B-series size
+  such as `Standard_B2s` (older generation, widely available).
+- Do not use `Standard_B2pts_v2` or `Standard_B2ats_v2`: they have 1 GiB of
+  RAM, even though they are in the free 750-hour allowance.
+- Every image also publishes `amd64`, so the x64 VM needs no
+  `docker-compose.prod.yml` change. Rebuild on the VM and update `DOMAIN` if
+  the public IP changes.
 
 #### Static public IP
 
@@ -596,8 +598,8 @@ the Overpass API.
 Use **Stop (deallocate)** in the portal or:
 
 ```bash
-az vm deallocate --resource-group rg-fastrouteco-prod --name fastrouteco-vm
-az vm start --resource-group rg-fastrouteco-prod --name fastrouteco-vm
+az vm deallocate --resource-group fastrouteco-rg --name fastrouteco-vm
+az vm start --resource-group fastrouteco-rg --name fastrouteco-vm
 ```
 
 A plain stop that keeps the VM allocated still bills compute. Deallocation
