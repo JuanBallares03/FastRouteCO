@@ -13,7 +13,7 @@ Sources of truth: `README.md` (RF01–RF31, RNF01–RNF11), `docs/user-stories/u
 | AUD-04 | Security | Critical | CWE-362, CWE-841 / A04 | `backend/src/modules/billing/billing.service.ts:1056-1126` | Concurrent Wompi webhooks can apply the same payment twice | Fixed in `c3ea9ca` |
 | AUD-05 | Architecture | High | CWE-362 / A04 | `backend/src/modules/billing/billing.service.ts:346-416`, `1188-1200` | Credit and pay-per-use counters use read-modify-write and lose updates under concurrency | Fixed in `96bb399` |
 | AUD-06 | Architecture | High | CWE-362 / A04 | `backend/src/modules/routes/routes.service.ts:198-268`, `276-370`, `backend/prisma/schema.prisma:387-408` | Two requests can assign the same order to two routes; no unique constraint on `route_stops.order_id` | Fixed in `358438c` |
-| AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Fixed in `9be71f3` |
+| AUD-07 | Performance | High | CWE-400 / A04 | `backend/src/lib/optimization.ts:44-78`, `backend/src/modules/routes/routes.service.ts:1157-1162` | 2-opt has no time budget or stop cap; RNF01 (10 s) is not measured | Fixed in `9be71f3`; re-measured in production on 2026-11-17 |
 | AUD-08 | Performance | High | CWE-400 / A04 | `backend/src/lib/routing.ts:190-238` | Nearest-intersection queries scan every `Intersection` node | Fixed in `658031e` |
 | AUD-09 | Performance | High | CWE-400 / A04 | `backend/src/modules/reports/reports.service.ts:32-35`, `95-100`, `157` | Report summary loads every GPS point in the range into memory | Fixed in `096b19f` |
 | AUD-10 | Performance | High | N/A (RNF01) | `backend/prisma/schema.prisma:326-441`, `555-591` | No indexes for the most frequent company, date and status filters | Fixed in `850c758` |
@@ -103,15 +103,15 @@ Top 5 risks:
 1. **Severity:** High. The 10-second optimization requirement could not be guaranteed, and a large route could exhaust CPU and block a Node.js worker.
 2. **CWE / OWASP:** CWE-400 Uncontrolled Resource Consumption; OWASP A04:2021.
 3. **Scenario:** A company creates a route with hundreds of stops. `twoOptImprove` runs `while (improved)` and rebuilds the full path for every `(start, end)` pair; each pass is O(n²) and every candidate evaluation is O(n), so the loop is O(n³) per pass and can iterate many times. The HTTP request holds the event loop and the database transaction open while Neo4j runs one Dijkstra query per origin. No maximum number of stops is defined in `docs/build-plan.md`, so the failure point is not bounded.
-4. **Fix:** Measured the full optimization on 2026-11-11 with the real Ibagué graph (31,006 intersections and 60,905 directed segments imported from OSM). The script samples 10/25/50 stops from 12,761 real intersections within 3 km of the city center (4.4389, -75.2322), runs each case 5 times, discards the first run as warm-up and reports the median and maximum of the valid samples (`approximate=false`). Node heap limit: 384 MB.
+4. **Fix:** Measured the full optimization in production on 2026-11-17 with the real Ibagué graph (88,931 intersections and 175,910 segments) on the Azure `Standard_B2als_v2` host (x64, 2 vCPU, 4 GB). The script samples 10/25/50 real intersections within 3 km of the city center (4.4389, -75.2322) with fixed seeds, runs each case 5 times, discards the first run as warm-up and reports the median and maximum of the valid samples (`approximate=false`). Peak RSS: 81 MB. Full configuration and method: `docs/research/rnf01-measurement-2026-11-17.md`.
 
-   | Stops | Valid samples | Matrix median | Matrix max | Total median | Total max | Peak RSS |
-   |---|---|---|---|---|---|---|
-   | 10 | 4/4 | 6,235.2 ms | 6,561.3 ms | 6,235.4 ms | 6,561.6 ms | 87 MB |
-   | 25 | 4/4 | 25,596.1 ms | 26,537.5 ms | 25,597.1 ms | 26,538.7 ms | 87 MB |
-   | 50 | 4/4 | 88,375.8 ms | 88,849.7 ms | 88,390.0 ms | 88,854.6 ms | 87 MB |
+   | Stops | Valid samples | Total median | Total max | Distance | Duration |
+   |---|---|---|---|---|---|
+   | 10 | 4/4 | 4,912.6 ms | 6,794.7 ms | 38.78 km | 93.1 min |
+   | 25 | 4/4 | 21,535.6 ms | 23,368.3 ms | 48.09 km | 115.4 min |
+   | 50 | 4/4 | 73,085.2 ms | 73,224.6 ms | 66.13 km | 158.7 min |
 
-   The distance matrix accounts for ~99.9 % of the total; 2-opt stays below 25 ms. The business decision is a hard limit of **10 stops per route**, the only measured case that meets RNF01 (10 s) with the current routing implementation. The limit is `MAX_ROUTE_STOPS = 10` in `backend/src/modules/routes/constants.ts`; the validation schema rejects requests with more than 10 stops, and the create, append, assign, reassign and optimize paths enforce it. The measurement script is `backend/src/scripts/measure-optimization.ts`, and the OSM importer now sends a User-Agent to Overpass. The matrix, not 2-opt, is the bottleneck: raising the cap requires optimizing or replacing the Neo4j matrix query.
+   The distance matrix accounts for almost all the total; nearest neighbor plus 2-opt stays below 15 ms in every case. The business decision is a provisional hard limit of **10 stops per route**, the only measured case that meets RNF01 (10 s) with the current routing implementation; an earlier local measurement on 2026-11-11 with a smaller graph (31,006 intersections) showed the same conclusion. The limit is `MAX_ROUTE_STOPS = 10` in `backend/src/modules/routes/constants.ts`; the validation schema rejects requests with more than 10 stops, and the create, append, assign, reassign and optimize paths enforce it with error code `ROUTE_STOP_LIMIT_EXCEEDED` and a Spanish message. The measurement script is `backend/src/scripts/measure-optimization.ts`, and the OSM importer now sends a User-Agent to Overpass. The matrix, not 2-opt, is the bottleneck: the limit can be raised once the Neo4j matrix is optimized or replaced and the new limit is re-measured with the same script.
 5. **Possible false positive:** With the current `DEFAULT_BBOX` and small school routes, the algorithm may stay under 10 s. This does not remove the unbounded worst case.
 
 ### AUD-08 — Nearest-intersection queries scan the whole graph
@@ -305,5 +305,5 @@ Executed after the fixes on 2026-11-12:
 - `mobile`: lint and typecheck pass; 24 tests pass.
 - `pnpm lint`, `pnpm test` and `pnpm build` pass at the workspace root.
 
-Fixed: all Critical findings and every High finding (AUD-01 to AUD-19), plus Medium findings AUD-20 and AUD-21. AUD-07 was closed after the RNF01 measurement and the 10-stop limit; AUD-10 was closed after the approved index migration; AUD-11 was closed after the daily billing and expiry job was added; AUD-19 was closed after the dependency overrides; AUD-20 now checks PostgreSQL, Redis and Neo4j; AUD-21 validates JWT `type` and required claims.
+Fixed: all Critical findings and every High finding (AUD-01 to AUD-19), plus Medium findings AUD-20 and AUD-21. AUD-07 was closed after the RNF01 production measurement (2026-11-17) and the provisional 10-stop limit; AUD-10 was closed after the approved index migration; AUD-11 was closed after the daily billing and expiry job was added; AUD-19 was closed after the dependency overrides; AUD-20 now checks PostgreSQL, Redis and Neo4j; AUD-21 validates JWT `type` and required claims.
 Still open by design: Medium/Low findings AUD-22 to AUD-28, which are outside the Critical/High remediation scope.

@@ -63,7 +63,7 @@ FastRouteCO/
 
 ### Still to be defined
 
-- Maximum number of orders per route `[TO BE DEFINED]`: the limit is not defined in the requirements, so no limit is enforced.
+- Maximum number of stops per route: a provisional limit of 10 stops (`MAX_ROUTE_STOPS`) is enforced in the backend with the `ROUTE_STOP_LIMIT_EXCEEDED` error and a Spanish message. It comes from the RNF01 production measurement of 2026-11-17 (`docs/research/rnf01-measurement-2026-11-17.md`): with the current Neo4j distance matrix, only 10 stops meet the 10 s requirement. The requirements do not define a final maximum, so it remains `[TO BE DEFINED]` and can be raised once the matrix is optimized.
 - Urgent order priority influence on optimization `[TO BE DEFINED]`: the algorithm does not prioritize urgent orders yet.
 - Mobile local storage for offline mode `[TO BE DEFINED]`. Current implementation: `expo-sqlite` database `fastrouteco.db` with an `offline_queue` table for pending actions and a `route_cache` table for the cached route. Evidence photos stay in the `evidence/` folder because they are files, not records. On first start, legacy `fastrouteco-offline-queue.json` and `fastrouteco-route-cache.json` files are imported and removed.
 - Geofence radius `[TO BE DEFINED]`: 100 m is a provisional value on backend and mobile, with no HU, RF or RNF defining it. It must be validated with field tests before delivery.
@@ -158,7 +158,7 @@ Decisions taken:
 | Driver suggestion | Only active, available drivers of the company are suggested, ranked by distance from their last known route location to the order address, then by fewest pending stops, then by name. |
 | Routing engine | Neo4j with APOC Dijkstra over the imported Ibagué road network. If Neo4j is unavailable or no path exists, the backend falls back to an approximate straight-line distance (RNF08). |
 | Road network import | A backend script downloads the Ibagué bounding box from the Overpass API and loads the drivable ways into Neo4j; runtime routing never calls external services. |
-| Optimization algorithm | Deterministic nearest-neighbor construction followed by 2-opt improvement. The matrix is built from each point to all the others with one Neo4j Dijkstra call per source, so it is asymmetric (one-way streets); 2-opt recalculates the full cost of the reversed segment. The path starts at the driver start point and ends at the last stop, without returning to the start. Processing time (matrix plus algorithm) is measured against RNF01 and stored with total distance and estimated duration in `route_optimizations`. Urgent priority and the maximum number of orders per route remain `[TO BE DEFINED]`. |
+| Optimization algorithm | Deterministic nearest-neighbor construction followed by 2-opt improvement. The matrix is built with one Cypher query per origin that runs one Neo4j Dijkstra call per target, so it is asymmetric (one-way streets); 2-opt recalculates the full cost of the reversed segment. The path starts at the driver start point and ends at the last stop, without returning to the start. Processing time (matrix plus algorithm) is measured against RNF01 and stored with total distance and estimated duration in `route_optimizations`. The provisional limit is 10 stops per route, from the 2026-11-17 production measurement (`docs/research/rnf01-measurement-2026-11-17.md`); it can be raised once the matrix is optimized. Urgent priority remains `[TO BE DEFINED]`. |
 
 ### Phase 3 — Plans, credits and payments
 
