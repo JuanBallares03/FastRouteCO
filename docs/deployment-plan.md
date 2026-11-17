@@ -156,7 +156,7 @@ Commits: one per item, for example `chore(deploy): add production docker compose
    ```
    Log out and back in for the Docker group. Verify with `docker version` and `docker compose version`.
 10. **Domain.** The hostname is `<public-ip>.sslip.io` (for example `20.123.45.67.sslip.io`). sslip.io resolves it automatically, so do not create a DNS record and do not buy a domain. Set `DOMAIN=<public-ip>.sslip.io` in `production.env`. Caddy requests the Let's Encrypt certificate automatically on the first HTTPS request; ports 80 and 443 must be open. If the public IP changes, update `DOMAIN` and restart the `web` service.
-11. **First deployment.** Copy the production `.env` files to the server (`chmod 600`) and start the services; the backend applies Prisma migrations on start. Then load the Ibagué road network into Neo4j, import the Tolima extract into Nominatim and run `pnpm db:seed:admin` to create the first Platform Administrator. Do not run the demo seed in production.
+11. **First deployment.** Copy the production `.env` files to the server (`chmod 600`) and start the services; the backend applies Prisma migrations on start. Then load the Ibagué road network into Neo4j, import the Tolima extract into Nominatim and run `node dist/scripts/seed-admin.js` inside the backend container to create the first Platform Administrator. Do not run the demo seed in production.
 12. **Backups.** Configure the daily backup and copy backups outside Azure regularly.
 
 ### 4.1 Quota fallback for `Standard_B2pls_v2`

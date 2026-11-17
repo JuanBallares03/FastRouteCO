@@ -656,8 +656,21 @@ import peak; keep swappiness low so normal operation stays in RAM.
 
    ```bash
    docker compose --env-file production.env -f docker-compose.prod.yml exec backend node dist/scripts/osm-import.js
-   docker compose --env-file production.env -f docker-compose.prod.yml exec backend pnpm db:seed
-   docker compose --env-file production.env -f docker-compose.prod.yml exec backend pnpm db:seed:admin
+   docker compose --env-file production.env -f docker-compose.prod.yml exec backend node dist/scripts/seed.js
+   docker compose --env-file production.env -f docker-compose.prod.yml exec backend node dist/scripts/seed-admin.js
+   ```
+
+   The seeds run from the compiled `dist/` output, so the production container
+   does not need `pnpm`, `tsx` or development dependencies. Prefer the
+   interactive prompt for `seed-admin`: it asks for the email and the password
+   and never writes them to disk. Passing them as environment variables is also
+   supported, but they stay in the shell history:
+
+   ```bash
+   docker compose --env-file production.env -f docker-compose.prod.yml exec \
+     -e SEED_ADMIN_EMAIL=admin@example.com \
+     -e SEED_ADMIN_PASSWORD='<password>' \
+     backend node dist/scripts/seed-admin.js
    ```
 
 8. Caddy requests the HTTPS certificate automatically for
