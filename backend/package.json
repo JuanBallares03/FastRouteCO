@@ -13,7 +13,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "db:seed": "tsx src/scripts/seed.ts",
-    "db:seed:admin": "tsx scripts/seed-admin.ts",
+    "db:seed:admin": "tsx src/scripts/seed-admin.ts",
     "db:seed:demo": "tsx scripts/seed-demo.ts",
     "db:regeocode-orders": "tsx src/scripts/regeocode-orders.ts",
     "db:test:setup": "tsx scripts/setup-test-db.ts",
