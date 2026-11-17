@@ -509,6 +509,10 @@ describe('Route creation', () => {
       });
 
     expect(res.status).toBe(400);
+    expect(res.body.errors).toContainEqual({
+      field: 'body',
+      message: 'La ruta puede incluir hasta 10 paradas',
+    });
   });
 
   it('rejects appending orders beyond the 10-stop limit', async () => {
@@ -708,6 +712,7 @@ describe('Route optimization', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
+    expect(res.body.message).toBe('La ruta no puede superar 10 paradas');
   });
 });
 
