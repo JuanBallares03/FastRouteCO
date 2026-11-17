@@ -1,4 +1,4 @@
-import { PrismaClient, ServiceModality, SubscriptionStatus, BillingCycle } from '@prisma/client';
+import { PrismaClient, ServiceModality } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 const connectionString = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5433/fastrouteco?schema=public';
