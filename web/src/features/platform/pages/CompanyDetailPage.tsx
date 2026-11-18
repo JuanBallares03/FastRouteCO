@@ -7,7 +7,16 @@ import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { Avatar } from '@/components/ui/Avatar';
 import { Modal, Toast } from '@/components/ui/Modal';
+import { InvitationLinkNotice } from '@/components/ui/InvitationLinkNotice';
 import { platformApi } from '@/features/platform/api';
+import { authApi } from '@/features/auth/api';
+import { useAuth } from '@/features/auth/AuthContext';
+import {
+  buildInvitationFeedback,
+  canResendInvitation,
+  type InvitationFeedback,
+  type InvitationRole,
+} from '@/lib/invitation';
 
 interface Company {
   id: string;
@@ -34,6 +43,7 @@ interface Admin {
   role: string;
   isActive: boolean;
   isPrimary: boolean;
+  hasActivated: boolean;
 }
 
 const PLAN_LABELS: Record<string, string> = {
@@ -51,12 +61,15 @@ const STATUS_BADGE_VARIANTS: Record<string, 'success' | 'error'> = {
 
 export function CompanyDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [adminForm, setAdminForm] = useState({ fullName: '', email: '', phone: '' });
   const [adminErrors, setAdminErrors] = useState<Record<string, string>>({});
   const [savingAdmin, setSavingAdmin] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [invitationFeedback, setInvitationFeedback] = useState<InvitationFeedback | null>(null);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [companyActive, setCompanyActive] = useState(true);
   const [toast, setToast] = useState<{ show: boolean; message: string; variant: 'success' | 'error' }>({ show: false, message: '', variant: 'success' });
@@ -160,10 +173,19 @@ export function CompanyDetailPage() {
 
     setSavingAdmin(true);
     try {
-      await platformApi.createCompanyAdmin(company!.id, adminForm);
-      setToast({ show: true, message: 'Administrador creado y acceso enviado por correo', variant: 'success' });
+      const response = await platformApi.createCompanyAdmin(company!.id, adminForm);
+      const feedback = buildInvitationFeedback(
+        'Administrador creado y acceso enviado por correo',
+        response.data
+      );
       setShowAdminForm(false);
       setAdminForm({ fullName: '', email: '', phone: '' });
+      if (feedback.invitationUrl) {
+        setInvitationFeedback(feedback);
+      } else {
+        setInvitationFeedback(null);
+        setToast({ show: true, message: feedback.message, variant: 'success' });
+      }
       fetchCompany();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
@@ -173,6 +195,29 @@ export function CompanyDetailPage() {
       setSavingAdmin(false);
     }
   };
+
+  const handleResendInvitation = async (admin: Admin) => {
+    setResendingId(admin.id);
+    try {
+      const response = await authApi.resendInvitation(admin.id);
+      const feedback = buildInvitationFeedback('Invitación reenviada', response.data);
+      if (feedback.invitationUrl) {
+        setInvitationFeedback(feedback);
+      } else {
+        setInvitationFeedback(null);
+        setToast({ show: true, message: feedback.message, variant: 'success' });
+      }
+      fetchCompany();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      const message = error.response?.data?.message || 'Error al reenviar la invitación';
+      setToast({ show: true, message, variant: 'error' });
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const actorRole = (user?.role ?? 'platform_admin') as InvitationRole;
 
   const handleAdminStatusChange = async (admin: Admin) => {
     try {
@@ -267,6 +312,14 @@ export function CompanyDetailPage() {
           </div>
         </div>
       </div>
+
+      {invitationFeedback?.invitationUrl && (
+        <InvitationLinkNotice
+          message={invitationFeedback.message}
+          invitationUrl={invitationFeedback.invitationUrl}
+          onClose={() => setInvitationFeedback(null)}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-8">
         <Card className="lg:col-span-7 xl:col-span-8">
@@ -493,14 +546,32 @@ export function CompanyDetailPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant={admin.isActive ? 'secondary' : 'success'}
-                          size="sm"
-                          onClick={() => handleAdminStatusChange(admin)}
-                        >
-                          <span className="material-symbols-outlined text-[16px]">{admin.isActive ? 'person_off' : 'how_to_reg'}</span>
-                          {admin.isActive ? 'Desactivar' : 'Reactivar'}
-                        </Button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {canResendInvitation({
+                            actorRole,
+                            targetRole: 'company_admin',
+                            hasActivated: admin.hasActivated,
+                            sameCompany: true,
+                          }) && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              loading={resendingId === admin.id}
+                              onClick={() => handleResendInvitation(admin)}
+                            >
+                              <span className="material-symbols-outlined text-[16px]">forward_to_inbox</span>
+                              Reenviar invitación
+                            </Button>
+                          )}
+                          <Button
+                            variant={admin.isActive ? 'secondary' : 'success'}
+                            size="sm"
+                            onClick={() => handleAdminStatusChange(admin)}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">{admin.isActive ? 'person_off' : 'how_to_reg'}</span>
+                            {admin.isActive ? 'Desactivar' : 'Reactivar'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

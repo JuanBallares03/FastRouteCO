@@ -6,8 +6,17 @@ import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { Avatar } from '@/components/ui/Avatar';
 import { Toast } from '@/components/ui/Modal';
+import { InvitationLinkNotice } from '@/components/ui/InvitationLinkNotice';
 import { companyApi } from '@/features/company/api';
+import { authApi } from '@/features/auth/api';
+import { useAuth } from '@/features/auth/AuthContext';
 import { getApiErrorMessage, validateEmail, validatePhone, validateRequired } from '@/lib/company-validation';
+import {
+  buildInvitationFeedback,
+  canResendInvitation,
+  type InvitationFeedback,
+  type InvitationRole,
+} from '@/lib/invitation';
 
 interface Supervisor {
   id: string;
@@ -15,18 +24,22 @@ interface Supervisor {
   email: string;
   phone?: string | null;
   isActive: boolean;
+  hasActivated: boolean;
   createdAt: string;
 }
 
 const emptyForm = { fullName: '', email: '', phone: '' };
 
 export function SupervisorsPage() {
+  const { user } = useAuth();
   const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [invitationFeedback, setInvitationFeedback] = useState<InvitationFeedback | null>(null);
   const [toast, setToast] = useState<{ show: boolean; message: string; variant: 'success' | 'error' }>({
     show: false,
     message: '',
@@ -62,14 +75,23 @@ export function SupervisorsPage() {
 
     setSaving(true);
     try {
-      await companyApi.createSupervisor({
+      const response = await companyApi.createSupervisor({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone || undefined,
       });
+      const feedback = buildInvitationFeedback(
+        'Supervisor creado y acceso enviado por correo',
+        response.data
+      );
       setForm(emptyForm);
       setShowForm(false);
-      setToast({ show: true, message: 'Supervisor creado y acceso enviado por correo', variant: 'success' });
+      if (feedback.invitationUrl) {
+        setInvitationFeedback(feedback);
+      } else {
+        setInvitationFeedback(null);
+        setToast({ show: true, message: feedback.message, variant: 'success' });
+      }
       await fetchSupervisors();
     } catch (error) {
       setToast({ show: true, message: getApiErrorMessage(error, 'Error al crear el supervisor'), variant: 'error' });
@@ -77,6 +99,27 @@ export function SupervisorsPage() {
       setSaving(false);
     }
   };
+
+  const handleResend = async (supervisor: Supervisor) => {
+    setResendingId(supervisor.id);
+    try {
+      const response = await authApi.resendInvitation(supervisor.id);
+      const feedback = buildInvitationFeedback('Invitación reenviada', response.data);
+      if (feedback.invitationUrl) {
+        setInvitationFeedback(feedback);
+      } else {
+        setInvitationFeedback(null);
+        setToast({ show: true, message: feedback.message, variant: 'success' });
+      }
+      await fetchSupervisors();
+    } catch (error) {
+      setToast({ show: true, message: getApiErrorMessage(error, 'Error al reenviar la invitación'), variant: 'error' });
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const actorRole = (user?.role ?? 'supervisor') as InvitationRole;
 
   const toggleStatus = async (supervisor: Supervisor) => {
     try {
@@ -108,6 +151,14 @@ export function SupervisorsPage() {
           Nuevo supervisor
         </Button>
       </header>
+
+      {invitationFeedback?.invitationUrl && (
+        <InvitationLinkNotice
+          message={invitationFeedback.message}
+          invitationUrl={invitationFeedback.invitationUrl}
+          onClose={() => setInvitationFeedback(null)}
+        />
+      )}
 
       {showForm && (
         <Card>
@@ -190,13 +241,31 @@ export function SupervisorsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant={supervisor.isActive ? 'secondary' : 'success'}
-                          onClick={() => toggleStatus(supervisor)}
-                        >
-                          {supervisor.isActive ? 'Desactivar' : 'Reactivar'}
-                        </Button>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                          {canResendInvitation({
+                            actorRole,
+                            targetRole: 'supervisor',
+                            hasActivated: supervisor.hasActivated,
+                            sameCompany: true,
+                          }) && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              loading={resendingId === supervisor.id}
+                              onClick={() => handleResend(supervisor)}
+                            >
+                              <span className="material-symbols-outlined text-[16px]">forward_to_inbox</span>
+                              Reenviar invitación
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant={supervisor.isActive ? 'secondary' : 'success'}
+                            onClick={() => toggleStatus(supervisor)}
+                          >
+                            {supervisor.isActive ? 'Desactivar' : 'Reactivar'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
