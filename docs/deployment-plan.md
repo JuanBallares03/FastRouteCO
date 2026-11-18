@@ -179,11 +179,18 @@ az vm list-usage --location westus3 --output table
 | Service | Production requirement |
 |---|---|
 | Domain | `<public-ip>.sslip.io` from sslip.io; no purchase and no DNS record |
-| Resend | Verified domain (in development it only delivers to the account email) |
+| Resend | Verified domain; `EMAIL_FROM` points to an address on it. Without a verified domain, `onboarding@resend.dev` only delivers to the account email (known limitation) |
 | Wompi | Production keys and webhook URL pointing to the deployed backend |
 | Cloudinary | Production account and keys |
 | Map tiles | Provider [TO BE DEFINED] (OpenFreeMap is only for development) |
 | EAS Build | Expo account; Android build with the production API URL |
+
+Resend sender: `EMAIL_FROM` defaults to `FastRouteCO <onboarding@resend.dev>`.
+Known limitation: without a verified domain, Resend only delivers to the email
+address of the Resend account. Any other recipient is rejected with a 403 and
+the email is not sent. Verify a domain, set `EMAIL_FROM` to an address on it and
+redeploy the backend. Failed sends are logged with the Resend error code and
+message.
 
 ## 6. Smoke tests after deployment
 

@@ -28,16 +28,29 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   }
 
   try {
-    await client.emails.send({
-      from: 'FastRouteCO <noreply@fastrouteco.com>',
+    const { error } = await client.emails.send({
+      from: env.EMAIL_FROM,
       to: options.to,
       subject: options.subject,
       html: options.html,
       text: options.text,
     });
+
+    if (error) {
+      console.error('[email] Failed to send email:', {
+        code: error.name,
+        statusCode: error.statusCode,
+        message: error.message,
+      });
+      return false;
+    }
+
     return true;
   } catch (error) {
-    console.error('[email] Failed to send email:', error);
+    console.error('[email] Failed to send email:', {
+      code: error instanceof Error ? error.name : 'unknown_error',
+      message: error instanceof Error ? error.message : String(error),
+    });
     return false;
   }
 }
