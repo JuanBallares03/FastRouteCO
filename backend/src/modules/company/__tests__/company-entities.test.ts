@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import crypto from 'crypto';
@@ -6,6 +6,15 @@ import { UserRole, CompanyStatus, SubscriptionStatus, ServiceModality, DriverSta
 import companyRoutes from '../company.routes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { hashPassword, createTokenPair } from '../../auth/auth.service.js';
+
+const { sendInvitationEmailMock } = vi.hoisted(() => ({
+  sendInvitationEmailMock: vi.fn(),
+}));
+
+vi.mock('../../../lib/email.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/email.js')>();
+  return { ...actual, sendInvitationEmail: sendInvitationEmailMock };
+});
 
 const app = express();
 app.use(express.json());
@@ -164,6 +173,9 @@ afterAll(async () => {
 beforeEach(async () => {
   const manageableRoles = [UserRole.supervisor, UserRole.driver];
 
+  sendInvitationEmailMock.mockReset();
+  sendInvitationEmailMock.mockResolvedValue(false);
+
   await prisma.userInvitation.deleteMany({
     where: { user: { companyId: { in: companyIds } } },
   });
@@ -305,11 +317,34 @@ describe('Company supervisors (HU-25)', () => {
     expect(res.body.user.role).toBe(UserRole.supervisor);
     expect(res.body.user.isActive).toBe(true);
     expect(res.body.invitationUrl).toContain('/set-password?token=');
+    expect(res.body.emailSent).toBe(false);
 
     const user = await prisma.user.findUnique({ where: { email } });
     expect(user).not.toBeNull();
     expect(user!.passwordHash).toBeNull();
     expect(user!.companyId).toBe(COMPANY_ID);
+  });
+
+  it('reports a successful invitation email when it is delivered', async () => {
+    sendInvitationEmailMock.mockResolvedValue(true);
+
+    const res = await request(app)
+      .post('/api/v1/company/supervisors')
+      .set(authHeader(companyAdminToken))
+      .send({ fullName: 'Supervisor Correo', email: `new-supervisor-${crypto.randomUUID()}@test.com` });
+
+    expect(res.status).toBe(201);
+    expect(res.body.emailSent).toBe(true);
+    expect(res.body.invitationUrl).toContain('/set-password?token=');
+  });
+
+  it('lists supervisors with their activation state', async () => {
+    const res = await request(app)
+      .get('/api/v1/company/supervisors')
+      .set(authHeader(companyAdminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].hasActivated).toBe(true);
   });
 
   it('lists only supervisors of its own company', async () => {
@@ -397,6 +432,7 @@ describe('Company drivers (HU-27, RF03)', () => {
     expect(res.body.user.role).toBe(UserRole.driver);
     expect(res.body.user.status).toBe(DriverStatus.unavailable);
     expect(res.body.invitationUrl).toContain('/set-password?token=');
+    expect(res.body.emailSent).toBe(false);
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -405,6 +441,16 @@ describe('Company drivers (HU-27, RF03)', () => {
     expect(user).not.toBeNull();
     expect(user!.companyId).toBe(COMPANY_ID);
     expect(user!.driver?.status).toBe(DriverStatus.unavailable);
+  });
+
+  it('reports a successful invitation email when it is delivered', async () => {
+    sendInvitationEmailMock.mockResolvedValue(true);
+
+    const res = await createDriver(`driver-${crypto.randomUUID()}@test.com`);
+
+    expect(res.status).toBe(201);
+    expect(res.body.emailSent).toBe(true);
+    expect(res.body.invitationUrl).toContain('/set-password?token=');
   });
 
   it('allows supervisors to create drivers', async () => {
@@ -436,6 +482,7 @@ describe('Company drivers (HU-27, RF03)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].status).toBe(DriverStatus.unavailable);
+    expect(res.body[0].hasActivated).toBe(false);
   });
 
   it('rejects more drivers than the active plan allows', async () => {

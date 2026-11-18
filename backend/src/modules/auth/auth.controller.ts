@@ -160,14 +160,20 @@ export async function resendInvitationHandler(
       return;
     }
 
-    const invitationUrl = await resendInvitation(userId, actor);
+    const delivery = await resendInvitation(userId, actor);
 
-    if (!invitationUrl) {
+    if (!delivery) {
       res.status(404).json({ message: 'Usuario no encontrado' });
       return;
     }
 
-    res.json({ message: 'Invitación reenviada' });
+    res.json({
+      message: delivery.emailSent
+        ? 'Invitación reenviada'
+        : 'No pudimos enviar el correo. Comparte el enlace con la persona.',
+      invitationUrl: delivery.invitationUrl,
+      emailSent: delivery.emailSent,
+    });
   } catch (error) {
     next(error);
   }

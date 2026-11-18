@@ -173,6 +173,7 @@ export async function getCompanyById(id: string) {
           phone: true,
           isActive: true,
           createdAt: true,
+          passwordHash: true,
         },
       },
     },
@@ -180,10 +181,15 @@ export async function getCompanyById(id: string) {
 
   if (!company) return null;
 
+  const { users, subscriptions, ...companyData } = company;
+
   return {
-    ...company,
-    activeSubscription: company.subscriptions[0] ?? null,
-    admins: company.users,
+    ...companyData,
+    activeSubscription: subscriptions[0] ?? null,
+    admins: users.map(({ passwordHash, ...admin }) => ({
+      ...admin,
+      hasActivated: passwordHash !== null,
+    })),
   };
 }
 
@@ -238,11 +244,15 @@ export async function listCompanyAdmins(companyId: string) {
       isActive: true,
       role: true,
       createdAt: true,
+      passwordHash: true,
     },
     orderBy: { createdAt: 'desc' },
   });
 
-  return admins;
+  return admins.map(({ passwordHash, ...admin }) => ({
+    ...admin,
+    hasActivated: passwordHash !== null,
+  }));
 }
 
 export async function createCompanyAdmin(
@@ -271,9 +281,9 @@ export async function createCompanyAdmin(
     },
   });
 
-  const invitationUrl = await createInvitationForUser(user.id);
+  const invitation = await createInvitationForUser(user.id);
 
-  return { user, invitationUrl };
+  return { user, ...invitation };
 }
 
 export async function updateCompanyAdminStatus(

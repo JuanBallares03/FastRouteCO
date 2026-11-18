@@ -90,8 +90,8 @@ export async function listCompanyAdminsHandler(req: Request, res: Response, next
 export async function createCompanyAdminHandler(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params as { id: string };
-    const { user, invitationUrl } = await createCompanyAdmin(id, req.body);
-    res.status(201).json({ user, invitationUrl });
+    const result = await createCompanyAdmin(id, req.body);
+    res.status(201).json(result);
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);
