@@ -164,3 +164,15 @@ As built:
 - `scripts/backup-postgres.sh` writes a daily compressed `pg_dump` and keeps the last 7 files; the README includes the cron entry and restore command.
 - README deployment section in English: first deployment, migrations, seed, road-network import, backups, updates and mobile release builds.
 - Pending external to the repository: VM and domain creation, production Wompi, Resend and Cloudinary credentials, production map tile provider, and Android/iOS builds with EAS.
+
+## Invitation delivery feedback
+
+Scope:
+- Make failed invitation emails visible and keep the account usable through the invitation link (HU-19, HU-25, HU-27, RF27).
+
+As built:
+- Company Administrator, supervisor and driver creation responses include `emailSent` and `invitationUrl`. The invitation URL is built from `WEB_APP_URL`, and `docker-compose.prod.yml` sets it to `https://${DOMAIN}`.
+- `POST /api/v1/auth/resend-invitation/:userId` returns `emailSent` and `invitationUrl`, and its message differs when the email could not be sent. Permissions are unchanged: a Platform Administrator can resend to anyone, and a Company Administrator only to supervisors and drivers of their own company.
+- The web shows the current success message when `emailSent` is `true`. Otherwise it shows "No pudimos enviar el correo. Comparte este enlace con la persona:", the invitation link and a "Copiar enlace" button.
+- Company Administrator, supervisor and driver lists include `hasActivated` and offer "Reenviar invitación" only while the account has no password.
+
