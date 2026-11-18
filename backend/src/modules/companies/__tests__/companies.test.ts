@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import crypto from 'crypto';
@@ -7,6 +7,15 @@ import platformRoutes from '../companies.routes.js';
 import authRoutes from '../../auth/auth.routes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { hashPassword, createTokenPair } from '../../auth/auth.service.js';
+
+const { sendInvitationEmailMock } = vi.hoisted(() => ({
+  sendInvitationEmailMock: vi.fn(),
+}));
+
+vi.mock('../../../lib/email.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/email.js')>();
+  return { ...actual, sendInvitationEmail: sendInvitationEmailMock };
+});
 
 const app = express();
 app.use(express.json());
@@ -84,6 +93,9 @@ afterAll(async () => {
 beforeEach(async () => {
   await prisma.refreshToken.deleteMany({ where: { userId: PLATFORM_ADMIN_ID } });
   await prisma.userInvitation.deleteMany({ where: { user: { companyId: { not: null } } } });
+
+  sendInvitationEmailMock.mockReset();
+  sendInvitationEmailMock.mockResolvedValue(false);
   
   const testCompanies = await prisma.company.findMany({
     where: { legalName: { startsWith: TEST_PREFIX } },
@@ -612,6 +624,7 @@ describe('Companies Module', () => {
       expect(res.body.user.isActive).toBe(true);
       expect(res.body.user.passwordHash).toBeNull();
       expect(res.body.invitationUrl).toContain('/set-password?token=');
+      expect(res.body.emailSent).toBe(false);
 
       const user = await prisma.user.findUnique({ where: { email: newAdminEmail } });
       expect(user).not.toBeNull();
@@ -620,6 +633,56 @@ describe('Companies Module', () => {
       const invitation = await prisma.userInvitation.findFirst({ where: { userId: user!.id } });
       expect(invitation).not.toBeNull();
       expect(invitation!.usedAt).toBeNull();
+    });
+
+    it('should report a successful invitation email when it is delivered', async () => {
+      sendInvitationEmailMock.mockResolvedValue(true);
+
+      const res = await request(app)
+        .post(`/api/v1/platform/companies/${companyId}/admins`)
+        .set(authHeader())
+        .send({
+          fullName: 'Admin With Email',
+          email: uniqueEmail('newadmin'),
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.emailSent).toBe(true);
+      expect(res.body.invitationUrl).toContain('/set-password?token=');
+    });
+
+    it('should expose whether an admin has activated the account', async () => {
+      const created = await request(app)
+        .post(`/api/v1/platform/companies/${companyId}/admins`)
+        .set(authHeader())
+        .send({
+          fullName: 'Pending Admin',
+          email: uniqueEmail('pending'),
+        });
+
+      const pendingDetail = await request(app)
+        .get(`/api/v1/platform/companies/${companyId}`)
+        .set(authHeader());
+
+      const pendingAdmin = pendingDetail.body.admins.find(
+        (admin: { id: string }) => admin.id === created.body.user.id
+      );
+      expect(pendingAdmin.hasActivated).toBe(false);
+      expect(pendingAdmin.passwordHash).toBeUndefined();
+
+      await prisma.user.update({
+        where: { id: created.body.user.id },
+        data: { passwordHash: await hashPassword('Password123!') },
+      });
+
+      const activatedDetail = await request(app)
+        .get(`/api/v1/platform/companies/${companyId}`)
+        .set(authHeader());
+
+      const activatedAdmin = activatedDetail.body.admins.find(
+        (admin: { id: string }) => admin.id === created.body.user.id
+      );
+      expect(activatedAdmin.hasActivated).toBe(true);
     });
 
     it('should reject duplicate email', async () => {

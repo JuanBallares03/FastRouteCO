@@ -12,4 +12,7 @@ export const authApi = {
 
   me: () =>
     api.get('/auth/me'),
+
+  resendInvitation: (userId: string) =>
+    api.post(`/auth/resend-invitation/${userId}`),
 };

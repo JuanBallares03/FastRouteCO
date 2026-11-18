@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import bcrypt from 'bcryptjs';
@@ -22,6 +22,15 @@ import {
   CompanyInactiveError,
 } from '../auth.service.js';
 import { prisma } from '../../../lib/prisma.js';
+
+const { sendInvitationEmailMock } = vi.hoisted(() => ({
+  sendInvitationEmailMock: vi.fn(),
+}));
+
+vi.mock('../../../lib/email.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/email.js')>();
+  return { ...actual, sendInvitationEmail: sendInvitationEmailMock };
+});
 
 const app = express();
 app.use(express.json());
@@ -90,6 +99,8 @@ beforeEach(async () => {
   await prisma.userInvitation.deleteMany({ where: { userId: TEST_USER_ID } });
   emailCounter = 0;
   taxIdCounter = 0;
+  sendInvitationEmailMock.mockReset();
+  sendInvitationEmailMock.mockResolvedValue(false);
 });
 
 describe('Auth Service', () => {
@@ -254,7 +265,7 @@ describe('Auth Service', () => {
           isActive: true,
         },
       });
-      const invitationUrl = await createInvitationForUser(userId);
+      const { invitationUrl } = await createInvitationForUser(userId);
       const token = invitationUrl.split('token=')[1];
 
       const result = await acceptInvitation(token, 'NewPass123!@#');
@@ -283,7 +294,7 @@ describe('Auth Service', () => {
           isActive: true,
         },
       });
-      const invitationUrl = await createInvitationForUser(userId);
+      const { invitationUrl } = await createInvitationForUser(userId);
       const token = invitationUrl.split('token=')[1];
 
       await acceptInvitation(token, 'NewPass123!@#');
@@ -336,18 +347,73 @@ describe('Auth Service', () => {
           isActive: true,
         },
       });
-      const url1 = await createInvitationForUser(userId);
-      const url2 = await resendInvitation(userId, {
+      const url1 = (await createInvitationForUser(userId)).invitationUrl;
+      const delivery = await resendInvitation(userId, {
         role: 'platform_admin',
         companyId: null,
       });
 
-      expect(url2).not.toBe(url1);
-      expect(url2).toContain('/set-password?token=');
+      expect(delivery).not.toBeNull();
+      expect(delivery!.invitationUrl).not.toBe(url1);
+      expect(delivery!.invitationUrl).toContain('/set-password?token=');
 
       const token1 = url1.split('token=')[1];
       const result = await acceptInvitation(token1, 'NewPass123!@#');
       expect(result).toBeNull();
+
+      await prisma.user.delete({ where: { id: userId } });
+    });
+
+    it('should report a successful email delivery', async () => {
+      const userId = crypto.randomUUID();
+      await prisma.user.create({
+        data: {
+          id: userId,
+          companyId: TEST_COMPANY_ID,
+          role: UserRole.driver,
+          fullName: 'Driver User',
+          email: uniqueEmail('auth-test-delivery'),
+          isActive: true,
+        },
+      });
+      sendInvitationEmailMock.mockResolvedValue(true);
+
+      const delivery = await resendInvitation(userId, {
+        role: 'platform_admin',
+        companyId: null,
+      });
+
+      expect(delivery).toEqual({
+        invitationUrl: expect.stringContaining('/set-password?token='),
+        emailSent: true,
+      });
+      expect(sendInvitationEmailMock).toHaveBeenCalledTimes(1);
+
+      await prisma.user.delete({ where: { id: userId } });
+    });
+
+    it('should report a failed email delivery', async () => {
+      const userId = crypto.randomUUID();
+      await prisma.user.create({
+        data: {
+          id: userId,
+          companyId: TEST_COMPANY_ID,
+          role: UserRole.driver,
+          fullName: 'Driver User',
+          email: uniqueEmail('auth-test-delivery'),
+          isActive: true,
+        },
+      });
+      sendInvitationEmailMock.mockResolvedValue(false);
+
+      const delivery = await resendInvitation(userId, {
+        role: 'platform_admin',
+        companyId: null,
+      });
+
+      expect(delivery).not.toBeNull();
+      expect(delivery!.emailSent).toBe(false);
+      expect(delivery!.invitationUrl).toContain('/set-password?token=');
 
       await prisma.user.delete({ where: { id: userId } });
     });
@@ -476,7 +542,7 @@ describe('Auth API Endpoints', () => {
           isActive: true,
         },
       });
-      const invitationUrl = await createInvitationForUser(userId);
+      const { invitationUrl } = await createInvitationForUser(userId);
       const token = invitationUrl.split('token=')[1];
 
       const res = await request(app)
@@ -514,7 +580,7 @@ describe('Auth API Endpoints', () => {
       expect(res.status).toBe(401);
     });
 
-    it('should resend an invitation to a driver of the same company without returning the token', async () => {
+    it('should resend an invitation and report delivery details when the email fails', async () => {
       const driverId = crypto.randomUUID();
       await prisma.user.create({
         data: {
@@ -537,10 +603,90 @@ describe('Auth API Endpoints', () => {
           .set('Authorization', `Bearer ${loginRes.body.accessToken}`);
 
         expect(res.status).toBe(200);
-        expect(res.body.invitationUrl).toBeUndefined();
+        expect(res.body.emailSent).toBe(false);
+        expect(res.body.invitationUrl).toContain('/set-password?token=');
+        expect(res.body.message).toBe(
+          'No pudimos enviar el correo. Comparte el enlace con la persona.'
+        );
       } finally {
         await prisma.userInvitation.deleteMany({ where: { userId: driverId } });
         await prisma.user.delete({ where: { id: driverId } });
+      }
+    });
+
+    it('should report a successful resend when the email is delivered', async () => {
+      const driverId = crypto.randomUUID();
+      await prisma.user.create({
+        data: {
+          id: driverId,
+          companyId: TEST_COMPANY_ID,
+          role: UserRole.driver,
+          fullName: 'Driver To Invite',
+          email: uniqueEmail('auth-test-driver'),
+          isActive: true,
+        },
+      });
+      sendInvitationEmailMock.mockResolvedValue(true);
+
+      try {
+        const loginRes = await request(app)
+          .post('/api/v1/auth/login')
+          .send({ email: 'test@company.com', password: TEST_PASSWORD });
+
+        const res = await request(app)
+          .post(`/api/v1/auth/resend-invitation/${driverId}`)
+          .set('Authorization', `Bearer ${loginRes.body.accessToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.emailSent).toBe(true);
+        expect(res.body.invitationUrl).toContain('/set-password?token=');
+        expect(res.body.message).toBe('Invitación reenviada');
+      } finally {
+        await prisma.userInvitation.deleteMany({ where: { userId: driverId } });
+        await prisma.user.delete({ where: { id: driverId } });
+      }
+    });
+
+    it('should not let a company admin resend an invitation to another company admin', async () => {
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: 'test@company.com', password: TEST_PASSWORD });
+
+      const res = await request(app)
+        .post(`/api/v1/auth/resend-invitation/${TEST_USER_ID}`)
+        .set('Authorization', `Bearer ${loginRes.body.accessToken}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it('should let a platform admin resend an invitation to a company admin', async () => {
+      const platformAdminId = crypto.randomUUID();
+      const platformAdmin = await prisma.user.create({
+        data: {
+          id: platformAdminId,
+          role: UserRole.platform_admin,
+          fullName: 'Platform Admin',
+          email: uniqueEmail('auth-test-platform'),
+          passwordHash: TEST_PASSWORD_HASH,
+          isActive: true,
+        },
+      });
+      sendInvitationEmailMock.mockResolvedValue(true);
+
+      try {
+        const tokens = await createTokenPair(platformAdmin);
+
+        const res = await request(app)
+          .post(`/api/v1/auth/resend-invitation/${TEST_USER_ID}`)
+          .set('Authorization', `Bearer ${tokens.accessToken}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.emailSent).toBe(true);
+        expect(res.body.invitationUrl).toContain('/set-password?token=');
+      } finally {
+        await prisma.refreshToken.deleteMany({ where: { userId: platformAdminId } });
+        await prisma.userInvitation.deleteMany({ where: { userId: TEST_USER_ID } });
+        await prisma.user.delete({ where: { id: platformAdminId } });
       }
     });
 

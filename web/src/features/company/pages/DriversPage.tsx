@@ -7,7 +7,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/Table';
 import { Avatar } from '@/components/ui/Avatar';
 import { Toast } from '@/components/ui/Modal';
+import { InvitationLinkNotice } from '@/components/ui/InvitationLinkNotice';
 import { companyApi } from '@/features/company/api';
+import { authApi } from '@/features/auth/api';
+import { useAuth } from '@/features/auth/AuthContext';
 import {
   DRIVER_STATUS_LABELS,
   getApiErrorMessage,
@@ -16,6 +19,12 @@ import {
   validateRequired,
   type DriverStatus,
 } from '@/lib/company-validation';
+import {
+  buildInvitationFeedback,
+  canResendInvitation,
+  type InvitationFeedback,
+  type InvitationRole,
+} from '@/lib/invitation';
 
 interface Driver {
   id: string;
@@ -24,6 +33,7 @@ interface Driver {
   phone?: string | null;
   isActive: boolean;
   status: DriverStatus;
+  hasActivated: boolean;
 }
 
 interface CompanyProfile {
@@ -39,6 +49,7 @@ const statusBadgeVariant: Record<DriverStatus, 'success' | 'warning' | 'neutral'
 };
 
 export function DriversPage() {
+  const { user } = useAuth();
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [maxDrivers, setMaxDrivers] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -48,6 +59,8 @@ export function DriversPage() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [invitationFeedback, setInvitationFeedback] = useState<InvitationFeedback | null>(null);
   const [toast, setToast] = useState<{ show: boolean; message: string; variant: 'success' | 'error' }>({
     show: false,
     message: '',
@@ -87,14 +100,23 @@ export function DriversPage() {
 
     setSaving(true);
     try {
-      await companyApi.createDriver({
+      const response = await companyApi.createDriver({
         fullName: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone || undefined,
       });
+      const feedback = buildInvitationFeedback(
+        'Conductor creado y acceso enviado por correo',
+        response.data
+      );
       setForm(emptyForm);
       setShowForm(false);
-      setToast({ show: true, message: 'Conductor creado y acceso enviado por correo', variant: 'success' });
+      if (feedback.invitationUrl) {
+        setInvitationFeedback(feedback);
+      } else {
+        setInvitationFeedback(null);
+        setToast({ show: true, message: feedback.message, variant: 'success' });
+      }
       await fetchData();
     } catch (error) {
       setToast({ show: true, message: getApiErrorMessage(error, 'Error al crear el conductor'), variant: 'error' });
@@ -102,6 +124,27 @@ export function DriversPage() {
       setSaving(false);
     }
   };
+
+  const handleResend = async (driver: Driver) => {
+    setResendingId(driver.id);
+    try {
+      const response = await authApi.resendInvitation(driver.id);
+      const feedback = buildInvitationFeedback('Invitación reenviada', response.data);
+      if (feedback.invitationUrl) {
+        setInvitationFeedback(feedback);
+      } else {
+        setInvitationFeedback(null);
+        setToast({ show: true, message: feedback.message, variant: 'success' });
+      }
+      await fetchData();
+    } catch (error) {
+      setToast({ show: true, message: getApiErrorMessage(error, 'Error al reenviar la invitación'), variant: 'error' });
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const actorRole = (user?.role ?? 'supervisor') as InvitationRole;
 
   const startEdit = (driver: Driver) => {
     setEditingId(driver.id);
@@ -170,6 +213,14 @@ export function DriversPage() {
           Nuevo conductor
         </Button>
       </header>
+
+      {invitationFeedback?.invitationUrl && (
+        <InvitationLinkNotice
+          message={invitationFeedback.message}
+          invitationUrl={invitationFeedback.invitationUrl}
+          onClose={() => setInvitationFeedback(null)}
+        />
+      )}
 
       <div className="flex items-center gap-2 font-label-md text-label-md text-on-surface-variant">
         <span className="material-symbols-outlined text-[18px]">info</span>
@@ -303,6 +354,22 @@ export function DriversPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right space-x-2">
+                            {canResendInvitation({
+                              actorRole,
+                              targetRole: 'driver',
+                              hasActivated: driver.hasActivated,
+                              sameCompany: true,
+                            }) && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                loading={resendingId === driver.id}
+                                onClick={() => handleResend(driver)}
+                              >
+                                <span className="material-symbols-outlined text-[16px]">forward_to_inbox</span>
+                                Reenviar invitación
+                              </Button>
+                            )}
                             <Button size="sm" variant="secondary" onClick={() => startEdit(driver)}>
                               <span className="material-symbols-outlined text-[16px]">edit</span>
                               Editar

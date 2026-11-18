@@ -136,11 +136,16 @@ const userSelect = {
 } as const;
 
 export async function listSupervisors(companyId: string) {
-  return prisma.user.findMany({
+  const supervisors = await prisma.user.findMany({
     where: { companyId, role: UserRole.supervisor },
-    select: userSelect,
+    select: { ...userSelect, passwordHash: true },
     orderBy: { createdAt: 'desc' },
   });
+
+  return supervisors.map(({ passwordHash, ...supervisor }) => ({
+    ...supervisor,
+    hasActivated: passwordHash !== null,
+  }));
 }
 
 export async function createSupervisor(
@@ -165,9 +170,9 @@ export async function createSupervisor(
     select: userSelect,
   });
 
-  const invitationUrl = await createInvitationForUser(user.id);
+  const invitation = await createInvitationForUser(user.id);
 
-  return { user, invitationUrl };
+  return { user, ...invitation };
 }
 
 export async function updateSupervisorStatus(
@@ -209,6 +214,7 @@ export async function listDrivers(companyId: string) {
     phone: user.phone,
     isActive: user.isActive,
     status: user.driver?.status ?? DriverStatus.unavailable,
+    hasActivated: user.passwordHash !== null,
     createdAt: user.createdAt,
   }));
 }
@@ -258,9 +264,9 @@ export async function createDriver(
     return created;
   });
 
-  const invitationUrl = await createInvitationForUser(user.id);
+  const invitation = await createInvitationForUser(user.id);
 
-  return { user: { ...user, status: DriverStatus.unavailable }, invitationUrl };
+  return { user: { ...user, status: DriverStatus.unavailable }, ...invitation };
 }
 
 export async function updateDriver(

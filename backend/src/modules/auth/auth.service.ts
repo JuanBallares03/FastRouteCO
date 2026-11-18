@@ -261,10 +261,33 @@ interface InvitationActor {
   companyId: string | null;
 }
 
+export interface InvitationDelivery {
+  invitationUrl: string;
+  emailSent: boolean;
+}
+
+async function deliverInvitationEmail(
+  user: UserWithCompany,
+  invitationUrl: string,
+  expiresInHours: number
+): Promise<boolean> {
+  if (!user.company) {
+    return false;
+  }
+
+  return sendInvitationEmail(
+    user.email,
+    user.fullName,
+    invitationUrl,
+    user.company.legalName,
+    expiresInHours
+  );
+}
+
 export async function resendInvitation(
   userId: string,
   actor: InvitationActor
-): Promise<string | null> {
+): Promise<InvitationDelivery | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { company: true, invitations: { where: { usedAt: null } } },
@@ -300,21 +323,16 @@ export async function resendInvitation(
   });
 
   const invitationUrl = `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
-  
-  if (user.company) {
-    await sendInvitationEmail(
-      user.email,
-      user.fullName,
-      invitationUrl,
-      user.company.legalName,
-      settings.invitation_expiry_hours
-    );
-  }
+  const emailSent = await deliverInvitationEmail(
+    user,
+    invitationUrl,
+    settings.invitation_expiry_hours
+  );
 
-  return invitationUrl;
+  return { invitationUrl, emailSent };
 }
 
-export async function createInvitationForUser(userId: string): Promise<string> {
+export async function createInvitationForUser(userId: string): Promise<InvitationDelivery> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { company: true },
@@ -337,18 +355,13 @@ export async function createInvitationForUser(userId: string): Promise<string> {
   });
 
   const invitationUrl = `${env.WEB_APP_URL}/set-password?token=${tokenRaw}`;
-  
-  if (user.company) {
-    await sendInvitationEmail(
-      user.email,
-      user.fullName,
-      invitationUrl,
-      user.company.legalName,
-      settings.invitation_expiry_hours
-    );
-  }
+  const emailSent = await deliverInvitationEmail(
+    user,
+    invitationUrl,
+    settings.invitation_expiry_hours
+  );
 
-  return invitationUrl;
+  return { invitationUrl, emailSent };
 }
 
 function mapToAuthUser(
