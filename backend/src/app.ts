@@ -18,6 +18,7 @@ import reportRoutes from './modules/reports/reports.routes.js';
 import studentRoutes from './modules/students/students.routes.js';
 import healthRoutes from './modules/health/health.routes.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { authenticate, authorize } from './middleware/auth.js';
 import { createAuthenticatedApiRateLimiters } from './middleware/api-rate-limit.js';
 
 export function createApp(): Express {
@@ -41,8 +42,8 @@ export function createApp(): Express {
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/platform', platformRoutes);
   app.use('/api/v1/platform', offeringRoutes);
+  app.use('/api/v1/company/billing', authenticate, authorize('company_admin'), billingRoutes);
   app.use('/api/v1/company', companyRoutes);
-  app.use('/api/v1/company', billingRoutes);
   app.use('/api/v1/orders', orderRoutes);
   app.use('/api/v1/routes', routeRoutes);
   app.use('/api/v1/payments', paymentRoutes);

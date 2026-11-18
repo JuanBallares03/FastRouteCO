@@ -21,7 +21,6 @@ import {
   subscribeSchema,
   updateSpendingLimitSchema,
 } from './billing.validation.js';
-import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import { createRateLimiter } from '../../lib/rate-limit.js';
 
@@ -34,25 +33,22 @@ const cardSetupLimiter = createRateLimiter({
   skip: () => process.env.NODE_ENV === 'test',
 });
 
-router.use('/billing', authenticate);
-router.use('/billing', authorize('company_admin'));
-
-router.get('/billing', getBillingHandler);
-router.get('/billing/offerings', getOfferingsHandler);
-router.get('/billing/usage', getUsageHandler);
-router.get('/billing/transactions', validate(listBillingHistorySchema), listTransactionsHandler);
-router.get('/billing/payments', validate(listBillingHistorySchema), listPaymentsHandler);
-router.get('/billing/usage-charges', validate(listBillingHistorySchema), listUsageChargesHandler);
-router.post('/billing/subscription', validate(subscribeSchema), subscribeHandler);
-router.post('/billing/credits/purchase', validate(purchaseCreditsSchema), purchaseCreditsHandler);
-router.post('/billing/modules/purchase', validate(purchaseModuleSchema), purchaseModuleHandler);
-router.post('/billing/pay-per-use/setup', cardSetupLimiter, createCardSetupHandler);
+router.get('/', getBillingHandler);
+router.get('/offerings', getOfferingsHandler);
+router.get('/usage', getUsageHandler);
+router.get('/transactions', validate(listBillingHistorySchema), listTransactionsHandler);
+router.get('/payments', validate(listBillingHistorySchema), listPaymentsHandler);
+router.get('/usage-charges', validate(listBillingHistorySchema), listUsageChargesHandler);
+router.post('/subscription', validate(subscribeSchema), subscribeHandler);
+router.post('/credits/purchase', validate(purchaseCreditsSchema), purchaseCreditsHandler);
+router.post('/modules/purchase', validate(purchaseModuleSchema), purchaseModuleHandler);
+router.post('/pay-per-use/setup', cardSetupLimiter, createCardSetupHandler);
 router.post(
-  '/billing/pay-per-use/card',
+  '/pay-per-use/card',
   cardSetupLimiter,
   validate(registerCardSchema),
   registerCardHandler
 );
-router.patch('/billing/spending-limit', validate(updateSpendingLimitSchema), updateSpendingLimitHandler);
+router.patch('/spending-limit', validate(updateSpendingLimitSchema), updateSpendingLimitHandler);
 
 export default router;

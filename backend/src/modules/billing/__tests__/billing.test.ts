@@ -17,6 +17,7 @@ import paymentRoutes from '../payments.routes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { env } from '../../../env.js';
 import { createTokenPair, hashPassword } from '../../auth/auth.service.js';
+import { authenticate, authorize } from '../../../middleware/auth.js';
 import { buildPaymentReference } from '../billing.service.js';
 import {
   addDays,
@@ -29,7 +30,7 @@ import {
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use('/api/v1/company', billingRoutes);
+app.use('/api/v1/company/billing', authenticate, authorize('company_admin'), billingRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 
 const chargePaymentSource = vi.fn();
