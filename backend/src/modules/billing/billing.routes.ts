@@ -34,8 +34,8 @@ const cardSetupLimiter = createRateLimiter({
   skip: () => process.env.NODE_ENV === 'test',
 });
 
-router.use(authenticate);
-router.use(authorize('company_admin'));
+router.use('/billing', authenticate);
+router.use('/billing', authorize('company_admin'));
 
 router.get('/billing', getBillingHandler);
 router.get('/billing/offerings', getOfferingsHandler);
