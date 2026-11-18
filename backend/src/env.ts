@@ -31,6 +31,8 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET!,
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET!,
   RESEND_API_KEY: process.env.RESEND_API_KEY!,
+  EMAIL_FROM:
+    process.env.EMAIL_FROM?.trim() || 'FastRouteCO <onboarding@resend.dev>',
   WOMPI_PUBLIC_KEY: process.env.WOMPI_PUBLIC_KEY!,
   WOMPI_PRIVATE_KEY: process.env.WOMPI_PRIVATE_KEY!,
   WOMPI_EVENTS_SECRET: process.env.WOMPI_EVENTS_SECRET!,

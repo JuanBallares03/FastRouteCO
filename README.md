@@ -640,9 +640,9 @@ import peak; keep swappiness low so normal operation stays in RAM.
    Fill in `production.env` (`DOMAIN=<public-ip>.sslip.io`, database and
    service passwords, Wompi public key, map style URL) and
    `backend/production.env` (JWT secrets, Resend, Wompi and Cloudinary
-   credentials). These files are ignored by Git. Without the Wompi, Resend and
-   Cloudinary values the API starts but email, card setup and evidence upload
-   fail.
+   credentials, and `EMAIL_FROM`). These files are ignored by Git. Without the
+   Wompi, Resend and Cloudinary values the API starts but email, card setup and
+   evidence upload fail.
 4. Place `osm-data/tolima.osm.pbf` on the VM. You can build it once with
    `osmium extract` as described above and upload it.
 5. Build and start the stack:
@@ -681,6 +681,20 @@ import peak; keep swappiness low so normal operation stays in RAM.
    `https://<public-ip>.sslip.io/health` for the API. The endpoint returns `503`
    when PostgreSQL or Redis is down and `200` with `"status":"degraded"` when
    only Neo4j is unavailable.
+
+### Email delivery (Resend)
+
+Transactional emails (company registration, invitations and support responses)
+are sent with Resend from `EMAIL_FROM`. It defaults to
+`FastRouteCO <onboarding@resend.dev>`, the sender Resend allows without a
+verified domain. Delivery failures are logged with the error code and message
+returned by Resend.
+
+Known limitation: without a verified domain in Resend, `onboarding@resend.dev`
+only delivers to the email address of the Resend account itself. Any other
+recipient is rejected with a 403 error and the email is not sent. To deliver to
+company users, verify a domain in Resend, set `EMAIL_FROM` to an address on that
+domain and redeploy the backend.
 
 ### Backups
 
