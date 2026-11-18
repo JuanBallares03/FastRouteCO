@@ -187,3 +187,12 @@ As built:
 - The live map lists in-progress routes, draws their stops and driver locations on one map, and updates with `route:location` and route status events. The incidents page lists and filters company incidents, marks them resolved, and links to the route detail chat.
 - "Cobros y pagos" remains the only "Próximamente" item; the Platform Administrator billing page is not implemented.
 
+## Authenticated API rate limiting
+
+Scope:
+- Rate-limit every authenticated `/api/v1` request per user and per IP (RNF04, RNF06).
+
+As built:
+- A shared middleware built on the existing Redis rate-limit store applies a generous limit to requests with a bearer token: 1200 requests per 15 minutes per user and 2400 per 15 minutes per IP. Requests without a bearer token keep their route-specific limits (login, refresh and invitations), and Socket.IO is outside `/api/v1`.
+- The limit allows the mobile GPS sample every 5 seconds and normal panel polling. Exceeding it returns 429 with the existing Spanish message and `RATE_LIMITED` code.
+

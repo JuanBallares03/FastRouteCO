@@ -18,6 +18,7 @@ import reportRoutes from './modules/reports/reports.routes.js';
 import studentRoutes from './modules/students/students.routes.js';
 import healthRoutes from './modules/health/health.routes.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { createAuthenticatedApiRateLimiters } from './middleware/api-rate-limit.js';
 
 export function createApp(): Express {
   const app = express();
@@ -29,6 +30,13 @@ export function createApp(): Express {
   app.use(express.urlencoded({ extended: false }));
 
   app.use('/health', healthRoutes);
+
+  app.use(
+    '/api/v1',
+    ...createAuthenticatedApiRateLimiters({
+      skip: () => process.env.NODE_ENV === 'test',
+    })
+  );
 
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/platform', platformRoutes);
