@@ -26,6 +26,8 @@ import { SupervisorDashboardPage } from '@/features/supervisor/pages/SupervisorD
 import { OrdersPage } from '@/features/orders/pages/OrdersPage';
 import { RoutesPage } from '@/features/routes/pages/RoutesPage';
 import { RouteDetailPage } from '@/features/routes/pages/RouteDetailPage';
+import { LiveMapPage } from '@/features/routes/pages/LiveMapPage';
+import { IncidentsPage } from '@/features/incidents/pages/IncidentsPage';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
   const { user, loading } = useAuth();
@@ -102,6 +104,8 @@ function AppRoutes() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="routes" element={<RoutesPage />} />
         <Route path="routes/:id" element={<RouteDetailPage />} />
+        <Route path="live-map" element={<LiveMapPage />} />
+        <Route path="incidents" element={<IncidentsPage />} />
         <Route path="students" element={<StudentsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="support" element={<CompanySupportPage />} />
@@ -119,6 +123,8 @@ function AppRoutes() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="routes" element={<RoutesPage />} />
         <Route path="routes/:id" element={<RouteDetailPage />} />
+        <Route path="live-map" element={<LiveMapPage />} />
+        <Route path="incidents" element={<IncidentsPage />} />
         <Route path="students" element={<StudentsPage />} />
         <Route path="reports" element={<ReportsPage />} />
       </Route>
