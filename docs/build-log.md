@@ -176,3 +176,14 @@ As built:
 - The web shows the current success message when `emailSent` is `true`. Otherwise it shows "No pudimos enviar el correo. Comparte este enlace con la persona:", the invitation link and a "Copiar enlace" button.
 - Company Administrator, supervisor and driver lists include `hasActivated` and offer "Reenviar invitación" only while the account has no password.
 
+## Supervisor panel fixes
+
+Scope:
+- Load the supervisor dashboard and expose the Phase 5 live map and incidents to the Logistics Supervisor and the Company Administrator (RF08, RF25, HU-12).
+
+As built:
+- `GET /api/v1/company/reports/dashboard` returned 403 for supervisors because the billing router applied `company_admin` authorization to every `/api/v1/company/*` request. Authentication and authorization are now scoped to `/billing`, and a regression test covers supervisor, Company Administrator and driver access.
+- The supervisor menu connects "Mapa en vivo" and "Incidencias" to real pages backed by the Phase 5 APIs. The Company Administrator sees the same two entries under `/company/live-map` and `/company/incidents`.
+- The live map lists in-progress routes, draws their stops and driver locations on one map, and updates with `route:location` and route status events. The incidents page lists and filters company incidents, marks them resolved, and links to the route detail chat.
+- "Cobros y pagos" remains the only "Próximamente" item; the Platform Administrator billing page is not implemented.
+
