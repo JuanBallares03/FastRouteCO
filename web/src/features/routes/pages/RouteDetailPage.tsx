@@ -9,6 +9,10 @@ import { Toast } from '@/components/ui/Modal';
 import { RouteMap, type DriverLocation, type RouteMapStop } from '@/components/map/RouteMap';
 import { companyApi } from '@/features/company/api';
 import { incidentApi, type IncidentPayload } from '@/features/incidents/api';
+import {
+  INCIDENT_CATEGORY_LABELS,
+  INCIDENT_STATUS_LABELS,
+} from '@/features/incidents/labels';
 import { routeApi } from '@/features/routes/api';
 import { getRealtimeSocket, releaseRealtimeSocket } from '@/services/socket';
 import { DRIVER_STATUS_LABELS, getApiErrorMessage } from '@/lib/company-validation';
@@ -72,17 +76,6 @@ interface DriverOption {
   status: keyof typeof DRIVER_STATUS_LABELS;
   isActive: boolean;
 }
-
-const INCIDENT_STATUS_LABELS: Record<string, string> = {
-  open: 'Abierta',
-  in_progress: 'En curso',
-  resolved: 'Resuelta',
-};
-
-const INCIDENT_CATEGORY_LABELS: Record<string, string> = {
-  incident: 'Incidencia',
-  question: 'Pregunta',
-};
 
 export function RouteDetailPage() {
   const { id } = useParams<{ id: string }>();

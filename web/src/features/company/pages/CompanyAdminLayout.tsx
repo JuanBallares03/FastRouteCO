@@ -10,6 +10,8 @@ const COMPANY_ADMIN_NAV = [
   { label: 'Conductores', path: '/company/drivers', icon: 'directions_car' },
   { label: 'Pedidos', path: '/company/orders', icon: 'inventory' },
   { label: 'Rutas', path: '/company/routes', icon: 'route' },
+  { label: 'Mapa en vivo', path: '/company/live-map', icon: 'map' },
+  { label: 'Incidencias', path: '/company/incidents', icon: 'report_problem' },
   { label: 'Estudiantes', path: '/company/students', icon: 'school' },
   { label: 'Reportes', path: '/company/reports', icon: 'analytics' },
   { label: 'Soporte técnico', path: '/company/support', icon: 'support_agent' },

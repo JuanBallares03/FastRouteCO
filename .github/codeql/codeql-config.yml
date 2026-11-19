@@ -1,0 +1,8 @@
+name: FastRouteCO CodeQL configuration
+
+paths-ignore:
+  - '**/__tests__/**'
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/*.spec.ts'
+  - '**/*.spec.tsx'

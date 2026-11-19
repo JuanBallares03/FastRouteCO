@@ -13,7 +13,7 @@ Repository: `JuanBallares03/FastRouteCO`, `private: false` (public). No `.env` f
 | TypeScript `strict` | web | Missing | Defensive typing (no specific CWE) | Measured: enabling it produces **0 errors**. Not enabled by decision; recommendation only. |
 | Vitest / Jest | backend, web, mobile | Present | Regression safety (no specific CWE) | 217 backend, 10 web and 24 mobile tests pass. |
 | Coverage | backend, web, mobile | Missing | Regression safety (no specific CWE) | No `--coverage` or threshold in any app. |
-| CodeQL | all TypeScript | **Integrated** | CWE-89, CWE-79, CWE-639, CWE-798 (plus other CodeQL queries) | `security-extended` suite, push/PR to `main` and weekly. |
+| CodeQL | production TypeScript | **Integrated** | CWE-89, CWE-79, CWE-639, CWE-798 (plus other CodeQL queries) | `security-extended` suite, push/PR to `main` and weekly. Test files are excluded through `.github/codeql/codeql-config.yml`. |
 | Dependabot | npm, GitHub Actions, Docker Compose | **Integrated** | CWE-1104 / OWASP A06:2021 | Weekly, major versions ignored, 3-day cooldown. |
 | `pnpm audit` | whole workspace | **Integrated** | CWE-1104 / OWASP A06:2021 | CI fails only on `high` or `critical`. |
 | Dependency Review | pull requests | **Integrated** | CWE-1104 / OWASP A06:2021 | Fails PRs that add `high` or `critical` advisories. |
@@ -71,6 +71,12 @@ Current dependency state: `pnpm audit` reports **0 critical, 1 high, 2 moderate 
 | `561e6b0` | `chore(ci): fail on high severity dependency advisories` — `pnpm audit --audit-level=high` in a dedicated CI job. |
 | `18d8d28` | `chore(ci): add dependency review workflow` — `actions/dependency-review-action@v5` fails pull requests that introduce `high` or `critical` advisories. |
 | `2581f7a` | `chore(ci): add gitleaks secret scanning` — `gitleaks/gitleaks-action@v3` with full checkout, push/PR triggers, weekly schedule and manual dispatch. |
+
+### CodeQL test path exclusion
+
+CodeQL reads `.github/codeql/codeql-config.yml` through the `config-file` input of `github/codeql-action/init`. The configuration ignores `**/__tests__/**`, `**/*.test.ts`, `**/*.test.tsx`, `**/*.spec.ts` and `**/*.spec.tsx`.
+
+Test-only code is not shipped to production and its alerts do not represent production risk. Examples are mocks with fixed credentials, test fixtures with deliberately permissive authorization or helpers that build request paths. Excluding these files keeps the security results focused on runtime code without reducing the controls that execute the tests: Vitest and Jest still run every suite in CI, and Gitleaks, ESLint and the TypeScript compiler still read the test files.
 
 Secret scanning notes:
 

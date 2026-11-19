@@ -9,8 +9,8 @@ const SUPERVISOR_NAV = [
   { label: 'Rutas', path: '/supervisor/routes', icon: 'route' },
   { label: 'Estudiantes', path: '/supervisor/students', icon: 'school' },
   { label: 'Reportes', path: '/supervisor/reports', icon: 'analytics' },
-  { label: 'Mapa en vivo', path: '/supervisor/live-map', icon: 'map', comingSoon: true },
-  { label: 'Incidencias', path: '/supervisor/incidents', icon: 'report_problem', comingSoon: true },
+  { label: 'Mapa en vivo', path: '/supervisor/live-map', icon: 'map' },
+  { label: 'Incidencias', path: '/supervisor/incidents', icon: 'report_problem' },
 ];
 
 export function SupervisorLayout() {
