@@ -57,6 +57,24 @@
       "type": "local",
       "command": ["cmd", "/c", "npx", "-y", "mcp-mermaid"],
       "timeout": 20000
+    },
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "enabled": true,
+      "oauth": false,
+      "headers": {
+        "Authorization": "Bearer {env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "X-MCP-Readonly": "true"
+      }
+    },
+    "postgres": {
+      "type": "local",
+      "command": ["docker", "run", "-i", "--rm", "-e", "DATABASE_URI", "crystaldba/postgres-mcp", "--access-mode=restricted"],
+      "enabled": true,
+      "environment": {
+        "DATABASE_URI": "{env:FASTROUTE_DB_URI}"
+      }
     }
   }
 }
