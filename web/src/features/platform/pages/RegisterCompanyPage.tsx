@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Badge } from '@/components/ui/Badge';
 import { platformApi } from '@/features/platform/api';
+import { normalizeEmail } from '@/lib/company-validation';
 import { Toast } from '@/components/ui/Modal';
 
 export function RegisterCompanyPage() {
@@ -90,7 +91,7 @@ export function RegisterCompanyPage() {
       await platformApi.createCompany({
         legalName: formData.legalName,
         taxId: formData.taxId.replace(/\s/g, ''),
-        email: formData.email,
+        email: normalizeEmail(formData.email),
         phone: formData.phone,
         address: formData.address,
         hasOwnFleet: formData.hasOwnFleet,

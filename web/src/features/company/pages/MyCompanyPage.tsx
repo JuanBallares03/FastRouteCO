@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Toast } from '@/components/ui/Modal';
 import { companyApi } from '@/features/company/api';
-import { getApiErrorMessage, validateEmail, validatePhone } from '@/lib/company-validation';
+import { getApiErrorMessage, normalizeEmail, validateEmail, validatePhone } from '@/lib/company-validation';
 
 interface CompanyProfile {
   id: string;
@@ -70,7 +70,7 @@ export function MyCompanyPage() {
     setSaving(true);
     try {
       const response = await companyApi.updateProfile({
-        email: form.email,
+        email: normalizeEmail(form.email),
         phone: form.phone || undefined,
         address: form.address || undefined,
       });

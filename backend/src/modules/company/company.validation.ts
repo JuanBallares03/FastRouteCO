@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { emailSchema } from '../../lib/email-normalization.js';
 
 export const updateCompanySchema = z.object({
   body: z.object({
-    email: z.string().email({ message: 'Email inválido' }).max(150).optional(),
+    email: emailSchema.optional(),
     phone: z.string().max(30).optional(),
     address: z.string().max(255).optional(),
     settings: z.record(z.string(), z.unknown()).optional(),
@@ -37,7 +38,7 @@ export const listSupervisorsSchema = z.object({});
 export const createSupervisorSchema = z.object({
   body: z.object({
     fullName: z.string().min(1, { message: 'Nombre completo requerido' }).max(150),
-    email: z.string().email({ message: 'Email inválido' }).max(150),
+    email: emailSchema,
     phone: z.string().max(30).optional(),
   }),
 });
@@ -56,7 +57,7 @@ export const listDriversSchema = z.object({});
 export const createDriverSchema = z.object({
   body: z.object({
     fullName: z.string().min(1, { message: 'Nombre completo requerido' }).max(150),
-    email: z.string().email({ message: 'Email inválido' }).max(150),
+    email: emailSchema,
     phone: z.string().max(30).optional(),
   }),
 });
@@ -67,7 +68,7 @@ export const updateDriverSchema = z.object({
   }),
   body: z.object({
     fullName: z.string().min(1, { message: 'Nombre completo requerido' }).max(150).optional(),
-    email: z.string().email({ message: 'Email inválido' }).max(150).optional(),
+    email: emailSchema.optional(),
     phone: z.string().max(30).optional(),
   }),
 });

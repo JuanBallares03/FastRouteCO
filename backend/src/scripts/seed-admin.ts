@@ -3,6 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import * as readline from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import bcrypt from 'bcryptjs';
+import { normalizeEmail } from '../lib/email-normalization.js';
 
 const connectionString = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5433/fastrouteco?schema=public';
 const adapter = new PrismaPg({ connectionString });
@@ -10,7 +11,9 @@ const prisma = new PrismaClient({ adapter });
 
 const BCRYPT_ROUNDS = 12;
 
-const ENV_EMAIL = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+const ENV_EMAIL = process.env.SEED_ADMIN_EMAIL
+  ? normalizeEmail(process.env.SEED_ADMIN_EMAIL)
+  : undefined;
 const ENV_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
 
 async function promptLine(question: string): Promise<string> {
@@ -24,7 +27,7 @@ async function promptLine(question: string): Promise<string> {
 }
 
 async function promptEmail(): Promise<string> {
-  return (await promptLine('Email del Platform Administrator: ')).toLowerCase();
+  return normalizeEmail(await promptLine('Email del Platform Administrator: '));
 }
 
 async function promptPassword(question: string): Promise<string> {

@@ -1,10 +1,11 @@
 import { z } from 'zod';
+import { emailSchema } from '../../lib/email-normalization.js';
 
 export const createCompanySchema = z.object({
   body: z.object({
     legalName: z.string().min(1, { message: 'Razón social requerida' }).max(200),
     taxId: z.string().min(1, { message: 'NIT requerido' }).max(20),
-    email: z.string().email({ message: 'Email inválido' }).max(150),
+    email: emailSchema,
     phone: z.string().max(30).optional(),
     address: z.string().max(255).optional(),
     hasOwnFleet: z.boolean(),
@@ -43,7 +44,7 @@ export const createCompanyAdminSchema = z.object({
   }),
   body: z.object({
     fullName: z.string().min(1, { message: 'Nombre completo requerido' }).max(150),
-    email: z.string().email({ message: 'Email inválido' }).max(150),
+    email: emailSchema,
     phone: z.string().max(30).optional(),
   }),
 });

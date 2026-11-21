@@ -375,6 +375,30 @@ describe('Company supervisors (HU-25)', () => {
     expect(res.status).toBe(409);
   });
 
+  it('rejects a duplicated email with different case and surrounding spaces', async () => {
+    const res = await request(app)
+      .post('/api/v1/company/supervisors')
+      .set(authHeader(companyAdminToken))
+      .send({ fullName: 'Duplicado', email: `  ${SUPERVISOR_EMAIL.toUpperCase()}  ` });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('stores the supervisor email normalized', async () => {
+    const email = `New-Supervisor-${crypto.randomUUID()}@Test.COM`;
+
+    const res = await request(app)
+      .post('/api/v1/company/supervisors')
+      .set(authHeader(companyAdminToken))
+      .send({ fullName: 'Supervisor Normalizado', email: `  ${email}  ` });
+
+    expect(res.status).toBe(201);
+    expect(res.body.user.email).toBe(email.toLowerCase());
+
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    expect(user).not.toBeNull();
+  });
+
   it('deactivates and reactivates a supervisor', async () => {
     const deactivate = await request(app)
       .patch(`/api/v1/company/supervisors/${SUPERVISOR_ID}/status`)

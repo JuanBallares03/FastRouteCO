@@ -10,7 +10,7 @@ import { InvitationLinkNotice } from '@/components/ui/InvitationLinkNotice';
 import { companyApi } from '@/features/company/api';
 import { authApi } from '@/features/auth/api';
 import { useAuth } from '@/features/auth/AuthContext';
-import { getApiErrorMessage, validateEmail, validatePhone, validateRequired } from '@/lib/company-validation';
+import { getApiErrorMessage, normalizeEmail, validateEmail, validatePhone, validateRequired } from '@/lib/company-validation';
 import {
   buildInvitationFeedback,
   canResendInvitation,
@@ -77,7 +77,7 @@ export function SupervisorsPage() {
     try {
       const response = await companyApi.createSupervisor({
         fullName: form.fullName.trim(),
-        email: form.email.trim(),
+        email: normalizeEmail(form.email),
         phone: form.phone || undefined,
       });
       const feedback = buildInvitationFeedback(
