@@ -22,7 +22,7 @@ Repository: `JuanBallares03/FastRouteCO`, `private: false` (public). No `.env` f
 | Semgrep | all TypeScript | Not integrated | Custom CWE rules | Optional future addition; no npm dependency. |
 | Trivy | container images | Not integrated | CWE-1104 / OWASP A06:2021 | Optional future addition for Docker image CVEs. |
 
-Current dependency state: `pnpm audit` reports **0 critical, 1 high, 2 moderate and 0 low**. The high advisory is `GHSA-fc5q-39xc-vjpf` (picomatch ReDoS) and is explicitly ignored in `pnpm-workspace.yaml` because every affected path is build or test tooling and none is reachable from the production backend runtime. The moderate advisories (`glob`, `minimatch`) are also tooling-only and stay below the CI threshold of `high`.
+Current dependency state: `pnpm audit` reports **0 critical, 0 high, 2 moderate and 0 low**. The former high advisory on `effect` (`GHSA-7589-6fvf-x4pw`) is fixed through a `pnpm-workspace.yaml` override, and `GHSA-fc5q-39xc-vjpf` (picomatch ReDoS) is explicitly ignored in `pnpm-workspace.yaml` because every affected path is build or test tooling and none is reachable from the production backend runtime. The moderate advisories (`glob`, `minimatch`) are also tooling-only and stay below the CI threshold of `high`.
 
 ## Inventory before this audit
 
@@ -97,6 +97,14 @@ Path analysis with `pnpm why picomatch`:
 - `backend`: only through the `typescript-eslint` devDependency. There is no path from the backend production dependencies to picomatch.
 
 The advisory is ignored with the pnpm v12 `audit.ignore` list in `pnpm-workspace.yaml`. The exception is limited to this GHSA; `pnpm audit --audit-level=high` still runs in CI and still fails on any other high or critical advisory. Since pnpm 12.4.0, ignored advisories are excluded from the severity totals and reported separately, so the report may note that an advisory was ignored rather than showing a clean audit.
+
+## Dependency overrides
+
+| Advisory | Package | Path | Override | Revisit when |
+|---|---|---|---|---|
+| `GHSA-7589-6fvf-x4pw` | effect | `backend` > `prisma@7.10.1` > `@prisma/config@7.10.1` > `effect` | `effect: ^3.22.1` in `pnpm-workspace.yaml` (resolves to `3.22.5`) | Prisma declares `effect >=3.22.1` by itself, then remove the override. |
+
+`GHSA-7589-6fvf-x4pw` is a ReDoS in `effect <=3.22.0`, fixed in `3.22.1`. `@prisma/config@7.10.1` pins `effect` to the exact version `3.20.0`, so the workspace override forces a semver-compatible 3.x minor (`3.22.5`). `pnpm why effect` reports a single version (`3.22.5`) under `@prisma/config`, and `pnpm audit --audit-level=high` passes with only the two known tooling-only moderate advisories. The override is scoped to `effect`; it does not lower the CI audit threshold.
 
 ## Gaps and recommendations
 
