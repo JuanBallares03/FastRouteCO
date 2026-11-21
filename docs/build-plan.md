@@ -143,6 +143,8 @@ Decisions already taken (do not reopen them; if one becomes a problem, explain w
 
 Steps: (1) backend authentication, (2) seed data and Platform Administrator: companies and Company Administrators, (3) Company Administrator: company, branches, supervisors and drivers, (4) web design system, (5) login and set-password screens, (6–11) web screens for companies, company detail, my company, branches, supervisors and drivers. Each step is reviewed and approved before the next one.
 
+Emails are normalized (trimmed and lowercased) in the shared zod schemas before they reach the services, and in the web and mobile clients before they are sent. The unique index `users_email_lower_key` on `lower(email)` exists only in SQL because Prisma cannot represent expression indexes (migration `20261121120000_normalize_emails`). Warning: if a future generated migration proposes `DROP INDEX "users_email_lower_key"`, remove that line by hand.
+
 Progress: Phases 0–6 are implemented, committed and verified locally. Phase 7 in-repository work is done; the Azure VM, the `<public-ip>.sslip.io` hostname, production credentials, map tile provider and mobile store builds remain external.
 
 ### Phase 2 — Orders, routes and routing engine
