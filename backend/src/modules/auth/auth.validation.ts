@@ -1,8 +1,9 @@
 import { z } from 'zod';
+import { emailSchema } from '../../lib/email-normalization.js';
 
 export const loginSchema = z.object({
   body: z.object({
-    email: z.string().email({ message: 'Email inválido' }),
+    email: emailSchema,
     password: z.string().min(1, { message: 'Contraseña requerida' }),
   }),
 });

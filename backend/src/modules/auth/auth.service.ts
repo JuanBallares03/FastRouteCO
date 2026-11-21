@@ -9,6 +9,7 @@ import {
 } from './jwt.js';
 import { prisma } from '../../lib/prisma.js';
 import { sendInvitationEmail } from '../../lib/email.js';
+import { normalizeEmail } from '../../lib/email-normalization.js';
 import { getRuntimeSettings } from '../../modules/settings/settings.service.js';
 
 type UserWithCompany = Prisma.UserGetPayload<{ include: { company: true } }>;
@@ -60,7 +61,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export async function findUserByEmail(email: string): Promise<UserWithCompany | null> {
   return prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizeEmail(email) },
     include: { company: true },
   });
 }

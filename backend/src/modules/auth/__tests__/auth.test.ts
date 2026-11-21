@@ -448,6 +448,14 @@ describe('Auth API Endpoints', () => {
       expect(res.body.user.companyName).toBe('Test Company');
     });
 
+    it('should return tokens when the email has different case and surrounding spaces', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: '  TEST@COMPANY.COM  ', password: TEST_PASSWORD });
+      expect(res.status).toBe(200);
+      expect(res.body.user.email).toBe('test@company.com');
+    });
+
     it('should reject invalid email format', async () => {
       const res = await request(app)
         .post('/api/v1/auth/login')

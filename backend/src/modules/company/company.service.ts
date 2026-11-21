@@ -2,6 +2,7 @@ import { Prisma, SubscriptionStatus, UserRole, DriverStatus } from '@prisma/clie
 import { prisma } from '../../lib/prisma.js';
 import { createInvitationForUser, revokeAllUserRefreshTokens } from '../auth/auth.service.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
+import { normalizeEmail } from '../../lib/email-normalization.js';
 
 
 async function getActiveSubscription(companyId: string) {
@@ -49,9 +50,10 @@ export async function updateCompany(
     throw new NotFoundError('Empresa no encontrada');
   }
 
-  if (data.email && data.email !== company.email) {
+  const email = data.email ? normalizeEmail(data.email) : undefined;
+  if (email && email !== company.email) {
     const existing = await prisma.company.findFirst({
-      where: { email: data.email },
+      where: { email },
     });
     if (existing) {
       throw new ConflictError('El email ya está registrado');
@@ -61,7 +63,7 @@ export async function updateCompany(
   const updated = await prisma.company.update({
     where: { id: companyId },
     data: {
-      email: data.email,
+      email,
       phone: data.phone,
       address: data.address,
       settings: data.settings as Prisma.InputJsonValue | undefined,
@@ -152,7 +154,8 @@ export async function createSupervisor(
   companyId: string,
   data: { fullName: string; email: string; phone?: string }
 ) {
-  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+  const email = normalizeEmail(data.email);
+  const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new ConflictError('El email ya está registrado');
   }
@@ -162,7 +165,7 @@ export async function createSupervisor(
       companyId,
       role: UserRole.supervisor,
       fullName: data.fullName,
-      email: data.email,
+      email,
       phone: data.phone,
       passwordHash: null,
       isActive: true,
@@ -238,7 +241,8 @@ export async function createDriver(
     }
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+  const email = normalizeEmail(data.email);
+  const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new ConflictError('El email ya está registrado');
   }
@@ -249,7 +253,7 @@ export async function createDriver(
         companyId,
         role: UserRole.driver,
         fullName: data.fullName,
-        email: data.email,
+        email,
         phone: data.phone,
         passwordHash: null,
         isActive: true,
@@ -282,8 +286,9 @@ export async function updateDriver(
     throw new NotFoundError('Conductor no encontrado');
   }
 
-  if (data.email && data.email !== driver.email) {
-    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  const email = data.email ? normalizeEmail(data.email) : undefined;
+  if (email && email !== driver.email) {
+    const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new ConflictError('El email ya está registrado');
     }
@@ -293,7 +298,7 @@ export async function updateDriver(
     where: { id: driverId },
     data: {
       fullName: data.fullName,
-      email: data.email,
+      email,
       phone: data.phone,
     },
     select: userSelect,

@@ -1,6 +1,7 @@
 import { Prisma, CompanyStatus, SubscriptionStatus, UserRole } from '@prisma/client';
 import { prisma } from '../../lib/prisma.js';
 import { sendCompanyConfirmationEmail } from '../../lib/email.js';
+import { normalizeEmail } from '../../lib/email-normalization.js';
 import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { createInvitationForUser } from '../auth/auth.service.js';
 import { AppError, BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
@@ -26,6 +27,8 @@ export async function createCompany(data: {
   if (!data.hasOwnFleet) {
     throw new BadRequestError('La empresa debe tener flota propia');
   }
+
+  const email = normalizeEmail(data.email);
 
   const existingCompany = await prisma.company.findUnique({
     where: { taxId: data.taxId },
@@ -55,7 +58,7 @@ export async function createCompany(data: {
       data: {
         legalName: data.legalName,
         taxId: data.taxId,
-        email: data.email,
+        email,
         phone: data.phone,
         address: data.address,
         hasOwnFleet: data.hasOwnFleet,
@@ -264,7 +267,8 @@ export async function createCompanyAdmin(
     throw new NotFoundError('Empresa no encontrada');
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
+  const email = normalizeEmail(data.email);
+  const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new ConflictError('El email ya está registrado');
   }
@@ -274,7 +278,7 @@ export async function createCompanyAdmin(
       companyId,
       role: UserRole.company_admin,
       fullName: data.fullName,
-      email: data.email,
+      email,
       phone: data.phone,
       passwordHash: null,
       isActive: true,
