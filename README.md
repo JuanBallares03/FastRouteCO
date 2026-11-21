@@ -757,6 +757,15 @@ Android and iOS release builds use EAS Build (`RNF05`). Set the variables from
 Expo commands. EAS credentials and store accounts are managed outside this
 repository.
 
+## AI tooling (MCP)
+
+`opencode.json` configures two read-only MCP servers: GitHub (read-only via
+`X-MCP-Readonly`) and Postgres (`crystaldba/postgres-mcp` in restricted access
+mode). The Postgres server targets only the local development database. Both
+read their credentials from environment variables, which are never stored in the
+repository: `GITHUB_PERSONAL_ACCESS_TOKEN` for GitHub and `FASTROUTE_DB_URI` for
+Postgres.
+
 ## Glossary
 
 - **Route (ruta):** the set of orders assigned to one driver for a given 
