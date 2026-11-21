@@ -14,6 +14,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import {
   DRIVER_STATUS_LABELS,
   getApiErrorMessage,
+  normalizeEmail,
   validateEmail,
   validatePhone,
   validateRequired,
@@ -102,7 +103,7 @@ export function DriversPage() {
     try {
       const response = await companyApi.createDriver({
         fullName: form.fullName.trim(),
-        email: form.email.trim(),
+        email: normalizeEmail(form.email),
         phone: form.phone || undefined,
       });
       const feedback = buildInvitationFeedback(
@@ -162,7 +163,7 @@ export function DriversPage() {
     try {
       await companyApi.updateDriver(id, {
         fullName: editForm.fullName.trim(),
-        email: editForm.email.trim(),
+        email: normalizeEmail(editForm.email),
         phone: editForm.phone || undefined,
       });
       setEditingId(null);

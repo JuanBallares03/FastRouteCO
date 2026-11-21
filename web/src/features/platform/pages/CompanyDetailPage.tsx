@@ -11,6 +11,7 @@ import { InvitationLinkNotice } from '@/components/ui/InvitationLinkNotice';
 import { platformApi } from '@/features/platform/api';
 import { authApi } from '@/features/auth/api';
 import { useAuth } from '@/features/auth/AuthContext';
+import { normalizeEmail } from '@/lib/company-validation';
 import {
   buildInvitationFeedback,
   canResendInvitation,
@@ -173,7 +174,10 @@ export function CompanyDetailPage() {
 
     setSavingAdmin(true);
     try {
-      const response = await platformApi.createCompanyAdmin(company!.id, adminForm);
+      const response = await platformApi.createCompanyAdmin(company!.id, {
+        ...adminForm,
+        email: normalizeEmail(adminForm.email),
+      });
       const feedback = buildInvitationFeedback(
         'Administrador creado y acceso enviado por correo',
         response.data

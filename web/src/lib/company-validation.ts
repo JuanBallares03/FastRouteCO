@@ -6,6 +6,10 @@ export const DRIVER_STATUS_LABELS: Record<DriverStatus, string> = {
   unavailable: 'No disponible',
 };
 
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function validateRequired(value: string, label: string): string {
   if (!value.trim()) {
     return `${label} es obligatorio`;

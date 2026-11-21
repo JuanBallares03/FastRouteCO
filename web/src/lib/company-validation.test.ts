@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DRIVER_STATUS_LABELS,
   getApiErrorMessage,
+  normalizeEmail,
   validateEmail,
   validatePhone,
   validateRequired,
@@ -12,6 +13,10 @@ describe('company form validation (HU-24, HU-25, HU-27)', () => {
     expect(validateRequired('', 'Nombre')).toBe('Nombre es obligatorio');
     expect(validateRequired('   ', 'Nombre')).toBe('Nombre es obligatorio');
     expect(validateRequired('Sede Centro', 'Nombre')).toBe('');
+  });
+
+  it('normalizes email before sending', () => {
+    expect(normalizeEmail('  Admin@FastRouteCO.COM ')).toBe('admin@fastrouteco.com');
   });
 
   it('validates email format', () => {

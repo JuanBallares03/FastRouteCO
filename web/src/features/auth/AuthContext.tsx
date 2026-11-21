@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { authApi } from './api';
 import { clearTokens, getAccessToken } from '@/services/http';
+import { normalizeEmail } from '@/lib/company-validation';
 
 export interface User {
   id: string;
@@ -60,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
-    const response = await authApi.login(email, password);
+    const response = await authApi.login(normalizeEmail(email), password);
     const { accessToken, refreshToken, user: userData } = response.data;
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
