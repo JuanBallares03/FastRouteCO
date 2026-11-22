@@ -14,6 +14,7 @@ import { getGeocoder } from '../../lib/geocoding.js';
 import { haversineMeters } from '../../lib/geo.js';
 import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
 import { BadRequestError, ConflictError, NotFoundError } from '../../lib/errors.js';
+import { emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../lib/realtime.js';
 import { ACTIVE_ROUTE_STATUSES, MAX_ROUTE_STOPS } from '../routes/constants.js';
 import { findDriver, getRouteById } from '../routes/routes.service.js';
 
@@ -180,7 +181,14 @@ export async function updateOrder(
   orderId: string,
   input: UpdateOrderInput
 ) {
-  const order = await prisma.order.findFirst({ where: { id: orderId, companyId } });
+  const order = await prisma.order.findFirst({
+    where: { id: orderId, companyId },
+    include: {
+      routeStops: {
+        include: { route: { select: { id: true, driverId: true } } },
+      },
+    },
+  });
   if (!order) {
     throw new NotFoundError('Pedido no encontrado', 'ORDER_NOT_FOUND');
   }
@@ -212,6 +220,17 @@ export async function updateOrder(
     include: { branch: { select: { id: true, name: true } } },
   });
 
+  const affectedRoutes = new Map<string, string>();
+  for (const stop of order.routeStops) {
+    affectedRoutes.set(stop.route.id, stop.route.driverId);
+  }
+  for (const [routeId, driverId] of affectedRoutes) {
+    emitToUser(driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+      routeId,
+      reason: 'updated',
+    });
+  }
+
   return {
     ...serializeOrder(updated),
     geocoded: updated.latitude !== null,
@@ -235,6 +254,11 @@ export async function cancelOrder(companyId: string, orderId: string) {
   }
   if (!editableStatuses.includes(order.status)) {
     throw new ConflictError('Solo se pueden cancelar pedidos pendientes o asignados', 'ORDER_NOT_CANCELLABLE');
+  }
+
+  const affectedRoutes = new Map<string, string>();
+  for (const stop of order.routeStops) {
+    affectedRoutes.set(stop.route.id, stop.route.driverId);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -265,6 +289,13 @@ export async function cancelOrder(companyId: string, orderId: string) {
       data: { status: OrderStatus.cancelled },
     });
   });
+
+  for (const [routeId, driverId] of affectedRoutes) {
+    emitToUser(driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+      routeId,
+      reason: 'cancelled',
+    });
+  }
 
   return { id: orderId, status: OrderStatus.cancelled };
 }
@@ -429,5 +460,9 @@ export async function assignOrder(
   });
 
   const assigned = await getRouteById(companyId, route.id);
+  emitToUser(data.driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: assigned.id,
+    reason: 'assigned',
+  });
   return { orderId, driverId: data.driverId, route: assigned };
 }

@@ -12,6 +12,8 @@ interface RealtimeUser {
   companyId: string | null;
 }
 
+export const DRIVER_ROUTE_UPDATED_EVENT = 'driver:route-updated';
+
 let io: Server | null = null;
 let pubClient: Redis | null = null;
 let subClient: Redis | null = null;
@@ -119,6 +121,10 @@ export function getRealtimeRedisClient(): Redis | null {
 
 export function emitToCompany(companyId: string, event: string, payload: unknown): void {
   io?.to(`company:${companyId}`).emit(event, payload);
+}
+
+export function emitToUser(userId: string, event: string, payload: unknown): void {
+  io?.to(`user:${userId}`).emit(event, payload);
 }
 
 async function closeClient(client: Redis | null): Promise<void> {

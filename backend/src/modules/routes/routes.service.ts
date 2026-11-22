@@ -17,7 +17,7 @@ import {
   totalPathDuration,
 } from '../../lib/optimization.js';
 import { getRoutingEngine } from '../../lib/routing.js';
-import { emitToCompany } from '../../lib/realtime.js';
+import { emitToCompany, emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../lib/realtime.js';
 import type { Coordinates } from '../../lib/geocoding.js';
 import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors.js';
 import { env } from '../../env.js';
@@ -238,8 +238,14 @@ export async function createRoute(
     return target;
   });
 
+  const created = await getRouteById(companyId, route.id);
+  emitToUser(data.driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: created.id,
+    reason: 'created',
+  });
+
   return {
-    ...(await getRouteById(companyId, route.id)),
+    ...created,
     driverAvailable: driver.driver?.status === DriverStatus.available,
   };
 }
@@ -787,6 +793,14 @@ export async function reassignRoute(companyId: string, routeId: string, newDrive
     route: updated,
   };
   emitToCompany(companyId, 'route:reassigned', payload);
+  emitToUser(route.driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: route.id,
+    reason: 'reassigned',
+  });
+  emitToUser(newDriverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: route.id,
+    reason: 'reassigned',
+  });
   return updated;
 }
 
@@ -909,6 +923,14 @@ export async function reassignStop(
     previousDriverId: route.driverId,
     driverId: newDriverId,
     route: updatedTarget,
+  });
+  emitToUser(route.driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: route.id,
+    reason: 'stop-reassigned',
+  });
+  emitToUser(targetRoute.driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: targetRoute.id,
+    reason: 'stop-reassigned',
   });
   return updatedTarget;
 }
@@ -1098,8 +1120,14 @@ export async function optimizeRoute(companyId: string, routeId: string) {
     }
   }
 
+  const optimized = await getRouteById(companyId, route.id);
+  emitToUser(route.driverId, DRIVER_ROUTE_UPDATED_EVENT, {
+    routeId: route.id,
+    reason: 'optimized',
+  });
+
   return {
-    ...(await getRouteById(companyId, route.id)),
+    ...optimized,
     optimization,
     approximate: matrix.approximate,
     billing,
