@@ -17,3 +17,4 @@ coverage/
 .turbo
 .pytest_cache/
 osm-data/
+.claude/settings.local.json
