@@ -766,6 +766,19 @@ read their credentials from environment variables, which are never stored in the
 repository: `GITHUB_PERSONAL_ACCESS_TOKEN` for GitHub and `FASTROUTE_DB_URI` for
 Postgres.
 
+## AI tooling (Claude Code)
+
+Claude Code follows the same rules as OpenCode through versioned files:
+
+- `CLAUDE.md`: project instructions (language, commits, traceability, secrets, protected folders).
+- `.claude/settings.json`: permissions mirroring `opencode.json`. Secret files and
+  `evaluations/` are blocked, force push and `git reset --hard` are denied, and `git push`
+  and `rm` ask first.
+- `.mcp.json`: the same MCP servers enabled in OpenCode (GitHub read-only, Postgres in
+  restricted mode, Context7). Credentials come from `GITHUB_PERSONAL_ACCESS_TOKEN` and
+  `FASTROUTE_DB_URI`; Claude Code asks to approve project servers on first use.
+- Personal overrides go in `.claude/settings.local.json`, which is git-ignored.
+
 ## Glossary
 
 - **Route (ruta):** the set of orders assigned to one driver for a given 
