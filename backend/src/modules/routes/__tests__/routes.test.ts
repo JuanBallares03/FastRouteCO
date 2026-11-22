@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import crypto from 'crypto';
@@ -24,6 +24,18 @@ import {
   setRoutingEngine,
 } from '../../../lib/routing.js';
 import { todayInBogota } from '../../../lib/dates.js';
+import { emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../../lib/realtime.js';
+
+vi.mock('../../../lib/realtime.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../lib/realtime.js')>();
+  return {
+    ...actual,
+    emitToCompany: vi.fn(),
+    emitToUser: vi.fn(),
+  };
+});
+
+const emitToUserMock = vi.mocked(emitToUser);
 
 const app = express();
 app.use(express.json());
@@ -214,6 +226,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  vi.clearAllMocks();
   await prisma.creditTransaction.deleteMany({
     where: { companyId: { in: companyIds } },
   });
@@ -657,6 +670,11 @@ describe('Route optimization', () => {
     });
     expect(stored?.isSuccessful).toBe(true);
     expect(stored?.totalDistanceM).toBe(300);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: created.body.id, reason: 'optimized' }
+    );
   });
 
   it('rejects routes with stops without coordinates', async () => {
@@ -1075,6 +1093,145 @@ describe('Route reassignment', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
+  });
+});
+
+describe('Driver route notifications', () => {
+  async function createDriverRoute(driverId: string, orderIds: string[]) {
+    const created = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId, routeDate: todayInBogota(), orderIds });
+
+    expect(created.status).toBe(201);
+    return created.body as {
+      id: string;
+      driverId: string;
+      stops: Array<{ id: string }>;
+    };
+  }
+
+  it('notifies only the assigned driver when a route is created', async () => {
+    const order = await createOrder();
+
+    const res = await request(app)
+      .post('/api/v1/routes')
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: todayInBogota(), orderIds: [order.id] });
+
+    expect(res.status).toBe(201);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: res.body.id, reason: 'created' }
+    );
+    expect(emitToUserMock).not.toHaveBeenCalledWith(
+      DRIVER_B_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      expect.anything()
+    );
+  });
+
+  it('notifies the driver when a supervisor assigns an order', async () => {
+    const order = await createOrder();
+
+    const res = await request(app)
+      .post(`/api/v1/orders/${order.id}/assign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID, routeDate: todayInBogota() });
+
+    expect(res.status).toBe(200);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: res.body.route.id, reason: 'assigned' }
+    );
+  });
+
+  it('notifies the driver when an assigned order is edited', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    emitToUserMock.mockClear();
+
+    const res = await request(app)
+      .patch(`/api/v1/orders/${order.id}`)
+      .set(authHeader(adminToken))
+      .send({ customerName: 'Nuevo cliente' });
+
+    expect(res.status).toBe(200);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: route.id, reason: 'updated' }
+    );
+  });
+
+  it('notifies the driver when an assigned order is cancelled', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    emitToUserMock.mockClear();
+
+    const res = await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: route.id, reason: 'cancelled' }
+    );
+  });
+
+  it('notifies both the previous and the new driver on route reassignment', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    emitToUserMock.mockClear();
+
+    const res = await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID });
+
+    expect(res.status).toBe(200);
+    expect(emitToUserMock).toHaveBeenCalledTimes(2);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: route.id, reason: 'reassigned' }
+    );
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_B_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: route.id, reason: 'reassigned' }
+    );
+  });
+
+  it('notifies both drivers when a stop is reassigned', async () => {
+    const orderA = await createOrder();
+    const orderB = await createOrder();
+    const orderC = await createOrder();
+    const sourceRoute = await createDriverRoute(DRIVER_A_ID, [orderA.id, orderB.id]);
+    const targetRoute = await createDriverRoute(DRIVER_B_ID, [orderC.id]);
+    emitToUserMock.mockClear();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${sourceRoute.id}/stops/${sourceRoute.stops[0].id}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID });
+
+    expect(res.status).toBe(200);
+    expect(emitToUserMock).toHaveBeenCalledTimes(2);
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_A_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: sourceRoute.id, reason: 'stop-reassigned' }
+    );
+    expect(emitToUserMock).toHaveBeenCalledWith(
+      DRIVER_B_ID,
+      DRIVER_ROUTE_UPDATED_EVENT,
+      { routeId: targetRoute.id, reason: 'stop-reassigned' }
+    );
   });
 });
 
