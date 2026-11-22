@@ -27,15 +27,14 @@ import {
   resolveMapStyleUrl,
   toMapStops,
 } from '@/features/route/route-map';
-import { loadCachedRoute, saveCachedRoute } from '@/features/route/route-cache';
 import type {
   Coordinates,
-  DriverRoute,
   RouteStatus,
   RouteStop,
   StopStatus,
 } from '@/features/route/types';
 import { useCurrentLocation } from '@/features/route/use-current-location';
+import { useDriverRoute } from '@/features/route/use-driver-route';
 import {
   useRouteTracking,
   type TrackingMode,
@@ -46,7 +45,6 @@ import {
   isQueueableError,
   routesApi,
 } from '@/features/route/api';
-import { getRealtimeSocket } from '@/services/realtime';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
 const MAP_STYLE_URL = resolveMapStyleUrl(process.env.EXPO_PUBLIC_MAP_STYLE_URL);
@@ -112,15 +110,23 @@ function trackingMessage(mode: TrackingMode): string {
 }
 
 export default function MyRouteScreen() {
-  const [route, setRoute] = useState<DriverRoute | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    route,
+    updateRoute,
+    isLoading,
+    isOffline,
+    error,
+    setError,
+    notice,
+    setNotice,
+    loadToday,
+    refresh,
+  } = useDriverRoute();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [cameraStopId, setCameraStopId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<RouteViewMode>('list');
-  const [isOffline, setIsOffline] = useState(false);
   const [failedRouteId, setFailedRouteId] = useState<string | null>(null);
   const { mode: trackingMode } = useRouteTracking(route, isLoading);
   const mapStops = useMemo(() => toMapStops(route?.stops ?? []), [route?.stops]);
@@ -142,32 +148,6 @@ export default function MyRouteScreen() {
     setPendingCount(await getPendingActionCount());
   }, []);
 
-  const refreshRoute = useCallback(async () => {
-    const today = await routesApi.getTodayRoute();
-    setRoute(today);
-    await saveCachedRoute(today);
-    setIsOffline(false);
-    setError(null);
-  }, []);
-
-  const loadToday = useCallback(async () => {
-    try {
-      await refreshRoute();
-    } catch {
-      const cached = await loadCachedRoute();
-      if (cached) {
-        setRoute(cached);
-        setIsOffline(true);
-        setError('Sin conexión. Estás viendo la última ruta guardada en este teléfono.');
-      } else {
-        setError('No pudimos cargar tu ruta. Verifica tu conexión e intenta de nuevo.');
-      }
-    } finally {
-      setIsLoading(false);
-      await refreshPendingCount();
-    }
-  }, [refreshPendingCount, refreshRoute]);
-
   const runSync = useCallback(
     async (shouldRefreshRoute: boolean) => {
       const result = await flushOfflineQueue();
@@ -180,22 +160,17 @@ export default function MyRouteScreen() {
       }
 
       if (result.synced > 0 && shouldRefreshRoute) {
-        try {
-          await refreshRoute();
-        } catch {
-          setError('Sincronizamos los datos, pero no pudimos actualizar la ruta.');
-        }
+        await refresh('manual');
       }
     },
-    [refreshRoute]
+    [refresh, setError, setNotice]
   );
 
   useEffect(() => {
     void (async () => {
       await runSync(false);
-      await loadToday();
     })();
-  }, [loadToday, runSync]);
+  }, [runSync]);
 
   useEffect(() => {
     if (pendingCount === 0) return;
@@ -210,39 +185,15 @@ export default function MyRouteScreen() {
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void runSync(true);
+        void runSync(false);
       }
     });
 
     return () => subscription.remove();
   }, [runSync]);
 
-  useEffect(() => {
-    if (route) {
-      void saveCachedRoute(route);
-    }
-  }, [route]);
-
-  useEffect(() => {
-    const socket = getRealtimeSocket();
-    if (!socket) return;
-
-    const handleRouteUpdate = () => {
-      void refreshRoute().catch(() => undefined);
-      setNotice('La empresa actualizó tu ruta.');
-    };
-
-    socket.on('route:reassigned', handleRouteUpdate);
-    socket.on('route:stop-reassigned', handleRouteUpdate);
-
-    return () => {
-      socket.off('route:reassigned', handleRouteUpdate);
-      socket.off('route:stop-reassigned', handleRouteUpdate);
-    };
-  }, [refreshRoute]);
-
   function updateLocalStop(stopId: string, patch: Partial<RouteStop>) {
-    setRoute((current) =>
+    updateRoute((current) =>
       current
         ? {
             ...current,
@@ -252,6 +203,15 @@ export default function MyRouteScreen() {
           }
         : current
     );
+  }
+
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    try {
+      await refresh('manual');
+    } finally {
+      setIsRefreshing(false);
+    }
   }
 
   async function getPosition(): Promise<Coordinates | null> {
@@ -294,7 +254,7 @@ export default function MyRouteScreen() {
       const coordinates = await getPosition();
       try {
         const updated = await routesApi.startRoute(route.id, coordinates ?? undefined);
-        setRoute(updated);
+        updateRoute(updated);
         setNotice('Ruta iniciada. El registro de ubicación está activo.');
       } catch (startError) {
         if (!isQueueableError(startError)) throw startError;
@@ -304,7 +264,7 @@ export default function MyRouteScreen() {
           routeId: route.id,
           coordinates: coordinates ?? undefined,
         });
-        setRoute((current) =>
+        updateRoute((current) =>
           current
             ? {
                 ...current,
@@ -346,7 +306,7 @@ export default function MyRouteScreen() {
 
     try {
       const updated = await routesApi.arriveAtStop(route.id, stop.id, body);
-      setRoute(updated);
+      updateRoute(updated);
       setNotice('Llegada registrada.');
     } catch (arrivalError) {
       if (isQueueableError(arrivalError)) {
@@ -420,7 +380,7 @@ export default function MyRouteScreen() {
       const updated = await routesApi.completeStop(route.id, stopId, {
         evidence: [{ photoUrl, capturedAt }],
       });
-      setRoute(updated);
+      updateRoute(updated);
       deleteEvidencePhoto(localUri);
       setNotice('Parada completada con foto de evidencia.');
     } catch (completeError) {
@@ -446,7 +406,7 @@ export default function MyRouteScreen() {
         deleteEvidencePhoto(localUri);
         setError(getApiErrorMessage(completeError));
         if (getApiErrorCode(completeError) === 'STOP_ALREADY_COMPLETED') {
-          void refreshRoute().catch(() => undefined);
+          void refresh('manual');
         }
       }
     } finally {
@@ -462,12 +422,12 @@ export default function MyRouteScreen() {
 
     try {
       const updated = await routesApi.finishRoute(route.id);
-      setRoute(updated);
+      updateRoute(updated);
       setNotice('Ruta finalizada.');
     } catch (finishError) {
       if (isQueueableError(finishError)) {
         await enqueueAction({ type: 'finish', routeId: route.id });
-        setRoute((current) =>
+        updateRoute((current) =>
           current ? { ...current, status: 'completed', endedAt: new Date().toISOString() } : current
         );
         setNotice('Fin de ruta guardado sin conexión. Se sincronizará automáticamente.');
@@ -561,7 +521,12 @@ export default function MyRouteScreen() {
   const canFinish = isInProgress && pendingStops === 0;
 
   return (
-    <Screen scroll contentStyle={styles.content}>
+    <Screen
+      scroll
+      contentStyle={styles.content}
+      refreshing={isRefreshing}
+      onRefresh={() => void handleRefresh()}
+    >
       <Text accessibilityRole="header" style={styles.title}>
         Mi ruta
       </Text>
