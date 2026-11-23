@@ -33,6 +33,7 @@ import type {
   RouteStop,
   StopStatus,
 } from '@/features/route/types';
+import { shouldRefreshAfterSync } from '@/features/route/sync-refresh';
 import { useCurrentLocation } from '@/features/route/use-current-location';
 import { useDriverRoute } from '@/features/route/use-driver-route';
 import {
@@ -153,14 +154,16 @@ export default function MyRouteScreen() {
       const result = await flushOfflineQueue();
       setPendingCount(result.pending);
 
+      // Reload first: a successful reload clears the error, and the sync
+      // outcome below must stay visible to the driver.
+      if (shouldRefreshAfterSync(result, shouldRefreshRoute)) {
+        await refresh('manual');
+      }
+
       if (result.failed > 0) {
         setError(result.lastError ?? 'Algunas acciones no se pudieron sincronizar.');
       } else if (result.synced > 0) {
         setNotice('Acciones pendientes sincronizadas.');
-      }
-
-      if (result.synced > 0 && shouldRefreshRoute) {
-        await refresh('manual');
       }
     },
     [refresh, setError, setNotice]
