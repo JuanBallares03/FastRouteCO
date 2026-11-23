@@ -208,3 +208,16 @@ As built:
 - `mergeRouteUpdate` keeps locally arrived or completed stops, their evidence photos and notes only for stops still present in the server response. GPS tracking is not restarted because it depends on the route id and status, not on the route object.
 - Tests cover backend emission to the correct drivers and mobile reload on event, foreground and pull, concurrent grouping, cache preservation and stop merging.
 
+
+## Pending decisions — reassignment and overdue routes
+
+Decided on 2026-11-22 after the manual test of the driver route refresh. Each one will be built in its own branch.
+
+Reassigning an in-progress route (RF07, HU-10 CA03, HU-36 CA04 and CA05):
+- Reassigning a route that is already in progress stays allowed, as RF07 and HU-10 CA03 require.
+- The mobile app must not discard the previous driver's offline actions when the server rejects them because the route was reassigned. It keeps them as rejected and creates a notice or incident for the supervisor, so no delivery evidence is lost silently.
+- The web panel warns before reassigning an in-progress route when the driver's last sync is old.
+
+Undelivered orders and overdue routes (RF07, HU-10, HU-36):
+- Handling is manual. The panel marks overdue routes (past date and not completed or cancelled), and the supervisor decides for each order whether to reassign it, cancel it or return it to pending.
+- Routes from past days are excluded from the `pendingStops` count used to suggest the most suitable driver.
