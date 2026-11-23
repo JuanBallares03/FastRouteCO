@@ -194,10 +194,11 @@ export function enqueueAction(action: NewPendingAction): Promise<void> {
   return withLock(async () => {
     const db = await getOfflineDatabase();
     await db.runAsync(
-      'INSERT INTO offline_queue (id, payload, created_at) VALUES (?, ?, ?)',
+      'INSERT INTO offline_queue (id, payload, created_at, kind) VALUES (?, ?, ?, ?)',
       createActionId(),
       JSON.stringify(action),
-      Date.now()
+      Date.now(),
+      action.type === 'location' ? 'location' : 'action'
     );
   });
 }
