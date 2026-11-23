@@ -24,6 +24,7 @@ import {
   setRoutingEngine,
 } from '../../../lib/routing.js';
 import { todayInBogota } from '../../../lib/dates.js';
+import { env } from '../../../env.js';
 import { emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../../lib/realtime.js';
 
 vi.mock('../../../lib/realtime.js', async (importOriginal) => {
@@ -1174,6 +1175,33 @@ describe('Driver route execution', () => {
     expect(res.body.folder).toContain(route.id);
     expect(res.body.folder).toContain(route.stops[0].id);
   });
+
+  it.each(['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'] as const)(
+    'refuses to sign evidence uploads when %s is missing',
+    async (key) => {
+      const route = await createDriverRoute();
+      await request(app)
+        .post(`/api/v1/routes/driver/${route.id}/start`)
+        .set(authHeader(driverAToken))
+        .send({});
+
+      // env is typed read-only; the test overrides it in memory and restores it.
+      const mutableEnv = env as Record<typeof key, string>;
+      const original = mutableEnv[key];
+      mutableEnv[key] = ' ';
+      try {
+        const res = await request(app)
+          .post(`/api/v1/routes/driver/${route.id}/stops/${route.stops[0].id}/evidence-signature`)
+          .set(authHeader(driverAToken));
+
+        expect(res.status).toBe(503);
+        expect(res.body.code).toBe('EVIDENCE_STORAGE_NOT_CONFIGURED');
+        expect(res.body.signature).toBeUndefined();
+      } finally {
+        mutableEnv[key] = original;
+      }
+    }
+  );
 });
 
 describe('Route reassignment', () => {

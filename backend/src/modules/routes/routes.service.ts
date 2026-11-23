@@ -19,7 +19,13 @@ import {
 import { getRoutingEngine } from '../../lib/routing.js';
 import { emitToCompany, emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../lib/realtime.js';
 import type { Coordinates } from '../../lib/geocoding.js';
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors.js';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ServiceUnavailableError,
+} from '../../lib/errors.js';
 import { env } from '../../env.js';
 import {
   applyOptimizationBilling,
@@ -974,16 +980,28 @@ export async function createEvidenceSignature(
     throw new ConflictError('La parada ya fue completada', 'STOP_ALREADY_COMPLETED');
   }
 
+  // Signing with empty credentials produces uploads Cloudinary always rejects,
+  // so the missing configuration is reported as a temporary server error (RF16).
+  const cloudName = env.CLOUDINARY_CLOUD_NAME?.trim();
+  const apiKey = env.CLOUDINARY_API_KEY?.trim();
+  const apiSecret = env.CLOUDINARY_API_SECRET?.trim();
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new ServiceUnavailableError(
+      'El almacenamiento de fotos de evidencia no está configurado',
+      'EVIDENCE_STORAGE_NOT_CONFIGURED'
+    );
+  }
+
   const timestamp = Math.floor(Date.now() / 1000);
   const folder = `fastrouteco/evidence/${companyId}/${routeId}/${stopId}`;
   const signature = cloudinary.utils.api_sign_request(
     { timestamp, folder },
-    env.CLOUDINARY_API_SECRET
+    apiSecret
   );
 
   return {
-    cloudName: env.CLOUDINARY_CLOUD_NAME,
-    apiKey: env.CLOUDINARY_API_KEY,
+    cloudName,
+    apiKey,
     timestamp,
     folder,
     signature,
