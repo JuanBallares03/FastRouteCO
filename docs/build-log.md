@@ -209,6 +209,20 @@ As built:
 - After flushing the offline queue, the screen reloads the route when actions synced and also when actions were dropped, then shows the sync result.
 - Tests cover backend emission to the correct drivers and mobile reload on event, foreground and pull, concurrent grouping, cache preservation and stop merging.
 
+## Live map driver location
+
+Scope:
+- Show the driver of an in-progress route on "Mapa en vivo" as soon as the route starts, as the route detail does (RF08, RF13).
+
+As built:
+- Starting a route with coordinates stores the start position as a `route_locations` row in the same transaction that sets the route in progress, so `GET /routes/:id/locations/latest` returns it before the first GPS sample (`1dca016`).
+- `POST /routes/driver/:id/start` accepts an optional `capturedAt`. When present it is used for both `routes.started_at` and the start trail point, so a start synced from the offline queue keeps its real time; when absent both use the server time. Times more than 2 minutes ahead of the server (`START_CLOCK_SKEW_MS`, phone clock skew) are rejected with 400.
+- A GPS sample with the same `capturedAt` as the start point is skipped by the existing duplicate check, and repeating the start of an in-progress route does not add a row.
+- The web live map and route detail merge fetched and socket positions with the shared helpers in `web/src/lib/route-location.ts`: the newest position by `capturedAt` wins, socket batches use their newest point, and the live map drops routes that are no longer in progress (`f342c47`, `3a48fbe`).
+
+Pending for the offline queue branch:
+- The queued `start` action does not carry a time. The `offline_queue` row stores `created_at` (`Date.now()`) but only to order the queue: `readQueue` reads only the payload, and `routesApi.startRoute` sends only the coordinates. Until the mobile app sends `capturedAt` with the start (the time the driver tapped start or the position timestamp), a start synced late uses the sync time, so its trail point is newer than the GPS samples queued with it: the live map can show the start position as the latest one and report distances can add a segment back to the start.
+
 
 ## Pending decisions — reassignment and overdue routes
 
