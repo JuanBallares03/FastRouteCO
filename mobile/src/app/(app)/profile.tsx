@@ -1,8 +1,13 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import { AppButton } from '@/components/AppButton';
 import { Screen } from '@/components/Screen';
 import { useAuth } from '@/features/auth/AuthContext';
+import { signOutConfirmationMessage } from '@/features/auth/sign-out';
+import {
+  getPendingActionCount,
+  getRejectedActionCount,
+} from '@/features/route/offline-queue';
 import { colors, radius, spacing, typography } from '@/theme';
 
 export default function ProfileScreen() {
@@ -13,13 +18,37 @@ export default function ProfileScreen() {
     return null;
   }
 
-  const handleSignOut = async () => {
+  const performSignOut = async () => {
     setIsSigningOut(true);
     try {
       await signOut();
     } finally {
       setIsSigningOut(false);
     }
+  };
+
+  // Signing out deletes this driver's offline actions, so ask first when any
+  // are still pending or rejected.
+  const handleSignOut = async () => {
+    const [pending, rejected] = await Promise.all([
+      getPendingActionCount().catch(() => 0),
+      getRejectedActionCount().catch(() => 0),
+    ]);
+    const message = signOutConfirmationMessage(pending, rejected);
+
+    if (!message) {
+      await performSignOut();
+      return;
+    }
+
+    Alert.alert('Cerrar sesión', message, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Cerrar sesión y borrar',
+        style: 'destructive',
+        onPress: () => void performSignOut(),
+      },
+    ]);
   };
 
   return (
@@ -50,7 +79,7 @@ export default function ProfileScreen() {
         title="Cerrar sesión"
         variant="danger"
         loading={isSigningOut}
-        onPress={handleSignOut}
+        onPress={() => void handleSignOut()}
         style={styles.signOut}
       />
     </Screen>
