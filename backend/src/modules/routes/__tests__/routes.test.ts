@@ -991,6 +991,172 @@ describe('Driver route execution', () => {
     expect(latest.body.longitude).toBeCloseTo(-75.2324);
   });
 
+  // Midnight of today's route date in America/Bogota (UTC-05:00).
+  const startOfRouteDay = () => new Date(`${todayInBogota()}T00:00:00.000-05:00`);
+
+  it('stores the start position in the trail with the offline capture time', async () => {
+    const route = await createDriverRoute();
+    const capturedAt = new Date(
+      Math.max(startOfRouteDay().getTime(), Date.now() - 5 * 60 * 1000)
+    ).toISOString();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt });
+
+    expect(res.status).toBe(200);
+    expect(new Date(res.body.startedAt).toISOString()).toBe(capturedAt);
+
+    const rows = await prisma.routeLocation.findMany({ where: { routeId: route.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].capturedAt.toISOString()).toBe(capturedAt);
+    expect(Number(rows[0].latitude)).toBeCloseTo(4.4389);
+    expect(Number(rows[0].longitude)).toBeCloseTo(-75.2322);
+
+    const latest = await request(app)
+      .get(`/api/v1/routes/${route.id}/locations/latest`)
+      .set(authHeader(adminToken));
+
+    expect(latest.status).toBe(200);
+    expect(latest.body.latitude).toBeCloseTo(4.4389);
+    expect(new Date(latest.body.capturedAt).toISOString()).toBe(capturedAt);
+
+    const repeated = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.5, longitude: -75.3 });
+    expect(repeated.status).toBe(200);
+
+    const sameInstant = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/locations`)
+      .set(authHeader(driverAToken))
+      .send({ locations: [{ latitude: 4.4389, longitude: -75.2322, capturedAt }] });
+
+    expect(sameInstant.status).toBe(200);
+    expect(sameInstant.body.inserted).toBe(0);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(1);
+  });
+
+  it('uses the server time for the start when no capture time is sent', async () => {
+    const route = await createDriverRoute();
+    const before = Date.now();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322 });
+
+    const after = Date.now();
+    expect(res.status).toBe(200);
+
+    const startedAt = new Date(res.body.startedAt).getTime();
+    expect(startedAt).toBeGreaterThanOrEqual(before);
+    expect(startedAt).toBeLessThanOrEqual(after);
+
+    const rows = await prisma.routeLocation.findMany({ where: { routeId: route.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].capturedAt.getTime()).toBe(startedAt);
+  });
+
+  it('does not store a start position when the start has no coordinates', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('rejects a start capture time beyond the clock skew margin', async () => {
+    const route = await createDriverRoute();
+
+    const future = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({
+        latitude: 4.4389,
+        longitude: -75.2322,
+        capturedAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      });
+
+    expect(future.status).toBe(400);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(0);
+
+    const withinSkew = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({
+        latitude: 4.4389,
+        longitude: -75.2322,
+        capturedAt: new Date(Date.now() + 30 * 1000).toISOString(),
+      });
+
+    expect(withinSkew.status).toBe(200);
+  });
+
+  it('rejects a null start capture time instead of reading it as 1970', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt: null });
+
+    expect(res.status).toBe(400);
+
+    const empty = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt: '' });
+
+    expect(empty.status).toBe(400);
+
+    const stored = await prisma.route.findUnique({ where: { id: route.id } });
+    expect(stored?.status).not.toBe(RouteStatus.in_progress);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('rejects a start capture time before the route day in Bogota', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({
+        latitude: 4.4389,
+        longitude: -75.2322,
+        capturedAt: new Date(startOfRouteDay().getTime() - 1).toISOString(),
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('INVALID_START_TIME');
+
+    const stored = await prisma.route.findUnique({ where: { id: route.id } });
+    expect(stored?.status).not.toBe(RouteStatus.in_progress);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('accepts a start capture time at the beginning of the route day', async () => {
+    const route = await createDriverRoute();
+    const capturedAt = startOfRouteDay().toISOString();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt });
+
+    expect(res.status).toBe(200);
+    expect(new Date(res.body.startedAt).toISOString()).toBe(capturedAt);
+
+    const rows = await prisma.routeLocation.findMany({ where: { routeId: route.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].capturedAt.toISOString()).toBe(capturedAt);
+  });
+
   it('returns a signed Cloudinary upload payload for evidence', async () => {
     const route = await createDriverRoute();
     await request(app)

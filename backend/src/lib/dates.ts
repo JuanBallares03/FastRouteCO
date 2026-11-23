@@ -28,6 +28,14 @@ export function formatBusinessDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * Instant when a business date starts in America/Bogota (00:00 local time).
+ * Bogota uses a fixed UTC-05:00 offset with no daylight saving time.
+ */
+export function startOfBusinessDay(date: Date): Date {
+  return new Date(`${formatBusinessDate(date)}T00:00:00.000-05:00`);
+}
+
 export function addMonths(date: Date, months: number): Date {
   const result = new Date(date);
   const day = result.getUTCDate();

@@ -9,7 +9,7 @@ import {
 import { performance } from 'node:perf_hooks';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../lib/prisma.js';
-import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
+import { parseBusinessDate, startOfBusinessDay, todayInBogota } from '../../lib/dates.js';
 import { haversineMeters } from '../../lib/geo.js';
 import {
   optimizeStopOrder,
@@ -382,10 +382,17 @@ export async function startDriverRoute(
   companyId: string,
   driverId: string,
   routeId: string,
-  data: { latitude?: number; longitude?: number }
+  data: { latitude?: number; longitude?: number; capturedAt?: Date }
 ) {
   const route = await findDriverRoute(companyId, driverId, routeId);
   assertBothCoordinates(data);
+
+  if (data.capturedAt && data.capturedAt < startOfBusinessDay(route.routeDate)) {
+    throw new BadRequestError(
+      'La fecha de inicio no puede ser anterior al día de la ruta',
+      'INVALID_START_TIME'
+    );
+  }
 
   if (route.status === RouteStatus.in_progress) {
     return serializeRoute(route);
@@ -417,12 +424,25 @@ export async function startDriverRoute(
     );
   }
 
+  // A start synced from the offline queue carries its real capture time; the
+  // route start and its first trail point both use it (RF13).
+  const startedAt = data.capturedAt ?? new Date();
+  const startLocation =
+    data.latitude !== undefined && data.longitude !== undefined
+      ? {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          capturedAt: startedAt,
+          isOffline: false,
+        }
+      : null;
+
   await prisma.$transaction([
     prisma.route.update({
       where: { id: route.id },
       data: {
         status: RouteStatus.in_progress,
-        startedAt: route.startedAt ?? new Date(),
+        startedAt: route.startedAt ?? startedAt,
         startLatitude: data.latitude ?? route.startLatitude,
         startLongitude: data.longitude ?? route.startLongitude,
       },
@@ -431,6 +451,12 @@ export async function startDriverRoute(
       where: { userId: driverId },
       data: { status: DriverStatus.on_route },
     }),
+    // Stored in the trail so the live map has a position before the first GPS
+    // sample (RF08). A GPS sample with the same capturedAt is skipped later by
+    // recordRouteLocations.
+    ...(startLocation
+      ? [prisma.routeLocation.create({ data: { routeId: route.id, ...startLocation } })]
+      : []),
   ]);
 
   const updated = await getDriverRoute(companyId, driverId, route.id);
@@ -443,17 +469,9 @@ export async function startDriverRoute(
   emitToCompany(companyId, 'route:location', {
     routeId: route.id,
     driverId,
-    locations:
-      data.latitude !== undefined && data.longitude !== undefined
-        ? [
-            {
-              latitude: data.latitude,
-              longitude: data.longitude,
-              capturedAt: new Date().toISOString(),
-              isOffline: false,
-            },
-          ]
-        : [],
+    locations: startLocation
+      ? [{ ...startLocation, capturedAt: startLocation.capturedAt.toISOString() }]
+      : [],
   });
   return updated;
 }

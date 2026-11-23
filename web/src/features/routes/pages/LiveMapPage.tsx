@@ -10,6 +10,12 @@ import {
 import { routeApi } from '@/features/routes/api';
 import { getRealtimeSocket, releaseRealtimeSocket } from '@/services/socket';
 import { ROUTE_STATUS_LABELS, routeStatusVariant } from '@/lib/order-utils';
+import {
+  latestFromBatch,
+  mergeLocationsByRoute,
+  pickLatestLocation,
+  type TrackedLocation,
+} from '@/lib/route-location';
 
 interface RouteStop {
   id: string;
@@ -41,13 +47,7 @@ interface LiveRoute {
   stops: RouteStop[];
 }
 
-interface LatestLocation {
-  latitude: number;
-  longitude: number;
-  capturedAt?: string;
-}
-
-type LocationsByRoute = Record<string, LatestLocation>;
+type LocationsByRoute = Record<string, TrackedLocation>;
 
 export function LiveMapPage() {
   const location = useLocation();
@@ -73,7 +73,7 @@ export function LiveMapPage() {
         items.map(async (route) => {
           try {
             const response = await routeApi.getLatestLocation(route.id);
-            const data = response.data as LatestLocation | null;
+            const data = response.data as TrackedLocation | null;
             return data ? ([route.id, data] as const) : null;
           } catch {
             return null;
@@ -81,8 +81,16 @@ export function LiveMapPage() {
         })
       );
 
-      setLocations(
-        Object.fromEntries(latest.filter((entry) => entry !== null)) as LocationsByRoute
+      // Merge instead of replacing so a newer socket position is not lost on reload.
+      const fetched = Object.fromEntries(
+        latest.filter((entry) => entry !== null)
+      ) as LocationsByRoute;
+      setLocations((current) =>
+        mergeLocationsByRoute(
+          current,
+          fetched,
+          items.map((route) => route.id)
+        )
       );
     } catch {
       setError('No se pudo cargar el mapa en vivo.');
@@ -103,19 +111,19 @@ export function LiveMapPage() {
 
     const onLocation = (payload: {
       routeId?: string;
-      locations?: Array<{ latitude: number; longitude: number; capturedAt?: string }>;
+      locations?: TrackedLocation[];
     }) => {
-      if (!payload.routeId) return;
-      const last = payload.locations?.[payload.locations.length - 1];
-      if (!last) return;
-      setLocations((current) => ({
-        ...current,
-        [payload.routeId as string]: {
-          latitude: last.latitude,
-          longitude: last.longitude,
-          capturedAt: last.capturedAt,
-        },
-      }));
+      const routeId = payload.routeId;
+      const incoming = latestFromBatch(payload.locations);
+      if (!routeId || !incoming) return;
+      setLocations((current) => {
+        const latest = pickLatestLocation(current[routeId], {
+          latitude: incoming.latitude,
+          longitude: incoming.longitude,
+          capturedAt: incoming.capturedAt,
+        });
+        return latest ? { ...current, [routeId]: latest } : current;
+      });
     };
 
     socket.on('route:location', onLocation);
