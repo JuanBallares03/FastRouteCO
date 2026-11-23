@@ -26,10 +26,6 @@ export function isOfflineError(error: unknown): boolean {
   return isAxiosError(error) && !error.response;
 }
 
-export function isQueueableError(error: unknown): boolean {
-  return isOfflineError(error) || !isAxiosError(error);
-}
-
 export function getApiErrorCode(error: unknown): string | null {
   if (!isAxiosError(error)) return null;
   const body = error.response?.data as { code?: string } | undefined;

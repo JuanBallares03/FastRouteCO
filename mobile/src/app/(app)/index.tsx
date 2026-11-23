@@ -40,12 +40,8 @@ import {
   useRouteTracking,
   type TrackingMode,
 } from '@/features/route/use-route-tracking';
-import {
-  getApiErrorCode,
-  getApiErrorMessage,
-  isQueueableError,
-  routesApi,
-} from '@/features/route/api';
+import { getApiErrorCode, routesApi } from '@/features/route/api';
+import { getSyncErrorMessage, isNetworkError } from '@/features/route/sync-errors';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
 const MAP_STYLE_URL = resolveMapStyleUrl(process.env.EXPO_PUBLIC_MAP_STYLE_URL);
@@ -260,7 +256,7 @@ export default function MyRouteScreen() {
         updateRoute(updated);
         setNotice('Ruta iniciada. El registro de ubicación está activo.');
       } catch (startError) {
-        if (!isQueueableError(startError)) throw startError;
+        if (!isNetworkError(startError)) throw startError;
 
         await enqueueAction({
           type: 'start',
@@ -282,7 +278,7 @@ export default function MyRouteScreen() {
         await refreshPendingCount();
       }
     } catch (startError) {
-      setError(getApiErrorMessage(startError));
+      setError(getSyncErrorMessage(startError));
     } finally {
       setBusyAction(null);
     }
@@ -312,7 +308,7 @@ export default function MyRouteScreen() {
       updateRoute(updated);
       setNotice('Llegada registrada.');
     } catch (arrivalError) {
-      if (isQueueableError(arrivalError)) {
+      if (isNetworkError(arrivalError)) {
         await enqueueAction({
           type: 'arrival',
           routeId: route.id,
@@ -329,7 +325,7 @@ export default function MyRouteScreen() {
       } else if (getApiErrorCode(arrivalError) === 'OUTSIDE_GEOFENCE') {
         askManualArrival(stop, 'No pudimos verificar que estés dentro del radio de la parada.');
       } else {
-        setError(getApiErrorMessage(arrivalError));
+        setError(getSyncErrorMessage(arrivalError));
       }
     } finally {
       setBusyAction(null);
@@ -387,7 +383,7 @@ export default function MyRouteScreen() {
       deleteEvidencePhoto(localUri);
       setNotice('Parada completada con foto de evidencia.');
     } catch (completeError) {
-      if (isQueueableError(completeError)) {
+      if (isNetworkError(completeError)) {
         const capturedAt = new Date().toISOString();
         await enqueueAction({
           type: 'completion',
@@ -407,7 +403,7 @@ export default function MyRouteScreen() {
         await refreshPendingCount();
       } else {
         deleteEvidencePhoto(localUri);
-        setError(getApiErrorMessage(completeError));
+        setError(getSyncErrorMessage(completeError));
         if (getApiErrorCode(completeError) === 'STOP_ALREADY_COMPLETED') {
           void refresh('manual');
         }
@@ -428,7 +424,7 @@ export default function MyRouteScreen() {
       updateRoute(updated);
       setNotice('Ruta finalizada.');
     } catch (finishError) {
-      if (isQueueableError(finishError)) {
+      if (isNetworkError(finishError)) {
         await enqueueAction({ type: 'finish', routeId: route.id });
         updateRoute((current) =>
           current ? { ...current, status: 'completed', endedAt: new Date().toISOString() } : current
@@ -436,7 +432,7 @@ export default function MyRouteScreen() {
         setNotice('Fin de ruta guardado sin conexión. Se sincronizará automáticamente.');
         await refreshPendingCount();
       } else {
-        setError(getApiErrorMessage(finishError));
+        setError(getSyncErrorMessage(finishError));
       }
     } finally {
       setBusyAction(null);
