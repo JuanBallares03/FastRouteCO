@@ -991,9 +991,14 @@ describe('Driver route execution', () => {
     expect(latest.body.longitude).toBeCloseTo(-75.2324);
   });
 
+  // Midnight of today's route date in America/Bogota (UTC-05:00).
+  const startOfRouteDay = () => new Date(`${todayInBogota()}T00:00:00.000-05:00`);
+
   it('stores the start position in the trail with the offline capture time', async () => {
     const route = await createDriverRoute();
-    const capturedAt = '2026-11-06T11:58:00.000Z';
+    const capturedAt = new Date(
+      Math.max(startOfRouteDay().getTime(), Date.now() - 5 * 60 * 1000)
+    ).toISOString();
 
     const res = await request(app)
       .post(`/api/v1/routes/driver/${route.id}/start`)
@@ -1091,6 +1096,65 @@ describe('Driver route execution', () => {
       });
 
     expect(withinSkew.status).toBe(200);
+  });
+
+  it('rejects a null start capture time instead of reading it as 1970', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt: null });
+
+    expect(res.status).toBe(400);
+
+    const empty = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt: '' });
+
+    expect(empty.status).toBe(400);
+
+    const stored = await prisma.route.findUnique({ where: { id: route.id } });
+    expect(stored?.status).not.toBe(RouteStatus.in_progress);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('rejects a start capture time before the route day in Bogota', async () => {
+    const route = await createDriverRoute();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({
+        latitude: 4.4389,
+        longitude: -75.2322,
+        capturedAt: new Date(startOfRouteDay().getTime() - 1).toISOString(),
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('INVALID_START_TIME');
+
+    const stored = await prisma.route.findUnique({ where: { id: route.id } });
+    expect(stored?.status).not.toBe(RouteStatus.in_progress);
+    expect(await prisma.routeLocation.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('accepts a start capture time at the beginning of the route day', async () => {
+    const route = await createDriverRoute();
+    const capturedAt = startOfRouteDay().toISOString();
+
+    const res = await request(app)
+      .post(`/api/v1/routes/driver/${route.id}/start`)
+      .set(authHeader(driverAToken))
+      .send({ latitude: 4.4389, longitude: -75.2322, capturedAt });
+
+    expect(res.status).toBe(200);
+    expect(new Date(res.body.startedAt).toISOString()).toBe(capturedAt);
+
+    const rows = await prisma.routeLocation.findMany({ where: { routeId: route.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].capturedAt.toISOString()).toBe(capturedAt);
   });
 
   it('returns a signed Cloudinary upload payload for evidence', async () => {

@@ -9,7 +9,7 @@ import {
 import { performance } from 'node:perf_hooks';
 import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../lib/prisma.js';
-import { parseBusinessDate, todayInBogota } from '../../lib/dates.js';
+import { parseBusinessDate, startOfBusinessDay, todayInBogota } from '../../lib/dates.js';
 import { haversineMeters } from '../../lib/geo.js';
 import {
   optimizeStopOrder,
@@ -386,6 +386,13 @@ export async function startDriverRoute(
 ) {
   const route = await findDriverRoute(companyId, driverId, routeId);
   assertBothCoordinates(data);
+
+  if (data.capturedAt && data.capturedAt < startOfBusinessDay(route.routeDate)) {
+    throw new BadRequestError(
+      'La fecha de inicio no puede ser anterior al día de la ruta',
+      'INVALID_START_TIME'
+    );
+  }
 
   if (route.status === RouteStatus.in_progress) {
     return serializeRoute(route);

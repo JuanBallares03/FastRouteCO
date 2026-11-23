@@ -74,8 +74,12 @@ export const startRouteSchema = z.object({
   body: z.object({
     latitude: latitude.optional(),
     longitude: longitude.optional(),
-    capturedAt: z.coerce
-      .date({ message: 'Fecha de inicio inválida' })
+    // Only a non-empty date string (or Date) is accepted: z.coerce.date alone
+    // would turn null into 1970-01-01. The lower bound (start of the route day)
+    // depends on the route and is checked in startDriverRoute.
+    capturedAt: z
+      .union([z.string().min(1), z.date()], { message: 'Fecha de inicio inválida' })
+      .pipe(z.coerce.date({ message: 'Fecha de inicio inválida' }))
       .refine((value) => value.getTime() <= Date.now() + START_CLOCK_SKEW_MS, {
         message: 'La fecha de inicio no puede estar en el futuro',
       })
