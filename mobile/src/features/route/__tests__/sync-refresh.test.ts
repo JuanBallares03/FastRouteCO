@@ -2,7 +2,7 @@ import type { FlushResult } from '../offline-queue';
 import { shouldRefreshAfterSync } from '../sync-refresh';
 
 function flushResult(overrides: Partial<FlushResult> = {}): FlushResult {
-  return { synced: 0, pending: 0, failed: 0, lastError: null, ...overrides };
+  return { synced: 0, pending: 0, rejected: 0, lastError: null, ...overrides };
 }
 
 describe('shouldRefreshAfterSync', () => {
@@ -14,14 +14,14 @@ describe('shouldRefreshAfterSync', () => {
     expect(shouldRefreshAfterSync(flushResult({ synced: 2 }), false)).toBe(false);
   });
 
-  it('reloads when actions were dropped even if nothing synced', () => {
-    const result = flushResult({ failed: 1, lastError: 'Ruta no encontrada' });
+  it('reloads when actions were rejected even if nothing synced', () => {
+    const result = flushResult({ rejected: 1, lastError: 'Ruta no encontrada' });
 
     expect(shouldRefreshAfterSync(result, true)).toBe(true);
     expect(shouldRefreshAfterSync(result, false)).toBe(true);
   });
 
-  it('does not reload when nothing synced or dropped', () => {
+  it('does not reload when nothing synced or was rejected', () => {
     expect(shouldRefreshAfterSync(flushResult(), true)).toBe(false);
   });
 

@@ -156,7 +156,7 @@ export default function MyRouteScreen() {
         await refresh('manual');
       }
 
-      if (result.failed > 0) {
+      if (result.rejected > 0) {
         setError(result.lastError ?? 'Algunas acciones no se pudieron sincronizar.');
       } else if (result.synced > 0) {
         setNotice('Acciones pendientes sincronizadas.');

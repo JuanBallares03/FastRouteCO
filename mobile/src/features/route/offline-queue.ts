@@ -1,62 +1,33 @@
-import { isAxiosError } from 'axios';
-import {
-  getApiErrorMessage,
-  isOfflineError,
-  routesApi,
-} from './api';
+import { getApiErrorCode, routesApi } from './api';
 import { uploadEvidencePhoto } from './cloudinary';
 import { deleteEvidencePhoto } from './evidence-files';
-import { getOfflineDatabase } from './offline-db';
-import type { Coordinates, LocationSample } from './types';
+import {
+  queueKindOf,
+  type NewPendingAction,
+  type PendingAction,
+} from './offline-actions';
+import {
+  countEntries,
+  insertEntry,
+  markRejected,
+  readEntries,
+  removeEntry,
+  restoreRejected,
+  type QueueEntry,
+  type RejectedEntry,
+} from './offline-queue-store';
+import { classifySyncError, getSyncErrorMessage, getSyncErrorStatus } from './sync-errors';
+import type { LocationSample } from './types';
 
-interface PendingActionBase {
-  id: string;
-  routeId: string;
-}
-
-interface StartAction extends PendingActionBase {
-  type: 'start';
-  coordinates?: Coordinates;
-}
-
-interface FinishAction extends PendingActionBase {
-  type: 'finish';
-}
-
-interface LocationAction extends PendingActionBase {
-  type: 'location';
-  locations: LocationSample[];
-}
-
-interface ArrivalAction extends PendingActionBase {
-  type: 'arrival';
-  stopId: string;
-  body: { latitude?: number; longitude?: number; method: 'geofence' | 'manual' };
-}
-
-interface CompletionAction extends PendingActionBase {
-  type: 'completion';
-  stopId: string;
-  notes?: string;
-  recipientName?: string;
-  photos: { uri: string; capturedAt: string }[];
-}
-
-type PendingAction =
-  | StartAction
-  | FinishAction
-  | LocationAction
-  | ArrivalAction
-  | CompletionAction;
-
-type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
-
-export type NewPendingAction = DistributiveOmit<PendingAction, 'id'>;
+export type { NewPendingAction, PendingAction } from './offline-actions';
+export type { RejectedEntry } from './offline-queue-store';
 
 export interface FlushResult {
   synced: number;
+  /** Actions still waiting for a connection or a temporary server error. */
   pending: number;
-  failed: number;
+  /** Actions rejected in this flush; they stay on the device as rejected. */
+  rejected: number;
   lastError: string | null;
 }
 
@@ -71,43 +42,8 @@ function withLock<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-function parseAction(payload: string): PendingAction | null {
-  try {
-    const parsed = JSON.parse(payload) as PendingAction;
-    return parsed && typeof parsed.id === 'string' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-async function readQueue(): Promise<PendingAction[]> {
-  const db = await getOfflineDatabase();
-  const rows = await db.getAllAsync<{ payload: string }>(
-    'SELECT payload FROM offline_queue ORDER BY created_at ASC, rowid ASC'
-  );
-
-  return rows.flatMap((row) => {
-    const action = parseAction(row.payload);
-    return action ? [action] : [];
-  });
-}
-
-async function removeAction(actionId: string): Promise<void> {
-  const db = await getOfflineDatabase();
-  await db.runAsync('DELETE FROM offline_queue WHERE id = ?', actionId);
-}
-
 function createActionId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function shouldDrop(error: unknown): boolean {
-  if (isOfflineError(error) || !isAxiosError(error)) return false;
-
-  const status = error.response?.status;
-  if (!status) return false;
-
-  return status >= 400 && status < 500 && status !== 401 && status !== 403;
 }
 
 async function executeAction(action: PendingAction): Promise<void> {
@@ -140,10 +76,6 @@ async function executeAction(action: PendingAction): Promise<void> {
         notes: action.notes,
         recipientName: action.recipientName,
       });
-
-      for (const photo of action.photos) {
-        deleteEvidencePhoto(photo.uri);
-      }
     }
   }
 }
@@ -156,51 +88,65 @@ function cleanupActionFiles(action: PendingAction): void {
   }
 }
 
-async function runFlush(): Promise<FlushResult> {
-  const queue = await readQueue();
-  let synced = 0;
-  let failed = 0;
-  let lastError: string | null = null;
+type EntryOutcome = 'synced' | 'rejected' | 'blocked';
 
-  for (let index = 0; index < queue.length; index += 1) {
-    const action = queue[index];
+interface FlushState {
+  synced: number;
+  rejected: number;
+  lastError: string | null;
+}
 
-    try {
-      await executeAction(action);
-      synced += 1;
-      await removeAction(action.id);
-    } catch (error) {
-      if (shouldDrop(error)) {
-        failed += 1;
-        lastError = getApiErrorMessage(error);
-        cleanupActionFiles(action);
-        await removeAction(action.id);
-        continue;
-      }
+// Sends one entry. Synced and already-applied entries are removed. A permanent
+// rejection is kept as rejected with its reason (photos stay on the device) and
+// does not block the queue. A network or temporary error blocks the lane.
+async function processEntry(entry: QueueEntry, state: FlushState): Promise<EntryOutcome> {
+  try {
+    await executeAction(entry.action);
+  } catch (error) {
+    const kind = classifySyncError(error);
 
-      return {
-        synced,
-        pending: queue.length - index,
-        failed,
-        lastError: lastError ?? getApiErrorMessage(error),
-      };
+    if (kind === 'network' || kind === 'retry') {
+      state.lastError = getSyncErrorMessage(error);
+      return 'blocked';
+    }
+
+    if (kind === 'rejected') {
+      const reason = getSyncErrorMessage(error);
+      await markRejected(
+        entry.id,
+        { reason, code: getApiErrorCode(error), status: getSyncErrorStatus(error) },
+        Date.now()
+      );
+      state.rejected += 1;
+      state.lastError = reason;
+      return 'rejected';
     }
   }
 
-  return { synced, pending: 0, failed, lastError };
+  cleanupActionFiles(entry.action);
+  await removeEntry(entry.id);
+  state.synced += 1;
+  return 'synced';
+}
+
+async function runFlush(): Promise<FlushResult> {
+  const queue = await readEntries('pending');
+  const state: FlushState = { synced: 0, rejected: 0, lastError: null };
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const outcome = await processEntry(queue[index], state);
+    if (outcome === 'blocked') {
+      return { ...state, pending: queue.length - index };
+    }
+  }
+
+  return { ...state, pending: 0 };
 }
 
 export function enqueueAction(action: NewPendingAction): Promise<void> {
-  return withLock(async () => {
-    const db = await getOfflineDatabase();
-    await db.runAsync(
-      'INSERT INTO offline_queue (id, payload, created_at, kind) VALUES (?, ?, ?, ?)',
-      createActionId(),
-      JSON.stringify(action),
-      Date.now(),
-      action.type === 'location' ? 'location' : 'action'
-    );
-  });
+  return withLock(() =>
+    insertEntry(createActionId(), action, queueKindOf(action), Date.now())
+  );
 }
 
 export function flushOfflineQueue(): Promise<FlushResult> {
@@ -208,13 +154,21 @@ export function flushOfflineQueue(): Promise<FlushResult> {
 }
 
 export function getPendingActionCount(): Promise<number> {
-  return withLock(async () => {
-    const db = await getOfflineDatabase();
-    const row = await db.getFirstAsync<{ count: number }>(
-      'SELECT COUNT(*) AS count FROM offline_queue'
-    );
-    return row?.count ?? 0;
-  });
+  return withLock(async () => (await countEntries()).pending);
+}
+
+export function getRejectedActionCount(): Promise<number> {
+  return withLock(async () => (await countEntries()).rejected);
+}
+
+/** Rejected actions with their reason, for the driver and the supervisor notice. */
+export function getRejectedActions(): Promise<RejectedEntry[]> {
+  return withLock(() => readEntries('rejected'));
+}
+
+/** Moves a rejected action back to pending so the next flush sends it again. */
+export function retryRejectedAction(id: string): Promise<void> {
+  return withLock(() => restoreRejected(id));
 }
 
 export interface PendingActionSummary {
@@ -223,15 +177,16 @@ export interface PendingActionSummary {
   stopIds: string[];
 }
 
-// Read-only view of the queue so route refreshes can tell which local changes
-// are still waiting to sync (HU-36 CA05).
+// Read-only view of the pending queue so route refreshes can tell which local
+// changes are still waiting to sync (HU-36 CA05). Rejected actions are not
+// included: the server state wins for them.
 export function getPendingActionSummary(): Promise<PendingActionSummary> {
   return withLock(async () => {
-    const queue = await readQueue();
+    const queue = await readEntries('pending');
     const routeIds = new Set<string>();
     const stopIds = new Set<string>();
 
-    for (const action of queue) {
+    for (const { action } of queue) {
       routeIds.add(action.routeId);
       if (action.type === 'arrival' || action.type === 'completion') {
         stopIds.add(action.stopId);
