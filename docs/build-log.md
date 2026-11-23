@@ -216,12 +216,13 @@ Scope:
 
 As built:
 - Starting a route with coordinates stores the start position as a `route_locations` row in the same transaction that sets the route in progress, so `GET /routes/:id/locations/latest` returns it before the first GPS sample (`1dca016`).
-- `POST /routes/driver/:id/start` accepts an optional `capturedAt`. When present it is used for both `routes.started_at` and the start trail point, so a start synced from the offline queue keeps its real time; when absent both use the server time. Times more than 2 minutes ahead of the server (`START_CLOCK_SKEW_MS`, phone clock skew) are rejected with 400.
+- `POST /routes/driver/:id/start` accepts an optional `capturedAt`. When present it is used for both `routes.started_at` and the start trail point, so a start synced from the offline queue keeps its real time; when absent both use the server time.
+- `capturedAt` validation (`424b10b`): only a non-empty ISO date string is accepted, so `null` or an empty value returns 400 instead of being read as 1970-01-01. A time before 00:00 of the route date in America/Bogota returns 400 with `INVALID_START_TIME`. A time more than 2 minutes ahead of the server (`START_CLOCK_SKEW_MS`, phone clock skew) returns 400. In every rejected case the route is not started and no trail point is stored.
 - A GPS sample with the same `capturedAt` as the start point is skipped by the existing duplicate check, and repeating the start of an in-progress route does not add a row.
 - The web live map and route detail merge fetched and socket positions with the shared helpers in `web/src/lib/route-location.ts`: the newest position by `capturedAt` wins, socket batches use their newest point, and the live map drops routes that are no longer in progress (`f342c47`, `3a48fbe`).
 
 Pending for the offline queue branch:
-- The queued `start` action does not carry a time. The `offline_queue` row stores `created_at` (`Date.now()`) but only to order the queue: `readQueue` reads only the payload, and `routesApi.startRoute` sends only the coordinates. Until the mobile app sends `capturedAt` with the start (the time the driver tapped start or the position timestamp), a start synced late uses the sync time, so its trail point is newer than the GPS samples queued with it: the live map can show the start position as the latest one and report distances can add a segment back to the start.
+- The queued `start` action does not carry a time. The `offline_queue` row stores `created_at` (`Date.now()`) but only to order the queue: `readQueue` reads only the payload, and `routesApi.startRoute` sends only the coordinates. The mobile app must send `capturedAt` with the start (the time the driver tapped start or the position timestamp) as an ISO date string, not as the number returned by `Date.now()`, which the backend rejects. Until it does, a start synced late uses the sync time, so its trail point is newer than the GPS samples queued with it: the live map can show the start position as the latest one and report distances can add a segment back to the start.
 
 
 ## Pending decisions — reassignment and overdue routes
