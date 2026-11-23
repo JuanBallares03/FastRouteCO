@@ -35,6 +35,8 @@ function makeRoute(id: string, stops: RouteStop[]): DriverRoute {
   };
 }
 
+const NOTHING_PENDING = new Set<string>();
+
 describe('mergeRouteUpdate', () => {
   it('keeps a locally completed stop that the server still returns as pending', () => {
     const previous = makeRoute('route-1', [
@@ -47,7 +49,7 @@ describe('mergeRouteUpdate', () => {
     ]);
     const incoming = makeRoute('route-1', [makeStop('stop-1', 'pending')]);
 
-    const merged = mergeRouteUpdate(previous, incoming);
+    const merged = mergeRouteUpdate(previous, incoming, new Set(['stop-1']));
 
     expect(merged?.stops[0].status).toBe('completed');
     expect(merged?.stops[0].confirmedAt).toBe('2026-11-21T13:00:00.000Z');
@@ -60,10 +62,45 @@ describe('mergeRouteUpdate', () => {
     ]);
     const incoming = makeRoute('route-1', [makeStop('stop-1', 'pending')]);
 
-    const merged = mergeRouteUpdate(previous, incoming);
+    const merged = mergeRouteUpdate(previous, incoming, new Set(['stop-1']));
 
     expect(merged?.stops[0].status).toBe('arrived');
     expect(merged?.stops[0].arrivedAt).toBe('2026-11-21T12:30:00.000Z');
+  });
+
+  it('uses the server state once the local action is no longer queued', () => {
+    const previous = makeRoute('route-1', [
+      makeStop('stop-1', 'completed', {
+        confirmedAt: '2026-11-21T13:00:00.000Z',
+        evidencePhotos: [
+          { id: 'local-1', photoUrl: 'file://evidence-1.jpg', capturedAt: null },
+        ],
+      }),
+    ]);
+    const incoming = makeRoute('route-1', [
+      makeStop('stop-1', 'arrived', { arrivedAt: '2026-11-21T12:30:00.000Z' }),
+    ]);
+
+    const merged = mergeRouteUpdate(previous, incoming, NOTHING_PENDING);
+
+    expect(merged?.stops[0].status).toBe('arrived');
+    expect(merged?.stops[0].confirmedAt).toBeNull();
+    expect(merged?.stops[0].evidencePhotos).toHaveLength(0);
+  });
+
+  it('only keeps local progress for stops that still have a queued action', () => {
+    const previous = makeRoute('route-1', [
+      makeStop('stop-1', 'completed'),
+      makeStop('stop-2', 'completed'),
+    ]);
+    const incoming = makeRoute('route-1', [
+      makeStop('stop-1', 'pending'),
+      makeStop('stop-2', 'pending'),
+    ]);
+
+    const merged = mergeRouteUpdate(previous, incoming, new Set(['stop-2']));
+
+    expect(merged?.stops.map((stop) => stop.status)).toEqual(['pending', 'completed']);
   });
 
   it('accepts the server state when it is ahead of the local state', () => {
@@ -72,7 +109,7 @@ describe('mergeRouteUpdate', () => {
       makeStop('stop-1', 'completed', { confirmedAt: '2026-11-21T13:00:00.000Z' }),
     ]);
 
-    const merged = mergeRouteUpdate(previous, incoming);
+    const merged = mergeRouteUpdate(previous, incoming, new Set(['stop-1']));
 
     expect(merged?.stops[0].status).toBe('completed');
   });
@@ -84,7 +121,7 @@ describe('mergeRouteUpdate', () => {
     ]);
     const incoming = makeRoute('route-1', [makeStop('stop-2', 'pending')]);
 
-    const merged = mergeRouteUpdate(previous, incoming);
+    const merged = mergeRouteUpdate(previous, incoming, new Set(['stop-1']));
 
     expect(merged?.stops.map((stop) => stop.id)).toEqual(['stop-2']);
   });
@@ -93,7 +130,7 @@ describe('mergeRouteUpdate', () => {
     const previous = makeRoute('route-1', [makeStop('stop-1', 'completed')]);
     const incoming = makeRoute('route-2', [makeStop('stop-2', 'pending')]);
 
-    const merged = mergeRouteUpdate(previous, incoming);
+    const merged = mergeRouteUpdate(previous, incoming, new Set(['stop-1']));
 
     expect(merged?.id).toBe('route-2');
     expect(merged?.stops.map((stop) => stop.id)).toEqual(['stop-2']);
@@ -102,6 +139,6 @@ describe('mergeRouteUpdate', () => {
   it('returns no route when the server no longer returns one', () => {
     const previous = makeRoute('route-1', [makeStop('stop-1', 'completed')]);
 
-    expect(mergeRouteUpdate(previous, null)).toBeNull();
+    expect(mergeRouteUpdate(previous, null, new Set(['stop-1']))).toBeNull();
   });
 });

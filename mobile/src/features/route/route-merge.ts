@@ -6,8 +6,17 @@ const stopRank: Record<StopStatus, number> = {
   completed: 2,
 };
 
-function mergeStop(previous: RouteStop, incoming: RouteStop): RouteStop {
-  if (stopRank[previous.status] <= stopRank[incoming.status]) {
+function mergeStop(
+  previous: RouteStop,
+  incoming: RouteStop,
+  pendingStopIds: ReadonlySet<string>
+): RouteStop {
+  // Local progress is only kept while its offline action is still queued.
+  // Once the action syncs or is dropped, the server state wins.
+  if (
+    !pendingStopIds.has(previous.id) ||
+    stopRank[previous.status] <= stopRank[incoming.status]
+  ) {
     return incoming;
   }
 
@@ -33,7 +42,8 @@ function mergeStop(previous: RouteStop, incoming: RouteStop): RouteStop {
 
 export function mergeRouteUpdate(
   previous: DriverRoute | null,
-  incoming: DriverRoute | null
+  incoming: DriverRoute | null,
+  pendingStopIds: ReadonlySet<string>
 ): DriverRoute | null {
   if (!incoming) return null;
   if (!previous || previous.id !== incoming.id) return incoming;
@@ -44,7 +54,7 @@ export function mergeRouteUpdate(
     ...incoming,
     stops: incoming.stops.map((stop) => {
       const before = previousStops.get(stop.id);
-      return before ? mergeStop(before, stop) : stop;
+      return before ? mergeStop(before, stop, pendingStopIds) : stop;
     }),
   };
 }

@@ -216,6 +216,31 @@ export function getPendingActionCount(): Promise<number> {
   });
 }
 
+export interface PendingActionSummary {
+  count: number;
+  routeIds: string[];
+  stopIds: string[];
+}
+
+// Read-only view of the queue so route refreshes can tell which local changes
+// are still waiting to sync (HU-36 CA05).
+export function getPendingActionSummary(): Promise<PendingActionSummary> {
+  return withLock(async () => {
+    const queue = await readQueue();
+    const routeIds = new Set<string>();
+    const stopIds = new Set<string>();
+
+    for (const action of queue) {
+      routeIds.add(action.routeId);
+      if (action.type === 'arrival' || action.type === 'completion') {
+        stopIds.add(action.stopId);
+      }
+    }
+
+    return { count: queue.length, routeIds: [...routeIds], stopIds: [...stopIds] };
+  });
+}
+
 export function enqueueLocations(routeId: string, locations: LocationSample[]): Promise<void> {
   return enqueueAction({ type: 'location', routeId, locations });
 }

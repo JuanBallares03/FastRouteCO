@@ -3,7 +3,7 @@ import { AppState, type AppStateStatus } from 'react-native';
 import { getRealtimeSocket } from '@/services/realtime';
 import { DRIVER_ROUTE_UPDATED_EVENT } from '@/services/realtime-events';
 import { routesApi } from '../api';
-import { getPendingActionCount } from '../offline-queue';
+import { getPendingActionSummary } from '../offline-queue';
 import { loadCachedRoute, saveCachedRoute } from '../route-cache';
 import {
   ROUTE_OFFLINE_MESSAGE,
@@ -24,7 +24,7 @@ jest.mock('../api', () => ({
 }));
 
 jest.mock('../offline-queue', () => ({
-  getPendingActionCount: jest.fn(),
+  getPendingActionSummary: jest.fn(),
 }));
 
 jest.mock('../route-cache', () => ({
@@ -34,7 +34,7 @@ jest.mock('../route-cache', () => ({
 
 const getTodayRoute = routesApi.getTodayRoute as jest.Mock;
 const getRealtimeSocketMock = getRealtimeSocket as jest.Mock;
-const getPendingActionCountMock = getPendingActionCount as jest.Mock;
+const getPendingActionSummaryMock = getPendingActionSummary as jest.Mock;
 const loadCachedRouteMock = loadCachedRoute as jest.Mock;
 const saveCachedRouteMock = saveCachedRoute as jest.Mock;
 
@@ -95,13 +95,17 @@ function makeRoute(id: string, stopId = 'stop-1'): DriverRoute {
   };
 }
 
+function pendingSummary(count: number, routeIds: string[] = [], stopIds: string[] = []) {
+  return { count, routeIds, stopIds };
+}
+
 let appStateHandlers: ((state: AppStateStatus) => void)[];
 
 beforeEach(() => {
   jest.clearAllMocks();
 
   getRealtimeSocketMock.mockReturnValue(makeSocket());
-  getPendingActionCountMock.mockResolvedValue(0);
+  getPendingActionSummaryMock.mockResolvedValue(pendingSummary(0));
   loadCachedRouteMock.mockResolvedValue(null);
   saveCachedRouteMock.mockResolvedValue(undefined);
 
@@ -238,7 +242,7 @@ describe('useDriverRoute', () => {
     getTodayRoute
       .mockResolvedValueOnce(makeRoute('route-a'))
       .mockResolvedValueOnce(null);
-    getPendingActionCountMock.mockResolvedValue(2);
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(2, ['route-a'], ['stop-1']));
 
     const { result } = await renderHook(() => useDriverRoute());
 
@@ -270,5 +274,35 @@ describe('useDriverRoute', () => {
 
     await waitFor(() => expect(result.current.route).toBeNull());
     expect(saveCachedRouteMock).toHaveBeenCalledWith(null);
+  });
+
+  it('shows the server stop state once the queued action is dropped', async () => {
+    const serverRoute = makeRoute('route-a');
+    serverRoute.stops = [{ ...serverRoute.stops[0], status: 'arrived' }];
+    getTodayRoute.mockResolvedValue(serverRoute);
+
+    const { result } = await renderHook(() => useDriverRoute());
+
+    await waitFor(() => expect(result.current.route?.stops[0].status).toBe('arrived'));
+
+    await act(async () => {
+      result.current.updateRoute((current) =>
+        current
+          ? { ...current, stops: [{ ...current.stops[0], status: 'completed' }] }
+          : current
+      );
+    });
+
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(1, ['route-a'], ['stop-1']));
+    await act(async () => {
+      await result.current.refresh('manual');
+    });
+    expect(result.current.route?.stops[0].status).toBe('completed');
+
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(0));
+    await act(async () => {
+      await result.current.refresh('manual');
+    });
+    expect(result.current.route?.stops[0].status).toBe('arrived');
   });
 });

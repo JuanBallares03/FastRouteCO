@@ -3,7 +3,7 @@ import { AppState } from 'react-native';
 import { getRealtimeSocket } from '@/services/realtime';
 import { DRIVER_ROUTE_UPDATED_EVENT } from '@/services/realtime-events';
 import { routesApi } from './api';
-import { getPendingActionCount } from './offline-queue';
+import { getPendingActionSummary } from './offline-queue';
 import { loadCachedRoute, saveCachedRoute } from './route-cache';
 import { mergeRouteUpdate } from './route-merge';
 import type { DriverRoute } from './types';
@@ -48,21 +48,19 @@ export function useDriverRoute() {
   const performRefresh = useCallback(async (): Promise<RefreshResult> => {
     try {
       const fetched = await routesApi.getTodayRoute();
+      const pending = await getPendingActionSummary();
 
       const routeChangedAway =
         routeRef.current !== null &&
         (fetched === null || fetched.id !== routeRef.current.id);
 
-      if (routeChangedAway) {
-        const pending = await getPendingActionCount();
-        if (pending > 0) {
-          setIsOffline(false);
-          setError(ROUTE_PENDING_CHANGES_MESSAGE);
-          return { ok: true, keptLocal: true };
-        }
+      if (routeChangedAway && pending.count > 0) {
+        setIsOffline(false);
+        setError(ROUTE_PENDING_CHANGES_MESSAGE);
+        return { ok: true, keptLocal: true };
       }
 
-      const merged = mergeRouteUpdate(routeRef.current, fetched);
+      const merged = mergeRouteUpdate(routeRef.current, fetched, new Set(pending.stopIds));
       routeRef.current = merged;
       setRouteState(merged);
       await saveCachedRoute(merged);
