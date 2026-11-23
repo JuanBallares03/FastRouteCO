@@ -28,6 +28,8 @@ export interface FlushResult {
   pending: number;
   /** Actions rejected in this flush; they stay on the device as rejected. */
   rejected: number;
+  /** The last action rejected in this flush, to name it in the sync message. */
+  lastRejected: PendingAction | null;
   lastError: string | null;
 }
 
@@ -93,6 +95,7 @@ type EntryOutcome = 'synced' | 'rejected' | 'blocked';
 interface FlushState {
   synced: number;
   rejected: number;
+  lastRejected: PendingAction | null;
   lastError: string | null;
 }
 
@@ -118,6 +121,7 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
         Date.now()
       );
       state.rejected += 1;
+      state.lastRejected = entry.action;
       state.lastError = reason;
       return 'rejected';
     }
@@ -139,7 +143,7 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
 async function runFlush(): Promise<FlushResult> {
   const actions = await readEntries('pending', 'action');
   const locations = await readEntries('pending', 'location');
-  const state: FlushState = { synced: 0, rejected: 0, lastError: null };
+  const state: FlushState = { synced: 0, rejected: 0, lastRejected: null, lastError: null };
   const doneLocations = new Set<string>();
   let locationsBlocked = false;
 

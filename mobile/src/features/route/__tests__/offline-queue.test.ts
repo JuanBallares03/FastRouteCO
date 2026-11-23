@@ -143,7 +143,13 @@ describe('flushOfflineQueue', () => {
 
     const result = await flushOfflineQueue();
 
-    expect(result).toEqual({ synced: 2, pending: 0, rejected: 0, lastError: null });
+    expect(result).toEqual({
+      synced: 2,
+      pending: 0,
+      rejected: 0,
+      lastRejected: null,
+      lastError: null,
+    });
     expect(api.startRoute).toHaveBeenCalled();
     expect(api.arriveAtStop).toHaveBeenCalledWith('r1', 's1', { method: 'manual' });
     expect(rows).toHaveLength(0);
@@ -163,10 +169,11 @@ describe('flushOfflineQueue', () => {
 
     const result = await flushOfflineQueue();
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       synced: 1,
       pending: 0,
       rejected: 1,
+      lastRejected: { id: arrival, type: 'arrival' },
       lastError: 'Ruta no encontrada',
     });
     expect(api.finishRoute).toHaveBeenCalledWith('r2');

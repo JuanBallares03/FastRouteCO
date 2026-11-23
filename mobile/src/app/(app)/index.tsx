@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { AppButton } from '@/components/AppButton';
 import { EvidenceCameraModal } from '@/components/EvidenceCameraModal';
 import { Notice } from '@/components/Notice';
+import { RejectedActionsModal } from '@/components/RejectedActionsModal';
 import { Screen } from '@/components/Screen';
 import { DriverRouteMap } from '@/features/route/DriverRouteMap';
 import { uploadEvidencePhoto } from '@/features/route/cloudinary';
@@ -21,7 +22,15 @@ import {
   enqueueAction,
   flushOfflineQueue,
   getPendingActionCount,
+  getRejectedActions,
+  retryRejectedAction,
+  type RejectedEntry,
 } from '@/features/route/offline-queue';
+import {
+  groupRejectedActions,
+  rejectedSyncMessage,
+  type RejectedActionItem,
+} from '@/features/route/rejected-actions';
 import {
   mapFallbackMessage,
   resolveMapStyleUrl,
@@ -141,6 +150,23 @@ export default function MyRouteScreen() {
   const { location: driverLocation, permissionDenied: locationDenied } =
     useCurrentLocation(shouldTrackForMap);
 
+  const [rejectedEntries, setRejectedEntries] = useState<RejectedEntry[]>([]);
+  const [showRejected, setShowRejected] = useState(false);
+  const [retryingKey, setRetryingKey] = useState<string | null>(null);
+  // Read inside runSync without making it change on every route update.
+  const stopsRef = useRef(route?.stops ?? []);
+  useEffect(() => {
+    stopsRef.current = route?.stops ?? [];
+  }, [route?.stops]);
+  const rejectedItems = useMemo(
+    () => groupRejectedActions(rejectedEntries, route?.stops ?? []),
+    [rejectedEntries, route?.stops]
+  );
+
+  const loadRejected = useCallback(async () => {
+    setRejectedEntries(await getRejectedActions());
+  }, []);
+
   const refreshPendingCount = useCallback(async () => {
     setPendingCount(await getPendingActionCount());
   }, []);
@@ -149,6 +175,7 @@ export default function MyRouteScreen() {
     async (shouldRefreshRoute: boolean) => {
       const result = await flushOfflineQueue();
       setPendingCount(result.pending);
+      await loadRejected();
 
       // Reload first: a successful reload clears the error, and the sync
       // outcome below must stay visible to the driver.
@@ -157,12 +184,34 @@ export default function MyRouteScreen() {
       }
 
       if (result.rejected > 0) {
-        setError(result.lastError ?? 'Algunas acciones no se pudieron sincronizar.');
+        setError(
+          rejectedSyncMessage(
+            result.rejected,
+            result.lastRejected,
+            result.lastError,
+            stopsRef.current
+          )
+        );
       } else if (result.synced > 0) {
         setNotice('Acciones pendientes sincronizadas.');
       }
     },
-    [refresh, setError, setNotice]
+    [loadRejected, refresh, setError, setNotice]
+  );
+
+  const handleRetryRejected = useCallback(
+    async (item: RejectedActionItem) => {
+      setRetryingKey(item.key);
+      try {
+        for (const id of item.ids) {
+          await retryRejectedAction(id);
+        }
+        await runSync(true);
+      } finally {
+        setRetryingKey(null);
+      }
+    },
+    [runSync]
   );
 
   useEffect(() => {
@@ -541,6 +590,19 @@ export default function MyRouteScreen() {
       {error ? <Notice message={error} /> : null}
       {notice ? <Notice message={notice} variant="success" /> : null}
 
+      {rejectedItems.length > 0 ? (
+        <View style={styles.rejectedBlock}>
+          <Notice
+            message={
+              rejectedItems.length === 1
+                ? '1 acción no se pudo enviar.'
+                : `${rejectedItems.length} acciones no se pudieron enviar.`
+            }
+          />
+          <AppButton title="Ver detalle" onPress={() => setShowRejected(true)} />
+        </View>
+      ) : null}
+
       {!isLoading && !route ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>No tienes ruta asignada hoy</Text>
@@ -690,6 +752,14 @@ export default function MyRouteScreen() {
         </>
       ) : null}
 
+      <RejectedActionsModal
+        visible={showRejected}
+        items={rejectedItems}
+        retryingKey={retryingKey}
+        onRetry={(item) => void handleRetryRejected(item)}
+        onClose={() => setShowRejected(false)}
+      />
+
       <EvidenceCameraModal
         visible={cameraStopId !== null}
         onClose={() => setCameraStopId(null)}
@@ -794,6 +864,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.label,
     lineHeight: 21,
+  },
+  rejectedBlock: {
+    gap: spacing.sm,
   },
   pendingBanner: {
     padding: spacing.md,
