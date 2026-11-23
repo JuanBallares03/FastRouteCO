@@ -62,6 +62,11 @@ export const optimizeRouteSchema = getRouteSchema;
 
 export const driverRouteSchema = getRouteSchema;
 
+// Allowed difference between the phone clock and the server clock. A start
+// captured offline is sent later with its real capture time, so a time slightly
+// ahead of the server is accepted; anything beyond this margin is rejected.
+export const START_CLOCK_SKEW_MS = 2 * 60 * 1000;
+
 export const startRouteSchema = z.object({
   params: z.object({
     id: z.string().uuid({ message: 'ID de ruta inválido' }),
@@ -69,6 +74,12 @@ export const startRouteSchema = z.object({
   body: z.object({
     latitude: latitude.optional(),
     longitude: longitude.optional(),
+    capturedAt: z.coerce
+      .date({ message: 'Fecha de inicio inválida' })
+      .refine((value) => value.getTime() <= Date.now() + START_CLOCK_SKEW_MS, {
+        message: 'La fecha de inicio no puede estar en el futuro',
+      })
+      .optional(),
   }),
 });
 
