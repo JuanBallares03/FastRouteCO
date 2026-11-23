@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Toast } from '@/components/ui/Modal';
-import { RouteMap, type DriverLocation, type RouteMapStop } from '@/components/map/RouteMap';
+import { RouteMap, type RouteMapStop } from '@/components/map/RouteMap';
 import { companyApi } from '@/features/company/api';
 import { incidentApi, type IncidentPayload } from '@/features/incidents/api';
 import {
@@ -25,6 +25,11 @@ import {
   orderStatusVariant,
   routeStatusVariant,
 } from '@/lib/order-utils';
+import {
+  latestFromBatch,
+  pickLatestLocation,
+  type TrackedLocation,
+} from '@/lib/route-location';
 
 interface RouteOrder {
   id: string;
@@ -92,7 +97,7 @@ export function RouteDetailPage() {
   const [targetDriverId, setTargetDriverId] = useState('');
   const [reassigningStopId, setReassigningStopId] = useState<string | null>(null);
   const [reassigningRoute, setReassigningRoute] = useState(false);
-  const [driverLocation, setDriverLocation] = useState<DriverLocation | null>(null);
+  const [driverLocation, setDriverLocation] = useState<TrackedLocation | null>(null);
   const [toast, setToast] = useState<{
     show: boolean;
     message: string;
@@ -125,14 +130,16 @@ export function RouteDetailPage() {
     if (!id) return;
     try {
       const response = await routeApi.getLatestLocation(id);
-      const location = response.data as
-        | { latitude: number; longitude: number }
-        | null;
+      const location = response.data as TrackedLocation | null;
       if (location) {
-        setDriverLocation({
-          latitude: location.latitude,
-          longitude: location.longitude,
-        });
+        // A socket position newer than the fetched one is kept.
+        setDriverLocation((current) =>
+          pickLatestLocation(current, {
+            latitude: location.latitude,
+            longitude: location.longitude,
+            capturedAt: location.capturedAt,
+          })
+        );
       }
     } catch {
       // Initial position is optional.
@@ -180,12 +187,18 @@ export function RouteDetailPage() {
 
     const onRouteLocation = (payload: {
       routeId?: string;
-      locations?: Array<{ latitude: number; longitude: number }>;
+      locations?: TrackedLocation[];
     }) => {
       if (payload.routeId !== id) return;
-      const last = payload.locations?.[payload.locations.length - 1];
-      if (last) {
-        setDriverLocation({ latitude: last.latitude, longitude: last.longitude });
+      const incoming = latestFromBatch(payload.locations);
+      if (incoming) {
+        setDriverLocation((current) =>
+          pickLatestLocation(current, {
+            latitude: incoming.latitude,
+            longitude: incoming.longitude,
+            capturedAt: incoming.capturedAt,
+          })
+        );
       }
     };
 
