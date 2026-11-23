@@ -20,18 +20,27 @@ export function deleteEvidencePhoto(uri: string): void {
   }
 }
 
-export function clearEvidencePhotos(): void {
+/** File name of an evidence photo, used to compare URIs from different sources. */
+export function evidenceFileName(uri: string): string {
+  return uri.split('/').pop() ?? uri;
+}
+
+/** Deletes cached evidence photos except the ones named in `keep`. */
+export function clearEvidencePhotos(keep: ReadonlySet<string> = new Set()): void {
   if (!evidenceDirectory.exists) {
     return;
   }
 
   for (const entry of evidenceDirectory.list()) {
+    if (keep.has(evidenceFileName(entry.uri))) continue;
     try {
       entry.delete();
     } catch {
       // ignore files that are already gone
     }
   }
+
+  if (keep.size > 0) return;
 
   try {
     evidenceDirectory.delete();

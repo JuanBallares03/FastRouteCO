@@ -11,9 +11,8 @@ import { authApi } from './api';
 import { isAuthenticationError, setSessionExpiredHandler } from '@/services/http';
 import { NON_DRIVER_MESSAGE, LoginBlockedError, isDriverRole } from './auth-errors';
 import { clearSession, loadSession, saveSession } from './session-storage';
-import { clearOfflineData } from '../route/offline-db';
 import { stopBackgroundTracking } from '../route/background-location';
-import { clearEvidencePhotos } from '../route/evidence-files';
+import { clearOwnerOfflineData, setOfflineOwner } from '../route/offline-owner';
 import { tokenStore } from './token-store';
 import type { AuthUser } from './types';
 
@@ -28,29 +27,45 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+export const SESSION_EXPIRED_MESSAGE =
+  'Tu sesión venció. Inicia sesión de nuevo para enviar las acciones pendientes.';
+
+// Makes the driver the owner of offline actions. When another driver owned
+// them, the background tracking of that driver's route is stopped so new GPS
+// samples are not stored under the wrong driver (RF17).
+async function claimOfflineData(userId: string): Promise<void> {
+  const { changed } = await setOfflineOwner(userId).catch(() => ({ changed: false }));
+  if (changed) {
+    await stopBackgroundTracking().catch(() => undefined);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
 
+  // Ends the session on this phone without touching the offline queue or the
+  // evidence photos: they wait for their driver to sign in again.
   const resetSession = useCallback(async () => {
     await stopBackgroundTracking().catch(() => undefined);
     tokenStore.clear();
-    await Promise.all([
-      clearSession().catch(() => undefined),
-      clearOfflineData().catch(() => undefined),
-    ]);
-    clearEvidencePhotos();
+    await clearSession().catch(() => undefined);
     setUser(null);
   }, []);
 
+  const expireSession = useCallback(async () => {
+    await resetSession();
+    setNotice(SESSION_EXPIRED_MESSAGE);
+  }, [resetSession]);
+
   useEffect(() => {
     setSessionExpiredHandler(() => {
-      void resetSession();
+      void expireSession();
     });
 
     return () => setSessionExpiredHandler(null);
-  }, [resetSession]);
+  }, [expireSession]);
 
   useEffect(() => {
     let isActive = true;
@@ -77,6 +92,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
+
+      await claimOfflineData(storedSession.user.id);
 
       try {
         const profile = await authApi.me();
@@ -107,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (isAuthenticationError(error)) {
-          await resetSession();
+          await expireSession();
         } else {
           setUser(storedSession.user);
         }
@@ -121,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isActive = false;
     };
-  }, [resetSession]);
+  }, [expireSession, resetSession]);
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -141,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshToken: response.refreshToken,
       };
 
+      await claimOfflineData(response.user.id);
       tokenStore.set(tokens);
       await saveSession({ tokens, user: response.user });
       setUser(response.user);
@@ -155,6 +173,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await authApi.logout(refreshToken).catch(() => undefined);
     }
 
+    // Manual sign-out removes this driver's offline data; the profile screen
+    // asks for confirmation first when there is any (HU-36).
+    await clearOwnerOfflineData().catch(() => undefined);
     setNotice(null);
     await resetSession();
   }, [resetSession]);

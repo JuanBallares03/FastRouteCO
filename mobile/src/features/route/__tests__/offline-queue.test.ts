@@ -12,6 +12,7 @@ import {
 } from '../offline-queue';
 import * as store from '../offline-queue-store';
 import { EvidenceUploadNetworkError, EvidenceUploadRejectedError } from '../sync-errors';
+import { tokenStore } from '@/features/auth/token-store';
 
 interface MemoryRow {
   id: string;
@@ -131,6 +132,7 @@ const signature = { cloudName: 'demo', apiKey: 'k', timestamp: 1, folder: 'f', s
 beforeEach(() => {
   rows.splice(0, rows.length);
   jest.clearAllMocks();
+  tokenStore.set({ accessToken: 'access', refreshToken: 'refresh' });
   for (const fn of Object.values(api)) fn.mockResolvedValue(undefined as never);
   api.getEvidenceSignature.mockResolvedValue(signature);
   upload.mockResolvedValue('https://res.cloudinary.com/demo/photo.jpg');
@@ -258,6 +260,26 @@ describe('flushOfflineQueue', () => {
       recipientName: undefined,
     });
     expect(deleteEvidencePhoto).toHaveBeenCalledWith(photo.uri);
+  });
+});
+
+describe('session', () => {
+  it('sends nothing while there is no session and keeps the actions pending', async () => {
+    tokenStore.clear();
+    seed({ type: 'start', routeId: 'r1' });
+    seed({ type: 'location', routeId: 'r1', locations: [] });
+
+    const result = await flushOfflineQueue();
+
+    expect(result).toEqual({
+      synced: 0,
+      pending: 2,
+      rejected: 0,
+      lastRejected: null,
+      lastError: null,
+    });
+    expect(api.startRoute).not.toHaveBeenCalled();
+    expect(api.sendLocations).not.toHaveBeenCalled();
   });
 });
 

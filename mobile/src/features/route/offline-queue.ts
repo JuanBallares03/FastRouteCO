@@ -1,3 +1,4 @@
+import { tokenStore } from '@/features/auth/token-store';
 import { getApiErrorCode, routesApi } from './api';
 import { uploadEvidencePhoto } from './cloudinary';
 import { deleteEvidencePhoto } from './evidence-files';
@@ -147,6 +148,13 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
 //   never blocks the trail. Samples of a route whose start is still pending wait
 //   for it, and a finish first sends the samples of its route captured before it.
 async function runFlush(): Promise<FlushResult> {
+  // Without a session (expired, or another driver signed out) nothing is sent:
+  // the actions wait for their owner to sign in again.
+  if (!tokenStore.getAccessToken()) {
+    const { pending } = await countEntries();
+    return { synced: 0, pending, rejected: 0, lastRejected: null, lastError: null };
+  }
+
   const actions = await readEntries('pending', 'action');
   const locations = await readEntries('pending', 'location');
   const state: FlushState = { synced: 0, rejected: 0, lastRejected: null, lastError: null };

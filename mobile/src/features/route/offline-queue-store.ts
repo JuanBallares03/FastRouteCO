@@ -1,8 +1,10 @@
 import { getOfflineDatabase } from './offline-db';
+import { CURRENT_OWNER_SQL } from './offline-owner';
 import type { NewPendingAction, PendingAction, QueueKind } from './offline-actions';
 
-// The only module that reads or writes the `offline_queue` table. The queue
-// logic in offline-queue.ts works on these typed entries.
+// Reads and writes the `offline_queue` table for the queue logic in
+// offline-queue.ts. Every query is scoped to the current owner, so actions of
+// another driver are never read, sent or counted.
 
 export type QueueStatus = 'pending' | 'rejected';
 
@@ -67,7 +69,8 @@ export async function insertEntry(
 ): Promise<void> {
   const db = await getOfflineDatabase();
   await db.runAsync(
-    'INSERT INTO offline_queue (id, payload, created_at, kind) VALUES (?, ?, ?, ?)',
+    `INSERT INTO offline_queue (id, payload, created_at, kind, owner_user_id)
+     VALUES (?, ?, ?, ?, ${CURRENT_OWNER_SQL})`,
     id,
     JSON.stringify(action),
     createdAt,
@@ -82,7 +85,7 @@ export async function readEntries(
   kind?: QueueKind
 ): Promise<QueueEntry[] | RejectedEntry[]> {
   const db = await getOfflineDatabase();
-  const filters = ['status = ?'];
+  const filters = [`owner_user_id = ${CURRENT_OWNER_SQL}`, 'status = ?'];
   const params: (string | number)[] = [status];
   if (kind) {
     filters.push('kind = ?');
@@ -127,7 +130,7 @@ export async function markRejected(
   await db.runAsync(
     `UPDATE offline_queue
      SET status = 'rejected', rejected_at = ?, reject_reason = ?, reject_code = ?, reject_status = ?
-     WHERE id = ?`,
+     WHERE id = ? AND owner_user_id = ${CURRENT_OWNER_SQL}`,
     rejectedAt,
     details.reason,
     details.code,
@@ -143,7 +146,7 @@ export async function restoreRejected(id: string): Promise<void> {
     `UPDATE offline_queue
      SET status = 'pending', rejected_at = NULL, reject_reason = NULL,
          reject_code = NULL, reject_status = NULL
-     WHERE id = ? AND status = 'rejected'`,
+     WHERE id = ? AND status = 'rejected' AND owner_user_id = ${CURRENT_OWNER_SQL}`,
     id
   );
 }
@@ -151,7 +154,9 @@ export async function restoreRejected(id: string): Promise<void> {
 export async function countEntries(): Promise<{ pending: number; rejected: number }> {
   const db = await getOfflineDatabase();
   const rows = await db.getAllAsync<{ status: string; count: number }>(
-    'SELECT status, COUNT(*) AS count FROM offline_queue GROUP BY status'
+    `SELECT status, COUNT(*) AS count FROM offline_queue
+     WHERE owner_user_id = ${CURRENT_OWNER_SQL}
+     GROUP BY status`
   );
   const counts = { pending: 0, rejected: 0 };
   for (const row of rows) {

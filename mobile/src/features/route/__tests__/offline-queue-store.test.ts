@@ -71,13 +71,16 @@ describe('offline queue store', () => {
       reportedAt: null,
     });
     expect(mockDatabase.getAllAsync.mock.calls[0][1]).toBe('rejected');
+    expect(mockDatabase.getAllAsync.mock.calls[0][0]).toContain(
+      "owner_user_id = (SELECT value FROM offline_meta WHERE key = 'current_owner')"
+    );
   });
 
   it('stores the lane of each new entry', async () => {
     await insertEntry('row-3', { type: 'location', routeId: 'r1', locations: [] }, 'location', 5);
 
     expect(mockDatabase.runAsync).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT INTO offline_queue'),
+      expect.stringMatching(/INSERT INTO offline_queue[\s\S]*owner_user_id[\s\S]*current_owner/),
       'row-3',
       JSON.stringify({ type: 'location', routeId: 'r1', locations: [] }),
       5,

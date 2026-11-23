@@ -1,4 +1,5 @@
 import { getOfflineDatabase } from './offline-db';
+import { CURRENT_OWNER_SQL } from './offline-owner';
 import { isCurrentRoute } from './offline-storage-utils';
 import type { DriverRoute } from './types';
 
@@ -20,9 +21,10 @@ export async function saveCachedRoute(route: DriverRoute | null): Promise<void> 
   }
 
   await db.runAsync(
-    `INSERT INTO route_cache (id, payload, updated_at)
-     VALUES (1, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
+    `INSERT INTO route_cache (id, payload, updated_at, owner_user_id)
+     VALUES (1, ?, ?, ${CURRENT_OWNER_SQL})
+     ON CONFLICT(id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at,
+       owner_user_id = excluded.owner_user_id`,
     JSON.stringify(route),
     Date.now()
   );
@@ -31,7 +33,7 @@ export async function saveCachedRoute(route: DriverRoute | null): Promise<void> 
 export async function loadCachedRoute(): Promise<DriverRoute | null> {
   const db = await getOfflineDatabase();
   const row = await db.getFirstAsync<{ payload: string }>(
-    'SELECT payload FROM route_cache WHERE id = 1'
+    `SELECT payload FROM route_cache WHERE id = 1 AND owner_user_id = ${CURRENT_OWNER_SQL}`
   );
 
   if (!row) return null;
