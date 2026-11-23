@@ -297,6 +297,9 @@ export default function MyRouteScreen() {
     setBusyAction('start');
     setError(null);
     setNotice(null);
+    // Taken when the driver taps start, before waiting for the location or the
+    // request, so an offline start syncs with its real time (RF13).
+    const startedAt = new Date().toISOString();
 
     try {
       const coordinates = await getPosition();
@@ -311,13 +314,14 @@ export default function MyRouteScreen() {
           type: 'start',
           routeId: route.id,
           coordinates: coordinates ?? undefined,
+          capturedAt: startedAt,
         });
         updateRoute((current) =>
           current
             ? {
                 ...current,
                 status: 'in_progress',
-                startedAt: new Date().toISOString(),
+                startedAt,
                 startLatitude: coordinates?.latitude ?? current.startLatitude,
                 startLongitude: coordinates?.longitude ?? current.startLongitude,
               }

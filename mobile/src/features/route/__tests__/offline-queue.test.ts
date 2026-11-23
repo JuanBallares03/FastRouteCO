@@ -261,6 +261,35 @@ describe('flushOfflineQueue', () => {
   });
 });
 
+describe('offline start time', () => {
+  it('sends the time the driver tapped start as capturedAt', async () => {
+    const coordinates = { latitude: 4.4389, longitude: -75.2322 };
+    seed({
+      type: 'start',
+      routeId: 'r1',
+      coordinates,
+      capturedAt: '2026-11-23T13:05:00.000Z',
+    });
+
+    await flushOfflineQueue();
+
+    expect(api.startRoute).toHaveBeenCalledWith('r1', coordinates, '2026-11-23T13:05:00.000Z');
+  });
+
+  it('uses the queue time for starts stored without capturedAt', async () => {
+    const id = seed({ type: 'start', routeId: 'r1' });
+    const createdAt = rows.find((row) => row.id === id)!.createdAt;
+
+    await flushOfflineQueue();
+
+    expect(api.startRoute).toHaveBeenCalledWith(
+      'r1',
+      undefined,
+      new Date(createdAt).toISOString()
+    );
+  });
+});
+
 describe('GPS lane', () => {
   const sample = {
     latitude: 4.4389,

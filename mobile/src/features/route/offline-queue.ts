@@ -48,10 +48,16 @@ function createActionId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function executeAction(action: PendingAction): Promise<void> {
+async function executeAction(entry: QueueEntry): Promise<void> {
+  const { action } = entry;
   switch (action.type) {
     case 'start':
-      await routesApi.startRoute(action.routeId, action.coordinates);
+      // Starts stored before capturedAt existed use the time they were queued.
+      await routesApi.startRoute(
+        action.routeId,
+        action.coordinates,
+        action.capturedAt ?? new Date(entry.createdAt).toISOString()
+      );
       return;
     case 'finish':
       await routesApi.finishRoute(action.routeId);
@@ -104,7 +110,7 @@ interface FlushState {
 // does not block the queue. A network or temporary error blocks the lane.
 async function processEntry(entry: QueueEntry, state: FlushState): Promise<EntryOutcome> {
   try {
-    await executeAction(entry.action);
+    await executeAction(entry);
   } catch (error) {
     const kind = classifySyncError(error);
 
