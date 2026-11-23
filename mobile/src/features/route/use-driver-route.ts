@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import { isAxiosError } from 'axios';
 import { getRealtimeSocket } from '@/services/realtime';
 import { DRIVER_ROUTE_UPDATED_EVENT } from '@/services/realtime-events';
 import { routesApi } from './api';
@@ -14,7 +15,20 @@ export const ROUTE_LOAD_FAILED_MESSAGE =
   'No pudimos cargar tu ruta. Verifica tu conexión e intenta de nuevo.';
 export const ROUTE_PENDING_CHANGES_MESSAGE =
   'Tu ruta cambió en la empresa, pero tienes acciones pendientes de sincronizar. Sincroniza para no perderlas.';
+export const ROUTE_PENDING_UNSYNCABLE_MESSAGE =
+  'Tu ruta cambió en la empresa y ya no está asignada a ti. Las acciones guardadas en este teléfono para esa ruta no se podrán sincronizar; avisa a tu supervisor.';
 export const ROUTE_UPDATED_MESSAGE = 'La empresa actualizó tu ruta.';
+
+// The driver endpoints answer 404 once the route is no longer assigned to
+// this driver (reassigned or deleted), so its queued actions cannot sync.
+async function isRouteNoLongerAssigned(routeId: string): Promise<boolean> {
+  try {
+    await routesApi.getRoute(routeId);
+    return false;
+  } catch (error) {
+    return isAxiosError(error) && error.response?.status === 404;
+  }
+}
 
 export type RouteRefreshReason = 'initial' | 'manual' | 'realtime' | 'foreground';
 
@@ -50,13 +64,16 @@ export function useDriverRoute() {
       const fetched = await routesApi.getTodayRoute();
       const pending = await getPendingActionSummary();
 
+      const previous = routeRef.current;
       const routeChangedAway =
-        routeRef.current !== null &&
-        (fetched === null || fetched.id !== routeRef.current.id);
+        previous !== null && (fetched === null || fetched.id !== previous.id);
 
       if (routeChangedAway && pending.count > 0) {
+        const unsyncable =
+          pending.routeIds.includes(previous.id) &&
+          (await isRouteNoLongerAssigned(previous.id));
         setIsOffline(false);
-        setError(ROUTE_PENDING_CHANGES_MESSAGE);
+        setError(unsyncable ? ROUTE_PENDING_UNSYNCABLE_MESSAGE : ROUTE_PENDING_CHANGES_MESSAGE);
         return { ok: true, keptLocal: true };
       }
 

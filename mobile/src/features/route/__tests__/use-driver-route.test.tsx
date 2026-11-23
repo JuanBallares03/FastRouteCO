@@ -1,4 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react-native';
+import { AxiosError, type AxiosResponse } from 'axios';
 import { AppState, type AppStateStatus } from 'react-native';
 import { getRealtimeSocket } from '@/services/realtime';
 import { DRIVER_ROUTE_UPDATED_EVENT } from '@/services/realtime-events';
@@ -8,6 +9,7 @@ import { loadCachedRoute, saveCachedRoute } from '../route-cache';
 import {
   ROUTE_OFFLINE_MESSAGE,
   ROUTE_PENDING_CHANGES_MESSAGE,
+  ROUTE_PENDING_UNSYNCABLE_MESSAGE,
   ROUTE_UPDATED_MESSAGE,
   useDriverRoute,
 } from '../use-driver-route';
@@ -20,6 +22,7 @@ jest.mock('@/services/realtime', () => ({
 jest.mock('../api', () => ({
   routesApi: {
     getTodayRoute: jest.fn(),
+    getRoute: jest.fn(),
   },
 }));
 
@@ -33,6 +36,7 @@ jest.mock('../route-cache', () => ({
 }));
 
 const getTodayRoute = routesApi.getTodayRoute as jest.Mock;
+const getRoute = routesApi.getRoute as jest.Mock;
 const getRealtimeSocketMock = getRealtimeSocket as jest.Mock;
 const getPendingActionSummaryMock = getPendingActionSummary as jest.Mock;
 const loadCachedRouteMock = loadCachedRoute as jest.Mock;
@@ -106,6 +110,7 @@ beforeEach(() => {
 
   getRealtimeSocketMock.mockReturnValue(makeSocket());
   getPendingActionSummaryMock.mockResolvedValue(pendingSummary(0));
+  getRoute.mockResolvedValue(makeRoute('route-a'));
   loadCachedRouteMock.mockResolvedValue(null);
   saveCachedRouteMock.mockResolvedValue(undefined);
 
@@ -257,6 +262,73 @@ describe('useDriverRoute', () => {
     );
     expect(result.current.route?.id).toBe('route-a');
     expect(saveCachedRouteMock).not.toHaveBeenCalledWith(null);
+  });
+
+  it('warns that pending actions cannot sync when the route is no longer assigned', async () => {
+    getTodayRoute
+      .mockResolvedValueOnce(makeRoute('route-a'))
+      .mockResolvedValueOnce(null);
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(1, ['route-a'], ['stop-1']));
+    getRoute.mockRejectedValue(
+      new AxiosError('Not Found', 'ERR_BAD_REQUEST', undefined, undefined, {
+        status: 404,
+        data: { code: 'ROUTE_NOT_FOUND' },
+      } as AxiosResponse)
+    );
+
+    const { result } = await renderHook(() => useDriverRoute());
+
+    await waitFor(() => expect(result.current.route?.id).toBe('route-a'));
+
+    await act(async () => {
+      emitSocketEvent(DRIVER_ROUTE_UPDATED_EVENT);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(ROUTE_PENDING_UNSYNCABLE_MESSAGE)
+    );
+    expect(getRoute).toHaveBeenCalledWith('route-a');
+    expect(result.current.route?.id).toBe('route-a');
+  });
+
+  it('keeps the sync warning when the route cannot be checked', async () => {
+    getTodayRoute
+      .mockResolvedValueOnce(makeRoute('route-a'))
+      .mockResolvedValueOnce(null);
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(1, ['route-a'], ['stop-1']));
+    getRoute.mockRejectedValue(new AxiosError('Network Error', 'ERR_NETWORK'));
+
+    const { result } = await renderHook(() => useDriverRoute());
+
+    await waitFor(() => expect(result.current.route?.id).toBe('route-a'));
+
+    await act(async () => {
+      emitSocketEvent(DRIVER_ROUTE_UPDATED_EVENT);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(ROUTE_PENDING_CHANGES_MESSAGE)
+    );
+  });
+
+  it('does not check the previous route when pending actions belong to another route', async () => {
+    getTodayRoute
+      .mockResolvedValueOnce(makeRoute('route-a'))
+      .mockResolvedValueOnce(makeRoute('route-b', 'stop-2'));
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(1, ['route-old'], []));
+
+    const { result } = await renderHook(() => useDriverRoute());
+
+    await waitFor(() => expect(result.current.route?.id).toBe('route-a'));
+
+    await act(async () => {
+      emitSocketEvent(DRIVER_ROUTE_UPDATED_EVENT);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(ROUTE_PENDING_CHANGES_MESSAGE)
+    );
+    expect(getRoute).not.toHaveBeenCalled();
   });
 
   it('clears the route when the server no longer returns one and nothing is pending', async () => {
