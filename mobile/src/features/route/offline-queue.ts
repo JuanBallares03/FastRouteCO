@@ -129,18 +129,61 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
   return 'synced';
 }
 
+// Two lanes (RF13, RF17):
+// - Actions (start, arrival, completion, finish) keep strict FIFO order and stop
+//   at the first network or temporary error, so a stop is never finished before
+//   its delivery is sent.
+// - GPS samples run in their own lane, so a photo upload or a rejected action
+//   never blocks the trail. Samples of a route whose start is still pending wait
+//   for it, and a finish first sends the samples of its route captured before it.
 async function runFlush(): Promise<FlushResult> {
-  const queue = await readEntries('pending');
+  const actions = await readEntries('pending', 'action');
+  const locations = await readEntries('pending', 'location');
   const state: FlushState = { synced: 0, rejected: 0, lastError: null };
+  const doneLocations = new Set<string>();
+  let locationsBlocked = false;
 
-  for (let index = 0; index < queue.length; index += 1) {
-    const outcome = await processEntry(queue[index], state);
-    if (outcome === 'blocked') {
-      return { ...state, pending: queue.length - index };
+  async function flushLocations(include: (entry: QueueEntry) => boolean): Promise<void> {
+    for (const entry of locations) {
+      if (locationsBlocked) return;
+      if (doneLocations.has(entry.id) || !include(entry)) continue;
+      if ((await processEntry(entry, state)) === 'blocked') {
+        locationsBlocked = true;
+        return;
+      }
+      doneLocations.add(entry.id);
     }
   }
 
-  return { ...state, pending: 0 };
+  let blockedAt = actions.length;
+  for (let index = 0; index < actions.length; index += 1) {
+    const entry = actions[index];
+
+    if (entry.action.type === 'finish') {
+      const { routeId } = entry.action;
+      await flushLocations(
+        (location) => location.action.routeId === routeId && location.createdAt <= entry.createdAt
+      );
+      if (locationsBlocked) {
+        blockedAt = index;
+        break;
+      }
+    }
+
+    if ((await processEntry(entry, state)) === 'blocked') {
+      blockedAt = index;
+      break;
+    }
+  }
+
+  const waitingActions = actions.slice(blockedAt);
+  const routesWaitingStart = new Set(
+    waitingActions.filter(({ action }) => action.type === 'start').map(({ action }) => action.routeId)
+  );
+  await flushLocations((location) => !routesWaitingStart.has(location.action.routeId));
+
+  const waitingLocations = locations.filter((entry) => !doneLocations.has(entry.id)).length;
+  return { ...state, pending: waitingActions.length + waitingLocations };
 }
 
 export function enqueueAction(action: NewPendingAction): Promise<void> {

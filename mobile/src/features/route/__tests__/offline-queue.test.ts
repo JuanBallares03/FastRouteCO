@@ -11,7 +11,7 @@ import {
   retryRejectedAction,
 } from '../offline-queue';
 import * as store from '../offline-queue-store';
-import { EvidenceUploadRejectedError } from '../sync-errors';
+import { EvidenceUploadNetworkError, EvidenceUploadRejectedError } from '../sync-errors';
 
 interface MemoryRow {
   id: string;
@@ -251,6 +251,90 @@ describe('flushOfflineQueue', () => {
       recipientName: undefined,
     });
     expect(deleteEvidencePhoto).toHaveBeenCalledWith(photo.uri);
+  });
+});
+
+describe('GPS lane', () => {
+  const sample = {
+    latitude: 4.4389,
+    longitude: -75.2322,
+    capturedAt: '2026-11-23T15:00:00.000Z',
+    isOffline: true,
+  };
+
+  function seedLocation(routeId: string) {
+    return seed({ type: 'location', routeId, locations: [sample] });
+  }
+
+  it('keeps sending GPS points while a photo upload has no connection', async () => {
+    upload.mockRejectedValueOnce(new EvidenceUploadNetworkError());
+    seed({ type: 'completion', routeId: 'r1', stopId: 's1', photos: [photo] });
+    seedLocation('r1');
+    seedLocation('r1');
+
+    const result = await flushOfflineQueue();
+
+    expect(api.sendLocations).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ synced: 2, pending: 1, rejected: 0 });
+  });
+
+  it('keeps sending GPS points while a delivery waits for a temporary Cloudinary error', async () => {
+    upload.mockRejectedValueOnce(new EvidenceUploadRejectedError(503, 'Unavailable'));
+    seed({ type: 'completion', routeId: 'r1', stopId: 's1', photos: [photo] });
+    seed({ type: 'finish', routeId: 'r1' });
+    seedLocation('r1');
+
+    const result = await flushOfflineQueue();
+
+    expect(api.sendLocations).toHaveBeenCalledTimes(1);
+    expect(api.finishRoute).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ synced: 1, pending: 2 });
+  });
+
+  it('holds the GPS points of a route whose start is still pending', async () => {
+    api.startRoute.mockRejectedValueOnce(networkError);
+    seed({ type: 'start', routeId: 'r1' });
+    seedLocation('r1');
+    seedLocation('r2');
+
+    const result = await flushOfflineQueue();
+
+    expect(api.sendLocations).toHaveBeenCalledTimes(1);
+    expect(api.sendLocations).toHaveBeenCalledWith('r2', [sample]);
+    expect(result).toMatchObject({ synced: 1, pending: 2, rejected: 0 });
+  });
+
+  it('sends the GPS points of a route before its finish', async () => {
+    const calls: string[] = [];
+    api.sendLocations.mockImplementation(async () => {
+      calls.push('locations');
+      return { accepted: 1, inserted: 1 };
+    });
+    api.finishRoute.mockImplementation(async () => {
+      calls.push('finish');
+      return undefined as never;
+    });
+    seed({ type: 'start', routeId: 'r1' });
+    seedLocation('r1');
+    seed({ type: 'finish', routeId: 'r1' });
+    seedLocation('r1');
+
+    await flushOfflineQueue();
+
+    expect(calls).toEqual(['locations', 'finish', 'locations']);
+  });
+
+  it('rejects a GPS batch without stopping the other batches', async () => {
+    api.sendLocations.mockRejectedValueOnce(
+      httpError(409, { message: 'La ruta no está en curso', code: 'ROUTE_NOT_IN_PROGRESS' })
+    );
+    seedLocation('r1');
+    seedLocation('r2');
+
+    const result = await flushOfflineQueue();
+
+    expect(api.sendLocations).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ synced: 1, rejected: 1, pending: 0 });
   });
 });
 
