@@ -196,3 +196,29 @@ As built:
 - A shared middleware built on the existing Redis rate-limit store applies a generous limit to requests with a bearer token: 1200 requests per 15 minutes per user and 2400 per 15 minutes per IP. Requests without a bearer token keep their route-specific limits (login, refresh and invitations), and Socket.IO is outside `/api/v1`.
 - The limit allows the mobile GPS sample every 5 seconds and normal panel polling. Exceeding it returns 429 with the existing Spanish message and `RATE_LIMITED` code.
 
+## Driver route refresh
+
+Scope:
+- Keep the driver's "Mi ruta" tab up to date when the Logistics Supervisor changes the route of the day (RF07, RF09).
+
+As built:
+- The backend emits the targeted event `driver:route-updated` to the `user:<driverId>` room after the database change is committed. The payload only carries `routeId` and a reason (`created`, `assigned`, `updated`, `optimized`, `reassigned`, `stop-reassigned` or `cancelled`). Reassigning a route or a stop notifies both the previous and the new driver.
+- The mobile app connects to Socket.IO and joins its user room while the driver is signed in, even when there is no route or it is not in progress. It reloads the route when the event arrives, when the app returns to the foreground and on pull-to-refresh, available with or without a route.
+- Simultaneous triggers are grouped into one request. If the reload fails, the cached route is kept and the offline notice is shown. When the server no longer returns the route (deleted or reassigned) but there are pending offline actions, the app keeps the local route and warns the driver instead of discarding those actions. If the queued actions belong to that route and the driver endpoint answers 404, the warning says they can no longer sync and asks the driver to contact the supervisor; otherwise it asks the driver to sync.
+- `mergeRouteUpdate` keeps locally arrived or completed stops, their evidence photos and notes only for stops still present in the server response and only while an arrival or completion for that stop is still queued. Once the action syncs or is dropped, the server state wins. GPS tracking is not restarted because it depends on the route id and status, not on the route object.
+- After flushing the offline queue, the screen reloads the route when actions synced and also when actions were dropped, then shows the sync result.
+- Tests cover backend emission to the correct drivers and mobile reload on event, foreground and pull, concurrent grouping, cache preservation and stop merging.
+
+
+## Pending decisions — reassignment and overdue routes
+
+Decided on 2026-11-22 after the manual test of the driver route refresh. Each one will be built in its own branch.
+
+Reassigning an in-progress route (RF07, HU-10 CA03, HU-36 CA04 and CA05):
+- Reassigning a route that is already in progress stays allowed, as RF07 and HU-10 CA03 require.
+- The mobile app must not discard the previous driver's offline actions when the server rejects them because the route was reassigned. It keeps them as rejected and creates a notice or incident for the supervisor, so no delivery evidence is lost silently.
+- The web panel warns before reassigning an in-progress route when the driver's last sync is old.
+
+Undelivered orders and overdue routes (RF07, HU-10, HU-36):
+- Handling is manual. The panel marks overdue routes (past date and not completed or cancelled), and the supervisor decides for each order whether to reassign it, cancel it or return it to pending.
+- Routes from past days are excluded from the `pendingStops` count used to suggest the most suitable driver.
