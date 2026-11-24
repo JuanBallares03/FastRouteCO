@@ -9,6 +9,7 @@ function flushResult(overrides: Partial<FlushResult> = {}): FlushResult {
     lastRejected: null,
     lastError: null,
     closedRouteIds: [],
+    discardedLocations: 0,
     ...overrides,
   };
 }

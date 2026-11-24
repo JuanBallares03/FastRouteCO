@@ -158,6 +158,7 @@ describe('flushOfflineQueue', () => {
       lastRejected: null,
       lastError: null,
       closedRouteIds: [],
+      discardedLocations: 0,
     });
     expect(api.startRoute).toHaveBeenCalled();
     expect(api.arriveAtStop).toHaveBeenCalledWith('r1', 's1', { method: 'manual' });
@@ -285,6 +286,7 @@ describe('session', () => {
       lastRejected: null,
       lastError: null,
       closedRouteIds: [],
+      discardedLocations: 0,
     });
     expect(api.startRoute).not.toHaveBeenCalled();
     expect(api.sendLocations).not.toHaveBeenCalled();
@@ -335,7 +337,14 @@ describe('GPS lane', () => {
 
       const result = await flushOfflineQueue();
 
-      expect(result.closedRouteIds).toEqual(['r1']);
+      expect(result).toMatchObject({
+        closedRouteIds: ['r1'],
+        discardedLocations: 1,
+        synced: 0,
+        rejected: 0,
+        pending: 0,
+      });
+      expect(rows).toHaveLength(0);
     }
   );
 
@@ -351,6 +360,41 @@ describe('GPS lane', () => {
     const result = await flushOfflineQueue();
 
     expect(result.closedRouteIds).toEqual([]);
+    expect(result.discardedLocations).toBe(0);
+  });
+
+  it('keeps a GPS batch rejected for a 404 without a closed route code', async () => {
+    api.sendLocations.mockRejectedValueOnce(httpError(404, { message: 'No encontrado' }));
+    const id = seedLocation('r1');
+
+    const result = await flushOfflineQueue();
+
+    expect(result).toMatchObject({ rejected: 1, discardedLocations: 0 });
+    expect(await getRejectedActions()).toEqual([
+      expect.objectContaining({ id, status: 404, code: null }),
+    ]);
+  });
+
+  it('removes GPS batches already rejected for a closed route', async () => {
+    const closed = seedLocation('r1');
+    const missing = seedLocation('r2');
+    const other = seedLocation('r3');
+    const statusOnly = seedLocation('r4');
+    const reject = (id: string, code: string | null, status: number) => {
+      const row = rows.find((item) => item.id === id);
+      if (!row) throw new Error(`missing row ${id}`);
+      row.status = 'rejected';
+      row.rejection = { reason: 'x', code, status, rejectedAt: 1 };
+    };
+    reject(closed, 'ROUTE_NOT_IN_PROGRESS', 409);
+    reject(missing, 'ROUTE_NOT_FOUND', 404);
+    reject(other, 'VALIDATION_ERROR', 400);
+    reject(statusOnly, null, 404);
+
+    const result = await flushOfflineQueue();
+
+    expect(result.discardedLocations).toBe(2);
+    expect((await getRejectedActions()).map((entry) => entry.id)).toEqual([other, statusOnly]);
   });
 
   it('does not report the route as closed when an action gets ROUTE_NOT_IN_PROGRESS', async () => {
@@ -361,7 +405,23 @@ describe('GPS lane', () => {
 
     const result = await flushOfflineQueue();
 
-    expect(result).toMatchObject({ rejected: 1, closedRouteIds: [] });
+    expect(result).toMatchObject({ rejected: 1, closedRouteIds: [], discardedLocations: 0 });
+    expect(await getRejectedActions()).toHaveLength(1);
+  });
+
+  it('keeps a delivery rejected with ROUTE_NOT_IN_PROGRESS and its photos', async () => {
+    api.completeStop.mockRejectedValueOnce(
+      httpError(409, { code: 'ROUTE_NOT_IN_PROGRESS', message: 'La ruta no está en curso' })
+    );
+    const id = seed({ type: 'completion', routeId: 'r1', stopId: 's1', photos: [photo] });
+
+    const result = await flushOfflineQueue();
+
+    expect(result).toMatchObject({ rejected: 1, discardedLocations: 0 });
+    expect(await getRejectedActions()).toEqual([
+      expect.objectContaining({ id, code: 'ROUTE_NOT_IN_PROGRESS' }),
+    ]);
+    expect(deleteEvidencePhoto).not.toHaveBeenCalled();
   });
 
   it('keeps sending GPS points while a photo upload has no connection', async () => {
@@ -424,7 +484,7 @@ describe('GPS lane', () => {
 
   it('rejects a GPS batch without stopping the other batches', async () => {
     api.sendLocations.mockRejectedValueOnce(
-      httpError(409, { message: 'La ruta no está en curso', code: 'ROUTE_NOT_IN_PROGRESS' })
+      httpError(400, { message: 'Datos inválidos', code: 'VALIDATION_ERROR' })
     );
     seedLocation('r1');
     seedLocation('r2');

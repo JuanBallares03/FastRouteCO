@@ -38,6 +38,11 @@ export interface FlushResult {
    * background task can stop tracking them (RF09).
    */
   closedRouteIds: string[];
+  /**
+   * GPS points dropped because their route is closed: the server would refuse
+   * them on every retry. Never counted as synced or rejected.
+   */
+  discardedLocations: number;
 }
 
 /** Server codes meaning the route no longer takes GPS points from this driver. */
@@ -106,7 +111,11 @@ function cleanupActionFiles(action: PendingAction): void {
   }
 }
 
-type EntryOutcome = 'synced' | 'rejected' | 'blocked';
+type EntryOutcome = 'synced' | 'rejected' | 'discarded' | 'blocked';
+
+function isClosedRouteCode(code: string | null): boolean {
+  return code !== null && CLOSED_ROUTE_CODES.has(code);
+}
 
 interface FlushState {
   synced: number;
@@ -114,11 +123,14 @@ interface FlushState {
   lastRejected: PendingAction | null;
   lastError: string | null;
   closedRouteIds: Set<string>;
+  discardedLocations: number;
 }
 
 // Sends one entry. Synced and already-applied entries are removed. A permanent
 // rejection is kept as rejected with its reason (photos stay on the device) and
 // does not block the queue. A network or temporary error blocks the lane.
+// Only GPS points refused because their route is closed are dropped; actions
+// and evidence are never discarded on their own.
 async function processEntry(entry: QueueEntry, state: FlushState): Promise<EntryOutcome> {
   try {
     await executeAction(entry);
@@ -133,8 +145,11 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
     if (kind === 'rejected') {
       const reason = getSyncErrorMessage(error);
       const code = getApiErrorCode(error);
-      if (entry.action.type === 'location' && code && CLOSED_ROUTE_CODES.has(code)) {
+      if (entry.action.type === 'location' && isClosedRouteCode(code)) {
         state.closedRouteIds.add(entry.action.routeId);
+        await removeEntry(entry.id);
+        state.discardedLocations += 1;
+        return 'discarded';
       }
       await markRejected(
         entry.id,
@@ -162,6 +177,16 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
 //   never blocks the trail. Samples of a route whose start is still pending wait
 //   for it, and a finish first sends the samples of its route captured before it.
 async function runFlush(): Promise<FlushResult> {
+  // GPS points rejected for a closed route before they were dropped on arrival
+  // (earlier versions kept them) can never be sent, so they are removed.
+  let discardedLocations = 0;
+  for (const entry of await readEntries('rejected', 'location')) {
+    if (isClosedRouteCode(entry.code)) {
+      await removeEntry(entry.id);
+      discardedLocations += 1;
+    }
+  }
+
   // Without a session (expired, or another driver signed out) nothing is sent:
   // the actions wait for their owner to sign in again.
   if (!tokenStore.getAccessToken()) {
@@ -173,6 +198,7 @@ async function runFlush(): Promise<FlushResult> {
       lastRejected: null,
       lastError: null,
       closedRouteIds: [],
+      discardedLocations,
     };
   }
 
@@ -184,6 +210,7 @@ async function runFlush(): Promise<FlushResult> {
     lastRejected: null,
     lastError: null,
     closedRouteIds: new Set(),
+    discardedLocations,
   };
   const doneLocations = new Set<string>();
   let locationsBlocked = false;
@@ -234,6 +261,7 @@ async function runFlush(): Promise<FlushResult> {
     lastRejected: state.lastRejected,
     lastError: state.lastError,
     closedRouteIds: [...state.closedRouteIds],
+    discardedLocations: state.discardedLocations,
     pending: waitingActions.length + waitingLocations,
   };
 }
