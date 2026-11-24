@@ -93,17 +93,20 @@ export function groupRejectedActions(
   return items;
 }
 
-/** Message shown right after a sync that rejected actions. */
-export function rejectedSyncMessage(
-  rejected: number,
-  lastRejected: PendingAction | null,
-  lastError: string | null,
-  stops: readonly StopReference[]
-): string {
-  if (rejected === 1 && lastRejected) {
-    const title = describeRejectedAction(lastRejected, stops);
-    const action = title.charAt(0).toLowerCase() + title.slice(1);
-    return lastError ? `No se pudo enviar ${action}: ${lastError}` : `No se pudo enviar ${action}.`;
-  }
-  return `${rejected} acciones no se pudieron enviar.`;
+// Feminine nouns among the row titles; every other title takes "el".
+const FEMININE_TITLES = ['Llegada', 'Entrega'];
+
+/**
+ * Text of the persistent "Mi ruta" notice. It counts the grouped rows of the
+ * detail, so a GPS trail of many points is one action, as in the modal.
+ */
+export function rejectedSummaryMessage(items: readonly RejectedActionItem[]): string | null {
+  if (items.length === 0) return null;
+  if (items.length > 1) return `${items.length} acciones no se pudieron enviar.`;
+
+  const [{ title, reason }] = items;
+  const article = FEMININE_TITLES.some((noun) => title.startsWith(noun)) ? 'la' : 'el';
+  const subject = `${article} ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
+  const ending = /[.!?]$/.test(reason) ? '' : '.';
+  return `No se pudo enviar ${subject}: ${reason}${ending}`;
 }

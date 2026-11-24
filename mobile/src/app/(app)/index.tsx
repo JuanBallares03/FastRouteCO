@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,7 +28,7 @@ import {
 } from '@/features/route/offline-queue';
 import {
   groupRejectedActions,
-  rejectedSyncMessage,
+  rejectedSummaryMessage,
   type RejectedActionItem,
 } from '@/features/route/rejected-actions';
 import {
@@ -153,11 +153,6 @@ export default function MyRouteScreen() {
   const [rejectedEntries, setRejectedEntries] = useState<RejectedEntry[]>([]);
   const [showRejected, setShowRejected] = useState(false);
   const [retryingKey, setRetryingKey] = useState<string | null>(null);
-  // Read inside runSync without making it change on every route update.
-  const stopsRef = useRef(route?.stops ?? []);
-  useEffect(() => {
-    stopsRef.current = route?.stops ?? [];
-  }, [route?.stops]);
   const rejectedItems = useMemo(
     () => groupRejectedActions(rejectedEntries, route?.stops ?? []),
     [rejectedEntries, route?.stops]
@@ -183,20 +178,13 @@ export default function MyRouteScreen() {
         await refresh('manual');
       }
 
-      if (result.rejected > 0) {
-        setError(
-          rejectedSyncMessage(
-            result.rejected,
-            result.lastRejected,
-            result.lastError,
-            stopsRef.current
-          )
-        );
-      } else if (result.synced > 0) {
+      // Rejected actions are shown only by the persistent notice below, so
+      // the driver sees one message that matches the detail.
+      if (result.rejected === 0 && result.synced > 0) {
         setNotice('Acciones pendientes sincronizadas.');
       }
     },
-    [loadRejected, refresh, setError, setNotice]
+    [loadRejected, refresh, setNotice]
   );
 
   const handleRetryRejected = useCallback(
@@ -596,13 +584,7 @@ export default function MyRouteScreen() {
 
       {rejectedItems.length > 0 ? (
         <View style={styles.rejectedBlock}>
-          <Notice
-            message={
-              rejectedItems.length === 1
-                ? '1 acción no se pudo enviar.'
-                : `${rejectedItems.length} acciones no se pudieron enviar.`
-            }
-          />
+          <Notice message={rejectedSummaryMessage(rejectedItems) ?? ''} />
           <AppButton title="Ver detalle" onPress={() => setShowRejected(true)} />
         </View>
       ) : null}

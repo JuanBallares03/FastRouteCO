@@ -3,7 +3,8 @@ import type { RejectedEntry } from '../offline-queue-store';
 import {
   describeRejectedAction,
   groupRejectedActions,
-  rejectedSyncMessage,
+  rejectedSummaryMessage,
+  type RejectedActionItem,
 } from '../rejected-actions';
 
 const stops = [
@@ -102,27 +103,47 @@ describe('groupRejectedActions', () => {
   });
 });
 
-describe('rejectedSyncMessage', () => {
-  it('names the single rejected action and its reason', () => {
-    expect(
-      rejectedSyncMessage(
-        1,
-        {
-          id: '4',
-          type: 'completion',
-          routeId: 'r1',
-          stopId: 's1',
-          photos: [{ uri: 'file:///a.jpg', capturedAt: sample.capturedAt }],
-        },
-        'Cloudinary rechazó la foto: Invalid Signature',
-        stops
+describe('rejectedSummaryMessage', () => {
+  function item(title: string, reason: string): RejectedActionItem {
+    return { key: title, ids: [title], title, reason, rejectedAt: 1 };
+  }
+
+  it('returns nothing without rejected rows', () => {
+    expect(rejectedSummaryMessage([])).toBeNull();
+  });
+
+  it('counts a GPS trail of many queue rows as the one row of the detail', () => {
+    const entries = Array.from({ length: 20 }, (_, index) =>
+      rejected(
+        { id: `g${index}`, type: 'location', routeId: 'r1', locations: [sample] },
+        index + 1,
+        'La ruta no está en curso'
       )
-    ).toBe(
-      'No se pudo enviar entrega en la parada 1 (1 foto): Cloudinary rechazó la foto: Invalid Signature'
+    );
+    const items = groupRejectedActions(entries, stops);
+
+    expect(items).toHaveLength(1);
+    expect(rejectedSummaryMessage(items)).toBe(
+      'No se pudo enviar el recorrido GPS (20 puntos): La ruta no está en curso.'
     );
   });
 
-  it('summarizes several rejected actions', () => {
-    expect(rejectedSyncMessage(3, null, 'x', stops)).toBe('3 acciones no se pudieron enviar.');
+  it('names a single action with its reason', () => {
+    expect(
+      rejectedSummaryMessage([
+        item('Entrega en la parada 1 (1 foto)', 'Cloudinary rechazó la foto: Invalid Signature'),
+      ])
+    ).toBe(
+      'No se pudo enviar la entrega en la parada 1 (1 foto): Cloudinary rechazó la foto: Invalid Signature.'
+    );
+    expect(rejectedSummaryMessage([item('Fin de ruta', 'Ruta no encontrada.')])).toBe(
+      'No se pudo enviar el fin de ruta: Ruta no encontrada.'
+    );
+  });
+
+  it('summarizes several rows', () => {
+    expect(
+      rejectedSummaryMessage([item('Inicio de ruta', 'x'), item('Fin de ruta', 'y')])
+    ).toBe('2 acciones no se pudieron enviar.');
   });
 });
