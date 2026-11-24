@@ -2,7 +2,15 @@ import type { FlushResult } from '../offline-queue';
 import { shouldRefreshAfterSync } from '../sync-refresh';
 
 function flushResult(overrides: Partial<FlushResult> = {}): FlushResult {
-  return { synced: 0, pending: 0, rejected: 0, lastRejected: null, lastError: null, ...overrides };
+  return {
+    synced: 0,
+    pending: 0,
+    rejected: 0,
+    lastRejected: null,
+    lastError: null,
+    closedRouteIds: [],
+    ...overrides,
+  };
 }
 
 describe('shouldRefreshAfterSync', () => {

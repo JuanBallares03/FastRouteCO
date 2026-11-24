@@ -27,7 +27,8 @@ function createDependencies(
     saveLocations: jest.fn(async () => undefined),
     loadTokens: jest.fn(async () => tokens),
     applyTokens: jest.fn(),
-    syncOfflineQueue: jest.fn(async () => ({})),
+    syncOfflineQueue: jest.fn(async () => ({ closedRouteIds: [] })),
+    stopTracking: jest.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -92,6 +93,31 @@ describe('location batch', () => {
     ]);
     expect(dependencies.applyTokens).toHaveBeenCalledWith(tokens);
     expect(dependencies.syncOfflineQueue).toHaveBeenCalledTimes(1);
+    expect(dependencies.stopTracking).not.toHaveBeenCalled();
+  });
+
+  it('stops tracking when the server closed the active route', async () => {
+    const dependencies = createDependencies({
+      syncOfflineQueue: jest.fn(async () => ({ closedRouteIds: ['route-1'] })),
+    });
+
+    const result = await persistLocationBatch(
+      [capturedLocation(4.4389, -75.2322, capturedAt)],
+      dependencies
+    );
+
+    expect(result).toEqual({ routeId: 'route-1', saved: 1, synced: true });
+    expect(dependencies.stopTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps tracking when only another route was closed', async () => {
+    const dependencies = createDependencies({
+      syncOfflineQueue: jest.fn(async () => ({ closedRouteIds: ['route-old'] })),
+    });
+
+    await persistLocationBatch([capturedLocation(4.4389, -75.2322, capturedAt)], dependencies);
+
+    expect(dependencies.stopTracking).not.toHaveBeenCalled();
   });
 
   it('keeps the points queued when there is no stored token', async () => {

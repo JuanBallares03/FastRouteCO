@@ -32,7 +32,16 @@ export interface FlushResult {
   /** The last action rejected in this flush, to name it in the sync message. */
   lastRejected: PendingAction | null;
   lastError: string | null;
+  /**
+   * Routes whose GPS points the server refused because the route is closed
+   * for this driver (finished, cancelled, reassigned or deleted), so the
+   * background task can stop tracking them (RF09).
+   */
+  closedRouteIds: string[];
 }
+
+/** Server codes meaning the route no longer takes GPS points from this driver. */
+const CLOSED_ROUTE_CODES = new Set(['ROUTE_NOT_IN_PROGRESS', 'ROUTE_NOT_FOUND']);
 
 let serialOperation: Promise<unknown> = Promise.resolve();
 
@@ -104,6 +113,7 @@ interface FlushState {
   rejected: number;
   lastRejected: PendingAction | null;
   lastError: string | null;
+  closedRouteIds: Set<string>;
 }
 
 // Sends one entry. Synced and already-applied entries are removed. A permanent
@@ -122,9 +132,13 @@ async function processEntry(entry: QueueEntry, state: FlushState): Promise<Entry
 
     if (kind === 'rejected') {
       const reason = getSyncErrorMessage(error);
+      const code = getApiErrorCode(error);
+      if (entry.action.type === 'location' && code && CLOSED_ROUTE_CODES.has(code)) {
+        state.closedRouteIds.add(entry.action.routeId);
+      }
       await markRejected(
         entry.id,
-        { reason, code: getApiErrorCode(error), status: getSyncErrorStatus(error) },
+        { reason, code, status: getSyncErrorStatus(error) },
         Date.now()
       );
       state.rejected += 1;
@@ -152,12 +166,25 @@ async function runFlush(): Promise<FlushResult> {
   // the actions wait for their owner to sign in again.
   if (!tokenStore.getAccessToken()) {
     const { pending } = await countEntries();
-    return { synced: 0, pending, rejected: 0, lastRejected: null, lastError: null };
+    return {
+      synced: 0,
+      pending,
+      rejected: 0,
+      lastRejected: null,
+      lastError: null,
+      closedRouteIds: [],
+    };
   }
 
   const actions = await readEntries('pending', 'action');
   const locations = await readEntries('pending', 'location');
-  const state: FlushState = { synced: 0, rejected: 0, lastRejected: null, lastError: null };
+  const state: FlushState = {
+    synced: 0,
+    rejected: 0,
+    lastRejected: null,
+    lastError: null,
+    closedRouteIds: new Set(),
+  };
   const doneLocations = new Set<string>();
   let locationsBlocked = false;
 
@@ -201,7 +228,14 @@ async function runFlush(): Promise<FlushResult> {
   await flushLocations((location) => !routesWaitingStart.has(location.action.routeId));
 
   const waitingLocations = locations.filter((entry) => !doneLocations.has(entry.id)).length;
-  return { ...state, pending: waitingActions.length + waitingLocations };
+  return {
+    synced: state.synced,
+    rejected: state.rejected,
+    lastRejected: state.lastRejected,
+    lastError: state.lastError,
+    closedRouteIds: [...state.closedRouteIds],
+    pending: waitingActions.length + waitingLocations,
+  };
 }
 
 export function enqueueAction(action: NewPendingAction): Promise<void> {

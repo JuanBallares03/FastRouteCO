@@ -157,6 +157,7 @@ describe('flushOfflineQueue', () => {
       rejected: 0,
       lastRejected: null,
       lastError: null,
+      closedRouteIds: [],
     });
     expect(api.startRoute).toHaveBeenCalled();
     expect(api.arriveAtStop).toHaveBeenCalledWith('r1', 's1', { method: 'manual' });
@@ -283,6 +284,7 @@ describe('session', () => {
       rejected: 0,
       lastRejected: null,
       lastError: null,
+      closedRouteIds: [],
     });
     expect(api.startRoute).not.toHaveBeenCalled();
     expect(api.sendLocations).not.toHaveBeenCalled();
@@ -319,10 +321,48 @@ describe('offline start time', () => {
 });
 
 describe('GPS lane', () => {
-
   function seedLocation(routeId: string) {
     return seed({ type: 'location', routeId, locations: [sample] });
   }
+
+  it.each(['ROUTE_NOT_IN_PROGRESS', 'ROUTE_NOT_FOUND'])(
+    'reports the route as closed when its GPS points get %s',
+    async (code) => {
+      api.sendLocations.mockRejectedValueOnce(
+        httpError(code === 'ROUTE_NOT_FOUND' ? 404 : 409, { code, message: 'x' })
+      );
+      seedLocation('r1');
+
+      const result = await flushOfflineQueue();
+
+      expect(result.closedRouteIds).toEqual(['r1']);
+    }
+  );
+
+  it.each([
+    ['a network error', new AxiosError('Network Error', 'ERR_NETWORK')],
+    ['a 404 with another code', httpError(404, { code: 'STOP_NOT_FOUND', message: 'x' })],
+    ['a 404 without a code', httpError(404, { message: 'x' })],
+    ['another 4xx', httpError(400, { code: 'VALIDATION_ERROR', message: 'x' })],
+  ])('does not report the route as closed for %s', async (_label, error) => {
+    api.sendLocations.mockRejectedValueOnce(error);
+    seedLocation('r1');
+
+    const result = await flushOfflineQueue();
+
+    expect(result.closedRouteIds).toEqual([]);
+  });
+
+  it('does not report the route as closed when an action gets ROUTE_NOT_IN_PROGRESS', async () => {
+    api.finishRoute.mockRejectedValueOnce(
+      httpError(409, { code: 'ROUTE_NOT_IN_PROGRESS', message: 'x' })
+    );
+    seed({ type: 'finish', routeId: 'r1' });
+
+    const result = await flushOfflineQueue();
+
+    expect(result).toMatchObject({ rejected: 1, closedRouteIds: [] });
+  });
 
   it('keeps sending GPS points while a photo upload has no connection', async () => {
     upload.mockRejectedValueOnce(new EvidenceUploadNetworkError());
