@@ -46,6 +46,9 @@ export function useDriverRoute() {
   const [route, setRouteState] = useState<DriverRoute | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(false);
+  // The server no longer has the route on screen as today's route, but it is
+  // kept so its pending actions can sync. It must not be tracked (RF09).
+  const [isRouteStale, setIsRouteStale] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -73,6 +76,7 @@ export function useDriverRoute() {
           pending.routeIds.includes(previous.id) &&
           (await isRouteNoLongerAssigned(previous.id));
         setIsOffline(false);
+        setIsRouteStale(true);
         setError(unsyncable ? ROUTE_PENDING_UNSYNCABLE_MESSAGE : ROUTE_PENDING_CHANGES_MESSAGE);
         return { ok: true, keptLocal: true };
       }
@@ -82,6 +86,7 @@ export function useDriverRoute() {
       setRouteState(merged);
       await saveCachedRoute(merged);
       setIsOffline(false);
+      setIsRouteStale(false);
       setError(null);
       return { ok: true, keptLocal: false };
     } catch {
@@ -187,6 +192,7 @@ export function useDriverRoute() {
     updateRoute,
     isLoading,
     isOffline,
+    isRouteStale,
     error,
     setError,
     notice,

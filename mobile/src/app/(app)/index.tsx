@@ -121,6 +121,7 @@ export default function MyRouteScreen() {
     updateRoute,
     isLoading,
     isOffline,
+    isRouteStale,
     error,
     setError,
     notice,
@@ -134,7 +135,7 @@ export default function MyRouteScreen() {
   const [cameraStopId, setCameraStopId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<RouteViewMode>('list');
   const [failedRouteId, setFailedRouteId] = useState<string | null>(null);
-  const { mode: trackingMode } = useRouteTracking(route, isLoading);
+  const { mode: trackingMode } = useRouteTracking(route, isLoading, isRouteStale);
   const mapStops = useMemo(() => toMapStops(route?.stops ?? []), [route?.stops]);
   const mapUnavailable = failedRouteId !== null && failedRouteId === route?.id;
   const mapFallback =

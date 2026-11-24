@@ -127,6 +127,12 @@ function httpError(status: number, data: Record<string, unknown> = {}): AxiosErr
 
 const networkError = new AxiosError('Network Error', 'ERR_NETWORK');
 const photo = { uri: 'file:///evidence/photo.jpg', capturedAt: '2026-11-23T15:00:00.000Z' };
+const sample = {
+  latitude: 4.4389,
+  longitude: -75.2322,
+  capturedAt: '2026-11-23T15:00:00.000Z',
+  isOffline: true,
+};
 const signature = { cloudName: 'demo', apiKey: 'k', timestamp: 1, folder: 'f', signature: 's' };
 
 beforeEach(() => {
@@ -313,12 +319,6 @@ describe('offline start time', () => {
 });
 
 describe('GPS lane', () => {
-  const sample = {
-    latitude: 4.4389,
-    longitude: -75.2322,
-    capturedAt: '2026-11-23T15:00:00.000Z',
-    isOffline: true,
-  };
 
   function seedLocation(routeId: string) {
     return seed({ type: 'location', routeId, locations: [sample] });
@@ -416,5 +416,18 @@ describe('rejected actions', () => {
 
     expect(await getPendingActionCount()).toBe(0);
     expect(await getPendingActionSummary()).toEqual({ count: 0, routeIds: [], stopIds: [] });
+  });
+});
+
+describe('getPendingActionSummary', () => {
+  it('ignores pending GPS points', async () => {
+    seed({ type: 'location', routeId: 'r1', locations: [sample] });
+    seed({ type: 'arrival', routeId: 'r2', stopId: 's1', body: { method: 'manual' } });
+
+    expect(await getPendingActionSummary()).toEqual({
+      count: 1,
+      routeIds: ['r2'],
+      stopIds: ['s1'],
+    });
   });
 });

@@ -240,10 +240,12 @@ export interface PendingActionSummary {
 
 // Read-only view of the pending queue so route refreshes can tell which local
 // changes are still waiting to sync (HU-36 CA05). Rejected actions are not
-// included: the server state wins for them.
+// included: the server state wins for them. GPS points are not local changes
+// either; counting them kept a route the server had closed on screen, and its
+// tracking kept adding points.
 export function getPendingActionSummary(): Promise<PendingActionSummary> {
   return withLock(async () => {
-    const queue = await readEntries('pending');
+    const queue = await readEntries('pending', 'action');
     const routeIds = new Set<string>();
     const stopIds = new Set<string>();
 
