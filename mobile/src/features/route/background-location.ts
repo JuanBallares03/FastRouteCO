@@ -11,7 +11,8 @@ const LOCATION_TASK_OPTIONS: Location.LocationTaskOptions = {
   pausesUpdatesAutomatically: false,
   foregroundService: {
     notificationTitle: 'FastRouteCO está registrando tu recorrido',
-    notificationBody: 'Tu ubicación se guarda para la ruta de hoy.',
+    notificationBody:
+      'Tu ubicación se registra mientras la ruta del día está en curso. Se detiene al finalizar la ruta.',
     notificationColor: '#208AEF',
     killServiceOnDestroy: false,
   },
