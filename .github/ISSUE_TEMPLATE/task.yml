@@ -1,0 +1,42 @@
+name: Task
+description: Plan a feature, improvement or chore that traces to a requirement.
+labels: ['task']
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What this task delivers and why.
+    validations:
+      required: true
+  - type: input
+    id: traceability
+    attributes:
+      label: Traceability
+      description: Requirement IDs this task implements (HU, RF, RNF, CU). Undefined items are marked [TO BE DEFINED].
+      placeholder: HU-12, RF05, RNF03, CU-20
+    validations:
+      required: true
+  - type: checkboxes
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - label: Backend
+        - label: Web
+        - label: Mobile
+        - label: Docs
+        - label: CI / infrastructure
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
