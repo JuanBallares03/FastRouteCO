@@ -18,6 +18,7 @@ import { DriverRouteMap } from '@/features/route/DriverRouteMap';
 import { uploadEvidencePhoto } from '@/features/route/cloudinary';
 import { deleteEvidencePhoto, persistEvidencePhoto } from '@/features/route/evidence-files';
 import { isInsideGeofence } from '@/features/route/geo';
+import { requestTrackingNotificationPermission } from '@/features/route/notification-permission';
 import {
   enqueueAction,
   flushOfflineQueue,
@@ -292,6 +293,9 @@ export default function MyRouteScreen() {
 
     try {
       const coordinates = await getPosition();
+      // Asked with the location permissions so the tracking notification is visible on
+      // Android 13+. The route starts whatever the answer (RF13, RF24, RNF10).
+      await requestTrackingNotificationPermission();
       try {
         const updated = await routesApi.startRoute(route.id, coordinates ?? undefined);
         updateRoute(updated);
