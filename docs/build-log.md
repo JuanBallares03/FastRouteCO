@@ -268,3 +268,16 @@ Reassigning an in-progress route (RF07, HU-10 CA03, HU-36 CA04 and CA05):
 Undelivered orders and overdue routes (RF07, HU-10, HU-36):
 - Handling is manual. The panel marks overdue routes (past date and not completed or cancelled), and the supervisor decides for each order whether to reassign it, cancel it or return it to pending.
 - Routes from past days are excluded from the `pendingStops` count used to suggest the most suitable driver.
+
+## Pull request workflow
+
+Added on 2026-11-24.
+
+As built:
+- `.github/pull_request_template.md`: summary with HU/RF/RNF/CU traceability, changes grouped by Backend, Web, Mobile and Docs, verification checklist (lint/typecheck/tests, build, manual test), out of scope / pending and `Closes #` (`0d3240d`).
+- `.github/ISSUE_TEMPLATE/`: `bug_report.yml` and `task.yml` issue forms with a required traceability field; blank issues are disabled (`af49afa`). The forms use the `bug` and `task` labels, which must exist in the repository to be applied.
+
+Required status checks:
+- Required checks once stayed in "Expected" on pull requests not targeting `main` because CI and Secret Scanning had a `pull_request` base-branch filter; it was removed in `20244f0`. No workflow has `paths` filters, so every pull request, including docs-only ones, reports all checks.
+- Rule: never add `paths`, `paths-ignore` or base-branch filters to the `pull_request` trigger of a workflow that produces a required check. A skipped workflow never reports a status and blocks the merge. If a job must skip work, it has to run and decide inside its steps.
+- Required checks on `main`: `test`, `web`, `mobile`, `audit` (CI), `Analyze JavaScript/TypeScript` (CodeQL), `gitleaks` (Secret Scanning) and `dependency-review`, all with source GitHub Actions. Renaming a job changes its check name, so the branch protection must be updated in the same change.
