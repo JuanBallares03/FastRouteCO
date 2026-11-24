@@ -49,6 +49,7 @@ Completed phase details moved from `docs/build-plan.md`. The plan keeps standing
 | 2026-11-13 | Backend | Configurable Nominatim URL with public development default, identifying user agent, Colombia-only results, cache and one request per second (HU-28, RF15) | `158fc0f` |
 | 2026-11-13 | Fix | Orders with an address not found on the map are rejected with `ADDRESS_NOT_FOUND` and not stored without coordinates (HU-28 R01) | `260a280` |
 | 2026-11-13 | Backend | Re-geocode command for existing orders without coordinates (HU-28, RF15) | `9ec0dd0` |
+| 2026-11-24 | Mobile | Notification permission requested on route start, persistent notice when denied and clearer tracking notification text (RF13, RF24, RNF10) | `dedf94c`, `76f0844`, `93a90e2` |
 
 
 ## Phase 1 — Access, companies and users
@@ -110,6 +111,8 @@ As built:
 - The driver can only operate their own route, only one route can be in progress at a time, and starting a route requires an active subscription or trial.
 - The geofence radius is a provisional 100 m on both backend and mobile `[TO BE DEFINED]`; it must be validated with field tests. Outside that radius the driver can still mark the arrival manually.
 - The mobile app requests foreground location permission, sends a GPS sample every 5 seconds and keeps the full trail in `route_locations`.
+- On Android 13+ the tracking notification only appears with `POST_NOTIFICATIONS`. The `expo-location` config plugin already declares it in the manifest; the app asks for it at runtime with `PermissionsAndroid` and a Spanish explanation when the driver taps "Iniciar ruta", after the location permission. The route starts whatever the answer. On Android 12 and lower and on iOS no request is made. If it is denied, "Mi ruta" shows a persistent notice while the route is in progress, explaining that the location is still recorded, with an "Abrir ajustes" button; the permission is checked again when the app returns to the foreground. Notifications turned off by hand in the system settings are not detected. No native rebuild is needed (RF13, RF24, RNF10).
+- Tracking notification text: title "FastRouteCO está registrando tu recorrido", body "Tu ubicación se registra mientras la ruta del día está en curso. Se detiene al finalizar la ruta."
 - When the API is unreachable, start, finish, arrival, completion and location actions are stored in the on-device SQLite queue and retried every 15 seconds, when the app returns to the foreground and on demand. Evidence photos are kept locally and uploaded on synchronization.
 - The last route is cached in SQLite so the driver can still see it offline.
 - The driver route screen offers Lista and Mapa views while keeping the three bottom tabs. The map shows the numbered stops in optimized order and the driver's current location, using the style from `EXPO_PUBLIC_MAP_STYLE_URL` (OpenFreeMap only in development). When offline or when the map cannot load, the app shows the stop list with a Spanish notice (CU-32, RF09, RNF08, RNF10).

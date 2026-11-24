@@ -18,6 +18,7 @@ import { DriverRouteMap } from '@/features/route/DriverRouteMap';
 import { uploadEvidencePhoto } from '@/features/route/cloudinary';
 import { deleteEvidencePhoto, persistEvidencePhoto } from '@/features/route/evidence-files';
 import { isInsideGeofence } from '@/features/route/geo';
+import { requestTrackingNotificationPermission } from '@/features/route/notification-permission';
 import {
   enqueueAction,
   flushOfflineQueue,
@@ -43,12 +44,14 @@ import type {
   StopStatus,
 } from '@/features/route/types';
 import { shouldRefreshAfterSync } from '@/features/route/sync-refresh';
+import { TrackingNotificationNotice } from '@/features/route/TrackingNotificationNotice';
 import { useCurrentLocation } from '@/features/route/use-current-location';
 import { useDriverRoute } from '@/features/route/use-driver-route';
 import {
   useRouteTracking,
   type TrackingMode,
 } from '@/features/route/use-route-tracking';
+import { useTrackingNotificationPermission } from '@/features/route/use-tracking-notification-permission';
 import { getApiErrorCode, routesApi } from '@/features/route/api';
 import { getSyncErrorMessage, isNetworkError } from '@/features/route/sync-errors';
 import { colors, layout, radius, spacing, typography } from '@/theme';
@@ -136,6 +139,8 @@ export default function MyRouteScreen() {
   const [viewMode, setViewMode] = useState<RouteViewMode>('list');
   const [failedRouteId, setFailedRouteId] = useState<string | null>(null);
   const { mode: trackingMode } = useRouteTracking(route, isLoading, isRouteStale);
+  const { state: notificationPermission, refresh: refreshNotificationPermission } =
+    useTrackingNotificationPermission();
   const mapStops = useMemo(() => toMapStops(route?.stops ?? []), [route?.stops]);
   const mapUnavailable = failedRouteId !== null && failedRouteId === route?.id;
   const mapFallback =
@@ -292,6 +297,10 @@ export default function MyRouteScreen() {
 
     try {
       const coordinates = await getPosition();
+      // Asked with the location permissions so the tracking notification is visible on
+      // Android 13+. The route starts whatever the answer (RF13, RF24, RNF10).
+      await requestTrackingNotificationPermission();
+      void refreshNotificationPermission();
       try {
         const updated = await routesApi.startRoute(route.id, coordinates ?? undefined);
         updateRoute(updated);
@@ -625,6 +634,10 @@ export default function MyRouteScreen() {
               <View style={styles.trackingBanner}>
                 <Text style={styles.trackingText}>{trackingMessage(trackingMode)}</Text>
               </View>
+            ) : null}
+
+            {isInProgress && notificationPermission === 'denied' ? (
+              <TrackingNotificationNotice />
             ) : null}
 
             {pendingCount > 0 ? (
