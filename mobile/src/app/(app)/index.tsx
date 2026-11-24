@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import { AppButton } from '@/components/AppButton';
 import { EvidenceCameraModal } from '@/components/EvidenceCameraModal';
 import { Notice } from '@/components/Notice';
+import { RejectedActionsModal } from '@/components/RejectedActionsModal';
 import { Screen } from '@/components/Screen';
 import { DriverRouteMap } from '@/features/route/DriverRouteMap';
 import { uploadEvidencePhoto } from '@/features/route/cloudinary';
@@ -21,7 +22,15 @@ import {
   enqueueAction,
   flushOfflineQueue,
   getPendingActionCount,
+  getRejectedActions,
+  retryRejectedAction,
+  type RejectedEntry,
 } from '@/features/route/offline-queue';
+import {
+  groupRejectedActions,
+  rejectedSummaryMessage,
+  type RejectedActionItem,
+} from '@/features/route/rejected-actions';
 import {
   mapFallbackMessage,
   resolveMapStyleUrl,
@@ -40,12 +49,8 @@ import {
   useRouteTracking,
   type TrackingMode,
 } from '@/features/route/use-route-tracking';
-import {
-  getApiErrorCode,
-  getApiErrorMessage,
-  isQueueableError,
-  routesApi,
-} from '@/features/route/api';
+import { getApiErrorCode, routesApi } from '@/features/route/api';
+import { getSyncErrorMessage, isNetworkError } from '@/features/route/sync-errors';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
 const MAP_STYLE_URL = resolveMapStyleUrl(process.env.EXPO_PUBLIC_MAP_STYLE_URL);
@@ -116,6 +121,7 @@ export default function MyRouteScreen() {
     updateRoute,
     isLoading,
     isOffline,
+    isRouteStale,
     error,
     setError,
     notice,
@@ -129,7 +135,7 @@ export default function MyRouteScreen() {
   const [cameraStopId, setCameraStopId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<RouteViewMode>('list');
   const [failedRouteId, setFailedRouteId] = useState<string | null>(null);
-  const { mode: trackingMode } = useRouteTracking(route, isLoading);
+  const { mode: trackingMode } = useRouteTracking(route, isLoading, isRouteStale);
   const mapStops = useMemo(() => toMapStops(route?.stops ?? []), [route?.stops]);
   const mapUnavailable = failedRouteId !== null && failedRouteId === route?.id;
   const mapFallback =
@@ -145,6 +151,18 @@ export default function MyRouteScreen() {
   const { location: driverLocation, permissionDenied: locationDenied } =
     useCurrentLocation(shouldTrackForMap);
 
+  const [rejectedEntries, setRejectedEntries] = useState<RejectedEntry[]>([]);
+  const [showRejected, setShowRejected] = useState(false);
+  const [retryingKey, setRetryingKey] = useState<string | null>(null);
+  const rejectedItems = useMemo(
+    () => groupRejectedActions(rejectedEntries, route?.stops ?? []),
+    [rejectedEntries, route?.stops]
+  );
+
+  const loadRejected = useCallback(async () => {
+    setRejectedEntries(await getRejectedActions());
+  }, []);
+
   const refreshPendingCount = useCallback(async () => {
     setPendingCount(await getPendingActionCount());
   }, []);
@@ -153,6 +171,7 @@ export default function MyRouteScreen() {
     async (shouldRefreshRoute: boolean) => {
       const result = await flushOfflineQueue();
       setPendingCount(result.pending);
+      await loadRejected();
 
       // Reload first: a successful reload clears the error, and the sync
       // outcome below must stay visible to the driver.
@@ -160,13 +179,28 @@ export default function MyRouteScreen() {
         await refresh('manual');
       }
 
-      if (result.failed > 0) {
-        setError(result.lastError ?? 'Algunas acciones no se pudieron sincronizar.');
-      } else if (result.synced > 0) {
+      // Rejected actions are shown only by the persistent notice below, so
+      // the driver sees one message that matches the detail.
+      if (result.rejected === 0 && result.synced > 0) {
         setNotice('Acciones pendientes sincronizadas.');
       }
     },
-    [refresh, setError, setNotice]
+    [loadRejected, refresh, setNotice]
+  );
+
+  const handleRetryRejected = useCallback(
+    async (item: RejectedActionItem) => {
+      setRetryingKey(item.key);
+      try {
+        for (const id of item.ids) {
+          await retryRejectedAction(id);
+        }
+        await runSync(true);
+      } finally {
+        setRetryingKey(null);
+      }
+    },
+    [runSync]
   );
 
   useEffect(() => {
@@ -252,6 +286,9 @@ export default function MyRouteScreen() {
     setBusyAction('start');
     setError(null);
     setNotice(null);
+    // Taken when the driver taps start, before waiting for the location or the
+    // request, so an offline start syncs with its real time (RF13).
+    const startedAt = new Date().toISOString();
 
     try {
       const coordinates = await getPosition();
@@ -260,19 +297,20 @@ export default function MyRouteScreen() {
         updateRoute(updated);
         setNotice('Ruta iniciada. El registro de ubicación está activo.');
       } catch (startError) {
-        if (!isQueueableError(startError)) throw startError;
+        if (!isNetworkError(startError)) throw startError;
 
         await enqueueAction({
           type: 'start',
           routeId: route.id,
           coordinates: coordinates ?? undefined,
+          capturedAt: startedAt,
         });
         updateRoute((current) =>
           current
             ? {
                 ...current,
                 status: 'in_progress',
-                startedAt: new Date().toISOString(),
+                startedAt,
                 startLatitude: coordinates?.latitude ?? current.startLatitude,
                 startLongitude: coordinates?.longitude ?? current.startLongitude,
               }
@@ -282,7 +320,7 @@ export default function MyRouteScreen() {
         await refreshPendingCount();
       }
     } catch (startError) {
-      setError(getApiErrorMessage(startError));
+      setError(getSyncErrorMessage(startError));
     } finally {
       setBusyAction(null);
     }
@@ -312,7 +350,7 @@ export default function MyRouteScreen() {
       updateRoute(updated);
       setNotice('Llegada registrada.');
     } catch (arrivalError) {
-      if (isQueueableError(arrivalError)) {
+      if (isNetworkError(arrivalError)) {
         await enqueueAction({
           type: 'arrival',
           routeId: route.id,
@@ -329,7 +367,7 @@ export default function MyRouteScreen() {
       } else if (getApiErrorCode(arrivalError) === 'OUTSIDE_GEOFENCE') {
         askManualArrival(stop, 'No pudimos verificar que estés dentro del radio de la parada.');
       } else {
-        setError(getApiErrorMessage(arrivalError));
+        setError(getSyncErrorMessage(arrivalError));
       }
     } finally {
       setBusyAction(null);
@@ -387,7 +425,7 @@ export default function MyRouteScreen() {
       deleteEvidencePhoto(localUri);
       setNotice('Parada completada con foto de evidencia.');
     } catch (completeError) {
-      if (isQueueableError(completeError)) {
+      if (isNetworkError(completeError)) {
         const capturedAt = new Date().toISOString();
         await enqueueAction({
           type: 'completion',
@@ -407,7 +445,7 @@ export default function MyRouteScreen() {
         await refreshPendingCount();
       } else {
         deleteEvidencePhoto(localUri);
-        setError(getApiErrorMessage(completeError));
+        setError(getSyncErrorMessage(completeError));
         if (getApiErrorCode(completeError) === 'STOP_ALREADY_COMPLETED') {
           void refresh('manual');
         }
@@ -428,7 +466,7 @@ export default function MyRouteScreen() {
       updateRoute(updated);
       setNotice('Ruta finalizada.');
     } catch (finishError) {
-      if (isQueueableError(finishError)) {
+      if (isNetworkError(finishError)) {
         await enqueueAction({ type: 'finish', routeId: route.id });
         updateRoute((current) =>
           current ? { ...current, status: 'completed', endedAt: new Date().toISOString() } : current
@@ -436,7 +474,7 @@ export default function MyRouteScreen() {
         setNotice('Fin de ruta guardado sin conexión. Se sincronizará automáticamente.');
         await refreshPendingCount();
       } else {
-        setError(getApiErrorMessage(finishError));
+        setError(getSyncErrorMessage(finishError));
       }
     } finally {
       setBusyAction(null);
@@ -544,6 +582,13 @@ export default function MyRouteScreen() {
 
       {error ? <Notice message={error} /> : null}
       {notice ? <Notice message={notice} variant="success" /> : null}
+
+      {rejectedItems.length > 0 ? (
+        <View style={styles.rejectedBlock}>
+          <Notice message={rejectedSummaryMessage(rejectedItems) ?? ''} />
+          <AppButton title="Ver detalle" onPress={() => setShowRejected(true)} />
+        </View>
+      ) : null}
 
       {!isLoading && !route ? (
         <View style={styles.emptyCard}>
@@ -694,6 +739,14 @@ export default function MyRouteScreen() {
         </>
       ) : null}
 
+      <RejectedActionsModal
+        visible={showRejected}
+        items={rejectedItems}
+        retryingKey={retryingKey}
+        onRetry={(item) => void handleRetryRejected(item)}
+        onClose={() => setShowRejected(false)}
+      />
+
       <EvidenceCameraModal
         visible={cameraStopId !== null}
         onClose={() => setCameraStopId(null)}
@@ -798,6 +851,9 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: typography.label,
     lineHeight: 21,
+  },
+  rejectedBlock: {
+    gap: spacing.sm,
   },
   pendingBanner: {
     padding: spacing.md,

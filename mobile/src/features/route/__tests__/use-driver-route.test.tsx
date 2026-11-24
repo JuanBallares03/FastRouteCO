@@ -252,6 +252,7 @@ describe('useDriverRoute', () => {
     const { result } = await renderHook(() => useDriverRoute());
 
     await waitFor(() => expect(result.current.route?.id).toBe('route-a'));
+    expect(result.current.isRouteStale).toBe(false);
 
     await act(async () => {
       emitSocketEvent(DRIVER_ROUTE_UPDATED_EVENT);
@@ -261,7 +262,31 @@ describe('useDriverRoute', () => {
       expect(result.current.error).toBe(ROUTE_PENDING_CHANGES_MESSAGE)
     );
     expect(result.current.route?.id).toBe('route-a');
+    expect(result.current.isRouteStale).toBe(true);
     expect(saveCachedRouteMock).not.toHaveBeenCalledWith(null);
+  });
+
+  it('stops treating the route as stale once the server route replaces it', async () => {
+    getTodayRoute
+      .mockResolvedValueOnce(makeRoute('route-a'))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(1, ['route-a'], ['stop-1']));
+
+    const { result } = await renderHook(() => useDriverRoute());
+    await waitFor(() => expect(result.current.route?.id).toBe('route-a'));
+
+    await act(async () => {
+      await result.current.refresh('manual');
+    });
+    expect(result.current.isRouteStale).toBe(true);
+
+    getPendingActionSummaryMock.mockResolvedValue(pendingSummary(0));
+    await act(async () => {
+      await result.current.refresh('manual');
+    });
+    expect(result.current.route).toBeNull();
+    expect(result.current.isRouteStale).toBe(false);
   });
 
   it('warns that pending actions cannot sync when the route is no longer assigned', async () => {

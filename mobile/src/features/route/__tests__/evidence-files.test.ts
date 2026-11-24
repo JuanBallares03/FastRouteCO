@@ -1,6 +1,7 @@
 import { clearEvidencePhotos } from '../evidence-files';
 
-const mockEntry = { delete: jest.fn() };
+const mockEntry = { uri: 'file:///document/evidence/evidence-1.jpg', delete: jest.fn() };
+const mockKept = { uri: 'file:///document/evidence/evidence-2.jpg', delete: jest.fn() };
 const mockList = jest.fn(() => [mockEntry]);
 const mockDirectoryDelete = jest.fn();
 let mockDirectoryExists = true;
@@ -33,6 +34,16 @@ describe('evidence files', () => {
 
     expect(mockEntry.delete).toHaveBeenCalled();
     expect(mockDirectoryDelete).toHaveBeenCalled();
+  });
+
+  it('keeps the photos of other drivers', () => {
+    mockList.mockReturnValue([mockEntry, mockKept]);
+
+    clearEvidencePhotos(new Set(['evidence-2.jpg']));
+
+    expect(mockEntry.delete).toHaveBeenCalled();
+    expect(mockKept.delete).not.toHaveBeenCalled();
+    expect(mockDirectoryDelete).not.toHaveBeenCalled();
   });
 
   it('does nothing when there is no evidence directory', () => {

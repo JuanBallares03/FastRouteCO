@@ -14,7 +14,9 @@ export interface LocationBatchDependencies {
   saveLocations: (routeId: string, locations: LocationSample[]) => Promise<void>;
   loadTokens: () => Promise<AuthTokens | null>;
   applyTokens: (tokens: AuthTokens) => void;
-  syncOfflineQueue: () => Promise<unknown>;
+  syncOfflineQueue: () => Promise<{ closedRouteIds: readonly string[] }>;
+  /** Stops the background service when the server closed the active route. */
+  stopTracking: () => Promise<void>;
 }
 
 export interface LocationBatchResult {
@@ -73,10 +75,18 @@ export async function persistLocationBatch(
 
   dependencies.applyTokens(tokens);
 
+  let closedRouteIds: readonly string[];
   try {
-    await dependencies.syncOfflineQueue();
-    return { routeId, saved: samples.length, synced: true };
+    ({ closedRouteIds } = await dependencies.syncOfflineQueue());
   } catch {
     return { routeId, saved: samples.length, synced: false };
   }
+
+  // The route was finished, cancelled or reassigned on the server while this
+  // task kept running (the app may be closed), so stop recording it (RF09).
+  if (closedRouteIds.includes(routeId)) {
+    await dependencies.stopTracking().catch(() => undefined);
+  }
+
+  return { routeId, saved: samples.length, synced: true };
 }

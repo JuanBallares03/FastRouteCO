@@ -221,8 +221,39 @@ As built:
 - A GPS sample with the same `capturedAt` as the start point is skipped by the existing duplicate check, and repeating the start of an in-progress route does not add a row.
 - The web live map and route detail merge fetched and socket positions with the shared helpers in `web/src/lib/route-location.ts`: the newest position by `capturedAt` wins, socket batches use their newest point, and the live map drops routes that are no longer in progress (`f342c47`, `3a48fbe`).
 
-Pending for the offline queue branch:
-- The queued `start` action does not carry a time. The `offline_queue` row stores `created_at` (`Date.now()`) but only to order the queue: `readQueue` reads only the payload, and `routesApi.startRoute` sends only the coordinates. The mobile app must send `capturedAt` with the start (the time the driver tapped start or the position timestamp) as an ISO date string, not as the number returned by `Date.now()`, which the backend rejects. Until it does, a start synced late uses the sync time, so its trail point is newer than the GPS samples queued with it: the live map can show the start position as the latest one and report distances can add a segment back to the start.
+Resolved in the offline queue branch (`5e1f96c`, see "Offline queue errors"):
+- The queued `start` action did not carry a time. It now stores the time the driver tapped start and sends it as `capturedAt` in ISO format; starts stored before the change use the queue `created_at`.
+
+## Offline queue errors
+
+Scope:
+- Queue only real network errors, keep permanent rejections on the phone without blocking the queue, keep GPS samples flowing, and keep offline actions when the session expires (RF13, RF16, RF17, RNF07, HU-36).
+
+As built:
+- Backend: `createEvidenceSignature` answers 503 `EVIDENCE_STORAGE_NOT_CONFIGURED` when `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` or `CLOUDINARY_API_SECRET` is empty, instead of signing with empty values (`4c51258`).
+- The route screen queues start, arrival, delivery and finish only when the request got no response (axios without response or a failed upload `fetch`). Any other error is shown with its real message; Cloudinary rejections read "Cloudinary rechazó la foto: …" (`6672d1d`).
+- SQLite schema version 1 (`PRAGMA user_version`) adds to `offline_queue` the lane (`kind`), `status` (`pending` or `rejected`), `rejected_at`, `reject_reason`, `reject_code`, `reject_status`, `reported_at` and `owner_user_id`, an owner on `route_cache` and the `offline_meta` table. ADD COLUMN with constant defaults keeps stored actions pending; the GPS lane of existing rows is filled in JS in the same transaction, and a failed step leaves version 0 so it runs again (`1206c49`).
+- Error classification during sync: no response is `network`; 401, 408, 429 and 5xx (also from Cloudinary) are temporary and keep the action pending; 403 and other 4xx, Cloudinary 4xx, a missing photo or an unknown error are `rejected`; `STOP_ALREADY_COMPLETED` counts as synced. Rejected actions keep their photos and reason and no longer block the queue (`8fe84cf`).
+- Fixed while rewriting the queue: actions stored by `enqueueAction` had no id in their payload, so the flush skipped them and they never synced. The store now reads the id from the row.
+- GPS batches run in their own lane. Actions keep strict FIFO order and stop at the first network or temporary error; GPS batches still sync. Batches of a route whose start is still pending wait for it, and a finish first sends the batches of its route captured before it (`8388558`).
+- "Mi ruta" shows a persistent notice with the number of rejected actions and a "Ver detalle" modal: one row per action (GPS grouped per route) with its time, the real reason and "Reintentar". The driver cannot delete rejected actions (`07d6662`).
+- Session handling (`b7dcc86`): an expired session (failed refresh, or 401/403 from `/auth/me` on start) stops tracking and clears the tokens but keeps the queue and photos, with the notice "Tu sesión venció. Inicia sesión de nuevo para enviar las acciones pendientes." Each row stores the driver who created it and `offline_meta.current_owner` keeps the signed-in driver, so queue, counts, rejected list and route cache only see that driver's rows, and nothing is sent without a session. Rows stored before owners existed are adopted by the driver who signs in. When another driver signs in, the previous driver's tracking stops and the cached route is removed; the previous driver's actions stay hidden and unsent until that driver signs in again.
+- Manual sign-out asks for confirmation with the number of pending and rejected actions that would be lost, then removes only the current driver's rows, photos and cached route (`c92c9b2`).
+
+Fixes after the manual test:
+- One rejected notice: the sync error counted queue rows (a GPS trail of 20 batches read "20 acciones") next to the persistent notice that counted the grouped rows of the detail. Rejections now appear only in the persistent notice, whose text comes from the grouped rows: one row names the action and its reason, several rows give the count (`6eab4e2`).
+- Tracking kept recording a closed route for two reasons:
+  - The pending summary counted GPS rows as local changes. A route the server no longer returned stayed on screen as in progress, so its tracking kept adding the rows that kept it there. The summary now counts only actions, and a route kept only for its pending actions (`isRouteStale`) is not tracked (`653b5e1`).
+  - The background task records for the stored active route until the route screen loads. A route finished or reassigned on the panel with the app closed kept being tracked. The flush now reports `closedRouteIds` (GPS refused with `ROUTE_NOT_IN_PROGRESS` or `ROUTE_NOT_FOUND`), and the task stops the service when the active route is among them (`352e0e6`).
+- GPS points refused with `ROUTE_NOT_IN_PROGRESS` or `ROUTE_NOT_FOUND` are dropped instead of kept as rejected, because a retry can never succeed; GPS rows already rejected with those codes are removed on the next flush. Only the code decides: a 404 with another code or none stays rejected, and actions and evidence are never discarded on their own (`7c1dace`).
+
+Prepared for the reassignment branch:
+- `getRejectedActions()` returns each rejected action with its type, route, stop, times, reason, backend `code`, HTTP or Cloudinary `status` and `reportedAt`; `offline_queue.reported_at` is reserved to mark when the supervisor was notified.
+
+Pending:
+- `[TO BE DEFINED]` How long the actions of a driver who never signs in again on the same phone are kept. Proposal: the supervisor decides in the reassignment branch.
+- A phone clock more than 2 minutes ahead makes the backend reject the offline start (`capturedAt` in the future); the start is shown as rejected with its reason, and there is no automatic retry without `capturedAt`.
+- The route cache is saved only after a successful refresh, so a finish done offline is not in it. Opening the app offline shows the cached route as in progress and tracking starts again. Its points are dropped once the server closes the route, but the cache should keep local changes.
 
 
 ## Pending decisions — reassignment and overdue routes

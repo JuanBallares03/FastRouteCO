@@ -2,7 +2,7 @@ import * as TaskManager from 'expo-task-manager';
 import { loadTokens } from '@/features/auth/session-storage';
 import { tokenStore } from '@/features/auth/token-store';
 import { getActiveRouteId } from './active-route';
-import { LOCATION_TASK_NAME } from './background-location';
+import { LOCATION_TASK_NAME, stopBackgroundTracking } from './background-location';
 import { persistLocationBatch, type CapturedLocation } from './location-batch';
 import { enqueueLocations, flushOfflineQueue } from './offline-queue';
 
@@ -30,6 +30,7 @@ export async function runLocationTask({
     loadTokens,
     applyTokens: (tokens) => tokenStore.set(tokens),
     syncOfflineQueue: flushOfflineQueue,
+    stopTracking: stopBackgroundTracking,
   });
 }
 

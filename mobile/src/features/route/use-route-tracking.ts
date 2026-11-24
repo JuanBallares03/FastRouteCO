@@ -44,13 +44,19 @@ function trackForeground(
   );
 }
 
-export function useRouteTracking(route: DriverRoute | null, isRouteLoading: boolean) {
+// isRouteStale: the route is only kept on screen for its pending actions; the
+// server no longer has it as today's route, so it is not tracked.
+export function useRouteTracking(
+  route: DriverRoute | null,
+  isRouteLoading: boolean,
+  isRouteStale = false
+) {
   const [tracking, setTracking] = useState<{ routeId: string | null; mode: TrackingMode }>({
     routeId: null,
     mode: 'inactive',
   });
   const routeId = route?.id ?? null;
-  const isInProgress = route?.status === 'in_progress';
+  const isInProgress = route?.status === 'in_progress' && !isRouteStale;
   const mode: TrackingMode =
     !isRouteLoading && isInProgress && tracking.routeId === routeId
       ? tracking.mode

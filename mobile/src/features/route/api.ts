@@ -26,10 +26,6 @@ export function isOfflineError(error: unknown): boolean {
   return isAxiosError(error) && !error.response;
 }
 
-export function isQueueableError(error: unknown): boolean {
-  return isOfflineError(error) || !isAxiosError(error);
-}
-
 export function getApiErrorCode(error: unknown): string | null {
   if (!isAxiosError(error)) return null;
   const body = error.response?.data as { code?: string } | undefined;
@@ -56,11 +52,16 @@ export const routesApi = {
     return data;
   },
 
-  async startRoute(routeId: string, coordinates?: Coordinates): Promise<DriverRoute> {
-    const { data } = await api.post<DriverRoute>(
-      `/routes/driver/${routeId}/start`,
-      coordinates ?? {}
-    );
+  /** `capturedAt` is the ISO time of an offline start; online starts use the server time. */
+  async startRoute(
+    routeId: string,
+    coordinates?: Coordinates,
+    capturedAt?: string
+  ): Promise<DriverRoute> {
+    const { data } = await api.post<DriverRoute>(`/routes/driver/${routeId}/start`, {
+      ...(coordinates ?? {}),
+      ...(capturedAt ? { capturedAt } : {}),
+    });
     return data;
   },
 
