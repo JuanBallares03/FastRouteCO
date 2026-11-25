@@ -683,17 +683,17 @@ COMMENT ON TABLE "incident_messages" IS 'HU-11: driver-supervisor communication'
 
 COMMENT ON COLUMN "incident_messages"."sender_id" IS 'Driver or supervisor';
 
-COMMENT ON TABLE "route_reassignments" IS 'RF07, HU-10 CA03: history of route and stop reassignments. Proves which driver had a route before it was reassigned';
+COMMENT ON TABLE "route_reassignments" IS 'RF07, HU-10 CA03: history of route and stop reassignments. Proves which driver had a route before it was reassigned. A route with history is never deleted (ON DELETE RESTRICT); cancelling its last order sets it to cancelled';
 
 COMMENT ON COLUMN "route_reassignments"."route_id" IS 'Route the previous driver lost. For a stop reassignment, the source route';
 
-COMMENT ON COLUMN "route_reassignments"."stop_id" IS 'NULL when the whole route was reassigned; the moved stop otherwise';
+COMMENT ON COLUMN "route_reassignments"."stop_id" IS 'NULL when the whole route was reassigned; the moved stop otherwise. Becomes NULL if the stop is deleted, so a whole-route reassignment also requires target_route_id = route_id';
 
 COMMENT ON COLUMN "route_reassignments"."target_route_id" IS 'Same as route_id for a whole route; the destination route for a stop';
 
 COMMENT ON COLUMN "route_reassignments"."reassigned_by" IS 'Supervisor or company admin who reassigned';
 
-COMMENT ON TABLE "route_sync_rejections" IS 'RF07, HU-10 CA03, HU-36 CA04 and CA05: offline driver actions the server rejected because the route or stop was reassigned or closed, reported once for the supervisor to review';
+COMMENT ON TABLE "route_sync_rejections" IS 'RF07, HU-10 CA03, HU-36 CA04 and CA05: offline driver actions the server rejected because the route or stop was reassigned or closed, reported once for the supervisor to review. A route with reports is never deleted (ON DELETE RESTRICT)';
 
 COMMENT ON COLUMN "route_sync_rejections"."driver_id" IS 'Driver who did the action and reported it';
 
