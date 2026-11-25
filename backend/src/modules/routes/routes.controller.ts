@@ -17,6 +17,7 @@ import {
   recordRouteLocations,
   startDriverRoute,
 } from './routes.service.js';
+import { createSyncRejectionSignature, reportSyncRejection } from './sync-rejections.service.js';
 import type {
   ArriveAtStopInput,
   CompleteStopInput,
@@ -24,6 +25,8 @@ import type {
   ReassignRouteInput,
   RouteLocationsInput,
   StartRouteInput,
+  SyncRejectionReportBody,
+  SyncRejectionSignatureBody,
 } from './routes.validation.js';
 import { respondWithError } from '../../middleware/error-handler.js';
 
@@ -298,6 +301,45 @@ export async function createEvidenceSignatureHandler(
 
     const { id, stopId } = req.params as { id: string; stopId: string };
     res.json(await createEvidenceSignature(companyId, driverId, id, stopId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function reportSyncRejectionHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const body = req.body as SyncRejectionReportBody;
+    const result = await reportSyncRejection(companyId, driverId, body);
+    res.status(result.created ? 201 : 200).json(result.rejection);
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function createSyncRejectionSignatureHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const body = req.body as SyncRejectionSignatureBody;
+    res.json(await createSyncRejectionSignature(companyId, driverId, body.routeId, body.stopId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

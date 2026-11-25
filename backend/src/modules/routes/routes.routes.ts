@@ -3,6 +3,7 @@ import {
   arriveAtStopHandler,
   completeStopHandler,
   createEvidenceSignatureHandler,
+  createSyncRejectionSignatureHandler,
   createRouteHandler,
   finishDriverRouteHandler,
   getDriverRouteHandler,
@@ -14,6 +15,7 @@ import {
   reassignRouteHandler,
   reassignStopHandler,
   recordRouteLocationsHandler,
+  reportSyncRejectionHandler,
   startDriverRouteHandler,
 } from './routes.controller.js';
 import {
@@ -30,6 +32,8 @@ import {
   routeLocationsSchema,
   startRouteSchema,
   stopParamsSchema,
+  syncRejectionReportSchema,
+  syncRejectionSignatureSchema,
 } from './routes.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -39,6 +43,19 @@ const router: ExpressRouter = Router();
 router.use(authenticate);
 
 router.get('/driver/today', authorize('driver'), getDriverTodayRouteHandler);
+// Declared before the /driver/:id routes (RF07, HU-36 CA04).
+router.post(
+  '/driver/sync-rejections',
+  authorize('driver'),
+  validate(syncRejectionReportSchema),
+  reportSyncRejectionHandler
+);
+router.post(
+  '/driver/sync-rejections/evidence-signature',
+  authorize('driver'),
+  validate(syncRejectionSignatureSchema),
+  createSyncRejectionSignatureHandler
+);
 router.get(
   '/driver/:id',
   authorize('driver'),

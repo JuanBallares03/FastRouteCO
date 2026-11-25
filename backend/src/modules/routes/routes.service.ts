@@ -7,7 +7,6 @@ import {
   UserRole,
 } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
-import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../lib/prisma.js';
 import { parseBusinessDate, startOfBusinessDay, todayInBogota } from '../../lib/dates.js';
 import { haversineMeters } from '../../lib/geo.js';
@@ -24,9 +23,8 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  ServiceUnavailableError,
 } from '../../lib/errors.js';
-import { env } from '../../env.js';
+import { evidenceFolder, signEvidenceUpload } from './evidence-signature.js';
 import {
   applyOptimizationBilling,
   assertOptimizationAllowed,
@@ -1010,32 +1008,7 @@ export async function createEvidenceSignature(
     throw new ConflictError('La parada ya fue completada', 'STOP_ALREADY_COMPLETED');
   }
 
-  // Signing with empty credentials produces uploads Cloudinary always rejects,
-  // so the missing configuration is reported as a temporary server error (RF16).
-  const cloudName = env.CLOUDINARY_CLOUD_NAME?.trim();
-  const apiKey = env.CLOUDINARY_API_KEY?.trim();
-  const apiSecret = env.CLOUDINARY_API_SECRET?.trim();
-  if (!cloudName || !apiKey || !apiSecret) {
-    throw new ServiceUnavailableError(
-      'El almacenamiento de fotos de evidencia no está configurado',
-      'EVIDENCE_STORAGE_NOT_CONFIGURED'
-    );
-  }
-
-  const timestamp = Math.floor(Date.now() / 1000);
-  const folder = `fastrouteco/evidence/${companyId}/${routeId}/${stopId}`;
-  const signature = cloudinary.utils.api_sign_request(
-    { timestamp, folder },
-    apiSecret
-  );
-
-  return {
-    cloudName,
-    apiKey,
-    timestamp,
-    folder,
-    signature,
-  };
+  return signEvidenceUpload(evidenceFolder(companyId, routeId, stopId));
 }
 
 async function resolveStartPoint(
