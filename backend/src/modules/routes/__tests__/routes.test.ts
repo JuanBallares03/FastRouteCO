@@ -81,6 +81,12 @@ async function cleanup() {
   await prisma.incident.deleteMany({
     where: { route: { companyId: { in: companyIds } } },
   });
+  // Routes with history are protected by ON DELETE RESTRICT, so their history goes first.
+  await prisma.routeSyncRejectionPhoto.deleteMany({
+    where: { rejection: { companyId: { in: companyIds } } },
+  });
+  await prisma.routeSyncRejection.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.routeReassignment.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -241,6 +247,12 @@ beforeEach(async () => {
   await prisma.incident.deleteMany({
     where: { route: { companyId: { in: companyIds } } },
   });
+  // Routes with history are protected by ON DELETE RESTRICT, so their history goes first.
+  await prisma.routeSyncRejectionPhoto.deleteMany({
+    where: { rejection: { companyId: { in: companyIds } } },
+  });
+  await prisma.routeSyncRejection.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.routeReassignment.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -1287,6 +1299,78 @@ describe('Route reassignment', () => {
 
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
+  });
+
+  it('records who reassigned a whole route and from which driver', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const history = await prisma.routeReassignment.findMany({ where: { routeId: route.id } });
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      companyId: COMPANY_ID,
+      stopId: null,
+      targetRouteId: route.id,
+      previousDriverId: DRIVER_A_ID,
+      newDriverId: DRIVER_B_ID,
+      reassignedById: ADMIN_ID,
+    });
+  });
+
+  it('records the source and target routes of a reassigned stop', async () => {
+    const orderA = await createOrder();
+    const orderB = await createOrder();
+    const routeA = await createDriverRoute(DRIVER_A_ID, [orderA.id, orderB.id]);
+    const stopId = routeA.stops[0].id;
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${routeA.id}/stops/${stopId}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const history = await prisma.routeReassignment.findMany({ where: { stopId } });
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      routeId: routeA.id,
+      targetRouteId: res.body.id,
+      previousDriverId: DRIVER_A_ID,
+      newDriverId: DRIVER_B_ID,
+      reassignedById: ADMIN_ID,
+    });
+    expect(history[0].targetRouteId).not.toBe(routeA.id);
+  });
+
+  it('does not record a reassignment to the same driver', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID })
+      .expect(200);
+
+    expect(await prisma.routeReassignment.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('refuses at the database level to delete a route with history', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    await prisma.routeStop.deleteMany({ where: { routeId: route.id } });
+    await expect(prisma.route.delete({ where: { id: route.id } })).rejects.toThrow();
   });
 });
 

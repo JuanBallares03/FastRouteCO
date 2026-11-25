@@ -46,6 +46,15 @@ function requireCompanyId(req: AuthenticatedRequest, res: Response): string | nu
   return companyId;
 }
 
+function requireUserId(req: AuthenticatedRequest, res: Response): string | null {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ message: 'No autenticado' });
+    return null;
+  }
+  return userId;
+}
+
 export async function createRouteHandler(
   req: AuthenticatedRequest,
   res: Response,
@@ -321,9 +330,12 @@ export async function reassignRouteHandler(
     const companyId = requireCompanyId(req, res);
     if (!companyId) return;
 
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params as { id: string };
     const body = req.body as ReassignRouteInput;
-    res.json(await reassignRoute(companyId, id, body.driverId));
+    res.json(await reassignRoute(companyId, id, body.driverId, userId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);
@@ -339,9 +351,12 @@ export async function reassignStopHandler(
     const companyId = requireCompanyId(req, res);
     if (!companyId) return;
 
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id, stopId } = req.params as { id: string; stopId: string };
     const body = req.body as ReassignRouteInput;
-    res.json(await reassignStop(companyId, id, stopId, body.driverId));
+    res.json(await reassignStop(companyId, id, stopId, body.driverId, userId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

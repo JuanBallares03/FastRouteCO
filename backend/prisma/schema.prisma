@@ -95,6 +95,13 @@ enum IncidentStatus {
   resolved
 }
 
+enum SyncActionType {
+  start
+  arrival
+  completion
+  finish
+}
+
 enum SupportStatus {
   open
   answered
@@ -155,6 +162,8 @@ model Company {
   systemAlerts            SystemAlert[]
   supportRequests         SupportRequest[]
   notifications           Notification[]
+  routeReassignments      RouteReassignment[]
+  routeSyncRejections     RouteSyncRejection[]
 
   @@map("companies")
 }
@@ -192,6 +201,8 @@ model User {
   receivedNotifications Notification[] @relation("UserNotifications")
   refreshTokens RefreshToken[]
   invitations   UserInvitation[]
+  reassignmentsMade      RouteReassignment[]  @relation("ReassignedBy")
+  reviewedSyncRejections RouteSyncRejection[] @relation("SyncRejectionReviewer")
 
   @@index([companyId, role, isActive])
   @@map("users")
@@ -203,6 +214,9 @@ model Driver {
 
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   routes      Route[]
+  lostReassignments   RouteReassignment[] @relation("PreviousDriver")
+  gainedReassignments RouteReassignment[] @relation("NewDriver")
+  syncRejections      RouteSyncRejection[]
 
   @@map("drivers")
 }
@@ -387,6 +401,9 @@ model Route {
   optimizations   RouteOptimization[]
   locations       RouteLocation[]
   incidents       Incident[]
+  reassignments   RouteReassignment[] @relation("ReassignedRoute")
+  incomingReassignments RouteReassignment[] @relation("ReassignmentTarget")
+  syncRejections  RouteSyncRejection[]
 
   @@index([companyId, routeDate, status])
   @@map("routes")
@@ -411,6 +428,8 @@ model RouteStop {
   student              Student?     @relation(fields: [studentId], references: [id], onDelete: SetNull)
   evidencePhotos       EvidencePhoto[]
   incidents            Incident[]
+  reassignments        RouteReassignment[]
+  syncRejections       RouteSyncRejection[]
 
   @@index([orderId])
   @@unique([routeId, sequence])
@@ -492,6 +511,76 @@ model IncidentMessage {
   sender        User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Restrict)
 
   @@map("incident_messages")
+}
+
+/// RF07, HU-10 CA03: history of route and stop reassignments. It proves which
+/// driver had a route before it was reassigned, so only that driver can report
+/// the offline actions the server rejected afterwards. Routes with history are
+/// never deleted (Restrict), so the history and the reports are not lost.
+model RouteReassignment {
+  id               String     @id @default(uuid()) @db.Uuid
+  companyId        String     @db.Uuid @map("company_id")
+  routeId          String     @db.Uuid @map("route_id")
+  stopId           String?    @db.Uuid @map("stop_id")
+  targetRouteId    String     @db.Uuid @map("target_route_id")
+  previousDriverId String     @db.Uuid @map("previous_driver_id")
+  newDriverId      String     @db.Uuid @map("new_driver_id")
+  reassignedById   String     @db.Uuid @map("reassigned_by")
+  reassignedAt     DateTime   @default(now()) @map("reassigned_at")
+
+  company          Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  route            Route      @relation("ReassignedRoute", fields: [routeId], references: [id], onDelete: Restrict)
+  stop             RouteStop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  targetRoute      Route      @relation("ReassignmentTarget", fields: [targetRouteId], references: [id], onDelete: Restrict)
+  previousDriver   Driver     @relation("PreviousDriver", fields: [previousDriverId], references: [userId], onDelete: Restrict)
+  newDriver        Driver     @relation("NewDriver", fields: [newDriverId], references: [userId], onDelete: Restrict)
+  reassignedBy     User       @relation("ReassignedBy", fields: [reassignedById], references: [id], onDelete: Restrict)
+
+  @@index([routeId, previousDriverId])
+  @@index([stopId, previousDriverId])
+  @@map("route_reassignments")
+}
+
+/// RF07, HU-10 CA03, HU-36 CA04 and CA05: offline driver actions rejected after
+/// a reassignment or a closed route, reported once for the supervisor to review.
+model RouteSyncRejection {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @db.Uuid @map("company_id")
+  routeId        String         @db.Uuid @map("route_id")
+  stopId         String?        @db.Uuid @map("stop_id")
+  driverId       String         @db.Uuid @map("driver_id")
+  clientActionId String         @db.VarChar(64) @map("client_action_id")
+  actionType     SyncActionType @map("action_type")
+  capturedAt     DateTime       @map("captured_at")
+  reason         String         @db.VarChar(500)
+  errorCode      String?        @db.VarChar(50) @map("error_code")
+  reportedAt     DateTime       @default(now()) @map("reported_at")
+  reviewedAt     DateTime?      @map("reviewed_at")
+  reviewedById   String?        @db.Uuid @map("reviewed_by")
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  route          Route          @relation(fields: [routeId], references: [id], onDelete: Restrict)
+  stop           RouteStop?     @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  driver         Driver         @relation(fields: [driverId], references: [userId], onDelete: Restrict)
+  reviewedBy     User?          @relation("SyncRejectionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  photos         RouteSyncRejectionPhoto[]
+
+  @@unique([driverId, clientActionId])
+  @@index([routeId])
+  @@map("route_sync_rejections")
+}
+
+/// RF16, HU-36: evidence photos of a rejected delivery or pickup, pending review.
+model RouteSyncRejectionPhoto {
+  id          String             @id @default(uuid()) @db.Uuid
+  rejectionId String             @db.Uuid @map("rejection_id")
+  photoUrl    String             @db.VarChar(500) @map("photo_url")
+  capturedAt  DateTime?          @map("captured_at")
+
+  rejection   RouteSyncRejection @relation(fields: [rejectionId], references: [id], onDelete: Cascade)
+
+  @@index([rejectionId])
+  @@map("route_sync_rejection_photos")
 }
 
 model SupportRequest {

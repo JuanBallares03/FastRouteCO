@@ -747,7 +747,14 @@ export async function completeDriverStop(
   return updated;
 }
 
-export async function reassignRoute(companyId: string, routeId: string, newDriverId: string) {
+// reassignedById is stored in route_reassignments, which proves later that the
+// previous driver had the route and may report its rejected actions (RF07, HU-10 CA03).
+export async function reassignRoute(
+  companyId: string,
+  routeId: string,
+  newDriverId: string,
+  reassignedById: string
+) {
   const route = await prisma.route.findFirst({
     where: { id: routeId, companyId },
     include: { driver: true },
@@ -807,6 +814,16 @@ export async function reassignRoute(companyId: string, routeId: string, newDrive
             : newDriver.driver?.status ?? DriverStatus.available,
       },
     }),
+    prisma.routeReassignment.create({
+      data: {
+        companyId,
+        routeId: route.id,
+        targetRouteId: route.id,
+        previousDriverId: route.driverId,
+        newDriverId,
+        reassignedById,
+      },
+    }),
   ]);
 
   const updated = await getRouteById(companyId, route.id);
@@ -832,7 +849,8 @@ export async function reassignStop(
   companyId: string,
   routeId: string,
   stopId: string,
-  newDriverId: string
+  newDriverId: string,
+  reassignedById: string
 ) {
   const route = await prisma.route.findFirst({
     where: { id: routeId, companyId },
@@ -935,6 +953,18 @@ export async function reassignStop(
         data: { status: DriverStatus.on_route },
       });
     }
+
+    await tx.routeReassignment.create({
+      data: {
+        companyId,
+        routeId: route.id,
+        stopId: stop.id,
+        targetRouteId: target.id,
+        previousDriverId: route.driverId,
+        newDriverId,
+        reassignedById,
+      },
+    });
 
     return target;
   });
