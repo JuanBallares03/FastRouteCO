@@ -22,6 +22,18 @@ export interface CompleteStopPayload {
   recipientName?: string;
 }
 
+/** Report of an offline action the server rejected (RF07, HU-36 CA04). */
+export interface SyncRejectionReportPayload {
+  clientActionId: string;
+  routeId: string;
+  stopId?: string;
+  actionType: 'start' | 'arrival' | 'completion' | 'finish';
+  capturedAt: string;
+  reason: string;
+  errorCode?: string;
+  photos: { photoUrl: string; capturedAt?: string }[];
+}
+
 export function isOfflineError(error: unknown): boolean {
   return isAxiosError(error) && !error.response;
 }
@@ -110,5 +122,18 @@ export const routesApi = {
       `/routes/driver/${routeId}/stops/${stopId}/evidence-signature`
     );
     return data;
+  },
+
+  /** Signature for the pending evidence of a rejected delivery (RF16, HU-36). */
+  async getSyncRejectionSignature(routeId: string, stopId: string): Promise<EvidenceUpload> {
+    const { data } = await api.post<EvidenceUpload>(
+      '/routes/driver/sync-rejections/evidence-signature',
+      { routeId, stopId }
+    );
+    return data;
+  },
+
+  async reportSyncRejection(payload: SyncRejectionReportPayload): Promise<void> {
+    await api.post('/routes/driver/sync-rejections', payload);
   },
 };

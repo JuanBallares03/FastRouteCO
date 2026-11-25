@@ -57,6 +57,9 @@ export function RejectedActionsModal({
               <Text style={styles.itemTitle}>{item.title}</Text>
               <Text style={styles.itemDate}>{formatRejectedAt(item.rejectedAt)}</Text>
               <Text style={styles.itemReason}>{item.reason || 'Sin motivo informado.'}</Text>
+              {item.reported ? (
+                <Text style={styles.itemReported}>Informado al supervisor</Text>
+              ) : null}
               <AppButton
                 title="Reintentar"
                 loading={retryingKey === item.key}
@@ -106,6 +109,11 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     gap: spacing.md,
+  },
+  itemReported: {
+    fontSize: typography.label,
+    fontWeight: '600',
+    color: colors.successText,
   },
   empty: {
     fontSize: typography.body,

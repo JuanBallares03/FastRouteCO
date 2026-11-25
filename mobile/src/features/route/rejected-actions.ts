@@ -17,6 +17,8 @@ export interface RejectedActionItem {
   title: string;
   reason: string;
   rejectedAt: number;
+  /** The supervisor was already told about this action (RF07, HU-36). */
+  reported: boolean;
 }
 
 function stopLabel(stopId: string, stops: readonly StopReference[]): string {
@@ -63,6 +65,7 @@ export function groupRejectedActions(
         title: describeRejectedAction(action, stops),
         reason: entry.reason,
         rejectedAt: entry.rejectedAt,
+        reported: entry.reportedAt !== null,
       });
       continue;
     }
@@ -75,6 +78,8 @@ export function groupRejectedActions(
         title: describeRejectedAction(action, stops),
         reason: entry.reason,
         rejectedAt: entry.rejectedAt,
+        // GPS points are never reported: the supervisor already sees the trail.
+        reported: false,
       };
       gpsGroups.set(action.routeId, { item, points: action.locations.length });
       items.push(item);

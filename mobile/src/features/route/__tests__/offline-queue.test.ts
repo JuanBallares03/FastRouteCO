@@ -12,6 +12,7 @@ import {
 } from '../offline-queue';
 import * as store from '../offline-queue-store';
 import { EvidenceUploadNetworkError, EvidenceUploadRejectedError } from '../sync-errors';
+import { reportRejectedActions } from '../sync-rejection-report';
 import { tokenStore } from '@/features/auth/token-store';
 
 interface MemoryRow {
@@ -39,6 +40,8 @@ jest.mock('../api', () => ({
 
 jest.mock('../cloudinary', () => ({ uploadEvidencePhoto: jest.fn() }));
 jest.mock('../evidence-files', () => ({ deleteEvidencePhoto: jest.fn() }));
+// Reporting has its own tests (sync-rejection-report.test.ts).
+jest.mock('../sync-rejection-report', () => ({ reportRejectedActions: jest.fn() }));
 
 // In-memory replacement of the SQLite store with the same ordering rules.
 jest.mock('../offline-queue-store', () => {
@@ -142,6 +145,34 @@ beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockResolvedValue(undefined as never);
   api.getEvidenceSignature.mockResolvedValue(signature);
   upload.mockResolvedValue('https://res.cloudinary.com/demo/photo.jpg');
+  jest.mocked(reportRejectedActions).mockResolvedValue(0);
+});
+
+describe('reporting rejected actions', () => {
+  it('reports rejected actions after each flush with a session', async () => {
+    seed({ type: 'start', routeId: 'r1' });
+
+    await flushOfflineQueue();
+
+    expect(reportRejectedActions).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not report without a session', async () => {
+    tokenStore.clear();
+
+    await flushOfflineQueue();
+
+    expect(reportRejectedActions).not.toHaveBeenCalled();
+  });
+
+  it('keeps the flush result when reporting fails', async () => {
+    seed({ type: 'start', routeId: 'r1' });
+    jest.mocked(reportRejectedActions).mockRejectedValueOnce(networkError);
+
+    const result = await flushOfflineQueue();
+
+    expect(result.synced).toBe(1);
+  });
 });
 
 describe('flushOfflineQueue', () => {

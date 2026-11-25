@@ -23,7 +23,7 @@ export interface RejectionDetails {
 
 export interface RejectedEntry extends QueueEntry, RejectionDetails {
   rejectedAt: number;
-  /** Set when the supervisor was notified (reassignment branch). */
+  /** Set once the rejected action was reported to the supervisor (RF07, HU-36). */
   reportedAt: number | null;
 }
 
@@ -135,6 +135,17 @@ export async function markRejected(
     details.reason,
     details.code,
     details.status,
+    id
+  );
+}
+
+/** Records that a rejected action was reported to the supervisor, so it is sent once. */
+export async function markReported(id: string, reportedAt: number): Promise<void> {
+  const db = await getOfflineDatabase();
+  await db.runAsync(
+    `UPDATE offline_queue SET reported_at = ?
+     WHERE id = ? AND status = 'rejected' AND owner_user_id = ${CURRENT_OWNER_SQL}`,
+    reportedAt,
     id
   );
 }
