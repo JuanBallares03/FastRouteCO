@@ -30,6 +30,13 @@ import {
   pickLatestLocation,
   type TrackedLocation,
 } from '@/lib/route-location';
+import {
+  SYNC_ACTION_LABELS,
+  formatSyncDateTime,
+  pendingSyncRejectionCount,
+  syncRejectionStopLabel,
+  type SyncRejection,
+} from '@/lib/sync-rejections';
 
 interface RouteOrder {
   id: string;
@@ -98,6 +105,8 @@ export function RouteDetailPage() {
   const [reassigningStopId, setReassigningStopId] = useState<string | null>(null);
   const [reassigningRoute, setReassigningRoute] = useState(false);
   const [driverLocation, setDriverLocation] = useState<TrackedLocation | null>(null);
+  const [syncRejections, setSyncRejections] = useState<SyncRejection[]>([]);
+  const [reviewingRejectionId, setReviewingRejectionId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     show: boolean;
     message: string;
@@ -126,6 +135,16 @@ export function RouteDetailPage() {
     }
   }, [id]);
 
+  const fetchSyncRejections = useCallback(async () => {
+    if (!id) return;
+    try {
+      const response = await routeApi.getSyncRejections(id);
+      setSyncRejections(response.data as SyncRejection[]);
+    } catch {
+      // The route can load even if the reports are not available.
+    }
+  }, [id]);
+
   const fetchDriverLocation = useCallback(async () => {
     if (!id) return;
     try {
@@ -150,11 +169,12 @@ export function RouteDetailPage() {
     fetchRoute();
     fetchIncidents();
     fetchDriverLocation();
+    fetchSyncRejections();
     companyApi
       .getDrivers()
       .then((response) => setDrivers(response.data as DriverOption[]))
       .catch(() => setDrivers([]));
-  }, [fetchDriverLocation, fetchIncidents, fetchRoute]);
+  }, [fetchDriverLocation, fetchIncidents, fetchRoute, fetchSyncRejections]);
 
   useEffect(() => {
     if (!selectedIncidentId && incidents.length > 0) {
@@ -247,6 +267,20 @@ export function RouteDetailPage() {
       fetchIncidents();
     };
 
+    const onSyncRejected = (payload: { routeId?: string }) => {
+      if (payload.routeId !== id) return;
+      fetchSyncRejections();
+      setToast({
+        show: true,
+        message: 'El conductor anterior reportó una acción no sincronizada',
+        variant: 'info',
+      });
+    };
+
+    const onSyncRejectionReviewed = (payload: { routeId?: string }) => {
+      if (payload.routeId === id) fetchSyncRejections();
+    };
+
     socket.on('route:status', onRouteStatus);
     socket.on('route:location', onRouteLocation);
     socket.on('route:stop-status', onStopStatus);
@@ -255,6 +289,8 @@ export function RouteDetailPage() {
     socket.on('incident:created', onIncidentCreated);
     socket.on('incident:updated', onIncidentUpdated);
     socket.on('incident:message', onIncidentMessage);
+    socket.on('route:sync-rejected', onSyncRejected);
+    socket.on('route:sync-rejection-reviewed', onSyncRejectionReviewed);
 
     return () => {
       socket.off('route:status', onRouteStatus);
@@ -265,9 +301,11 @@ export function RouteDetailPage() {
       socket.off('incident:created', onIncidentCreated);
       socket.off('incident:updated', onIncidentUpdated);
       socket.off('incident:message', onIncidentMessage);
+      socket.off('route:sync-rejected', onSyncRejected);
+      socket.off('route:sync-rejection-reviewed', onSyncRejectionReviewed);
       releaseRealtimeSocket();
     };
-  }, [fetchIncidents, fetchRoute, id]);
+  }, [fetchIncidents, fetchRoute, fetchSyncRejections, id]);
 
   const handleOptimize = async () => {
     if (!id) return;
@@ -356,6 +394,24 @@ export function RouteDetailPage() {
       });
     } finally {
       setReassigningRoute(false);
+    }
+  };
+
+  const handleReviewSyncRejection = async (rejectionId: string) => {
+    if (!id) return;
+    setReviewingRejectionId(rejectionId);
+    try {
+      await routeApi.reviewSyncRejection(id, rejectionId);
+      await fetchSyncRejections();
+      setToast({ show: true, message: 'Acción marcada como revisada', variant: 'success' });
+    } catch (error) {
+      setToast({
+        show: true,
+        message: getApiErrorMessage(error, 'No se pudo marcar la acción como revisada'),
+        variant: 'error',
+      });
+    } finally {
+      setReviewingRejectionId(null);
     }
   };
 
@@ -506,6 +562,78 @@ export function RouteDetailPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {syncRejections.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-headline-sm text-headline-sm text-on-surface">
+              Acciones no sincronizadas
+            </h2>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+              El conductor anterior las hizo sin conexión y el sistema las rechazó porque la ruta
+              o la parada cambió. {pendingSyncRejectionCount(syncRejections)} pendientes de
+              revisión. La parada no se completa sola: decide qué hacer con cada una.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-outline/50">
+              {syncRejections.map((rejection) => (
+                <li
+                  key={rejection.id}
+                  className="flex flex-col gap-3 py-4 md:flex-row md:items-start md:justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="font-label-lg text-label-lg text-on-surface">
+                      {SYNC_ACTION_LABELS[rejection.actionType] ?? rejection.actionType} ·{' '}
+                      {syncRejectionStopLabel(rejection, route.id)}
+                    </p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Hora real: {formatSyncDateTime(rejection.capturedAt)} · Reportada por{' '}
+                      {rejection.driverName}
+                    </p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Motivo: {rejection.reason}
+                    </p>
+                    {rejection.photos.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {rejection.photos.map((photo, index) => (
+                          <a
+                            key={photo.id}
+                            href={photo.photoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Abrir foto ${index + 1} de la evidencia`}
+                          >
+                            <img
+                              src={photo.photoUrl}
+                              alt={`Evidencia ${index + 1}`}
+                              className="h-16 w-16 rounded-md object-cover border border-outline/50"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {rejection.reviewedAt ? (
+                    <Badge variant="success">Revisada</Badge>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleReviewSyncRejection(rejection.id)}
+                      loading={reviewingRejectionId === rejection.id}
+                      disabled={
+                        reviewingRejectionId !== null && reviewingRejectionId !== rejection.id
+                      }
+                    >
+                      Marcar revisada
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

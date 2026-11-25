@@ -20,6 +20,7 @@ import {
   routeStatusVariant,
   todayInBogota,
 } from '@/lib/order-utils';
+import { pendingSyncRejectionsLabel } from '@/lib/sync-rejections';
 
 interface RouteOrder {
   id: string;
@@ -48,6 +49,8 @@ interface Route {
     estimatedDurationS: number | null;
     isSuccessful: boolean;
   }>;
+  /** Unreviewed reports of rejected driver actions (RF07, HU-36). */
+  pendingSyncRejections?: number;
 }
 
 interface PendingOrder {
@@ -384,9 +387,16 @@ export function RoutesPage() {
                       <TableCell>{formatDistance(optimization?.totalDistanceM)}</TableCell>
                       <TableCell>{formatDuration(optimization?.estimatedDurationS)}</TableCell>
                       <TableCell>
-                        <Badge variant={routeStatusVariant(route.status)}>
-                          {ROUTE_STATUS_LABELS[route.status] ?? route.status}
-                        </Badge>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={routeStatusVariant(route.status)}>
+                            {ROUTE_STATUS_LABELS[route.status] ?? route.status}
+                          </Badge>
+                          {pendingSyncRejectionsLabel(route.pendingSyncRejections) && (
+                            <Badge variant="warning">
+                              {pendingSyncRejectionsLabel(route.pendingSyncRejections)}
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Link
