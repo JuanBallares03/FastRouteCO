@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Toast } from '@/components/ui/Modal';
+import { Modal, Toast } from '@/components/ui/Modal';
 import { RouteMap, type RouteMapStop } from '@/components/map/RouteMap';
 import { companyApi } from '@/features/company/api';
 import { incidentApi, type IncidentPayload } from '@/features/incidents/api';
@@ -30,6 +30,14 @@ import {
   pickLatestLocation,
   type TrackedLocation,
 } from '@/lib/route-location';
+import {
+  SYNC_ACTION_LABELS,
+  formatSyncDateTime,
+  pendingSyncRejectionCount,
+  syncRejectionStopLabel,
+  type SyncRejection,
+} from '@/lib/sync-rejections';
+import { formatSyncAge, isSyncStale, reassignWarningMessage } from '@/lib/sync-status';
 
 interface RouteOrder {
   id: string;
@@ -66,6 +74,8 @@ interface RouteDetail {
     user?: { fullName?: string | null; phone?: string | null } | null;
   } | null;
   stops: RouteStop[];
+  /** When a GPS point of the route last reached the server (RF07, HU-36). */
+  lastSyncedAt?: string | null;
   optimizations?: Array<{
     totalDistanceM: number | null;
     estimatedDurationS: number | null;
@@ -98,6 +108,12 @@ export function RouteDetailPage() {
   const [reassigningStopId, setReassigningStopId] = useState<string | null>(null);
   const [reassigningRoute, setReassigningRoute] = useState(false);
   const [driverLocation, setDriverLocation] = useState<TrackedLocation | null>(null);
+  const [syncRejections, setSyncRejections] = useState<SyncRejection[]>([]);
+  const [reviewingRejectionId, setReviewingRejectionId] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [confirmReassignOpen, setConfirmReassignOpen] = useState(false);
+  // Refreshed every 30 s so "hace X min" stays current.
+  const [now, setNow] = useState(() => Date.now());
   const [toast, setToast] = useState<{
     show: boolean;
     message: string;
@@ -109,6 +125,7 @@ export function RouteDetailPage() {
     try {
       const response = await routeApi.getRoute(id);
       setRoute(response.data);
+      setLastSyncedAt((response.data as RouteDetail).lastSyncedAt ?? null);
     } catch {
       setToast({ show: true, message: 'No se pudo cargar la ruta', variant: 'error' });
     } finally {
@@ -123,6 +140,16 @@ export function RouteDetailPage() {
       setIncidents(response.data);
     } catch {
       // The route can load even if incidents are not available yet.
+    }
+  }, [id]);
+
+  const fetchSyncRejections = useCallback(async () => {
+    if (!id) return;
+    try {
+      const response = await routeApi.getSyncRejections(id);
+      setSyncRejections(response.data as SyncRejection[]);
+    } catch {
+      // The route can load even if the reports are not available.
     }
   }, [id]);
 
@@ -150,11 +177,17 @@ export function RouteDetailPage() {
     fetchRoute();
     fetchIncidents();
     fetchDriverLocation();
+    fetchSyncRejections();
     companyApi
       .getDrivers()
       .then((response) => setDrivers(response.data as DriverOption[]))
       .catch(() => setDrivers([]));
-  }, [fetchDriverLocation, fetchIncidents, fetchRoute]);
+  }, [fetchDriverLocation, fetchIncidents, fetchRoute, fetchSyncRejections]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!selectedIncidentId && incidents.length > 0) {
@@ -190,6 +223,10 @@ export function RouteDetailPage() {
       locations?: TrackedLocation[];
     }) => {
       if (payload.routeId !== id) return;
+      // A batch reaching the server is a sync, even with old offline points.
+      const receivedAt = Date.now();
+      setLastSyncedAt(new Date(receivedAt).toISOString());
+      setNow(receivedAt);
       const incoming = latestFromBatch(payload.locations);
       if (incoming) {
         setDriverLocation((current) =>
@@ -247,6 +284,20 @@ export function RouteDetailPage() {
       fetchIncidents();
     };
 
+    const onSyncRejected = (payload: { routeId?: string }) => {
+      if (payload.routeId !== id) return;
+      fetchSyncRejections();
+      setToast({
+        show: true,
+        message: 'El conductor anterior reportó una acción no sincronizada',
+        variant: 'info',
+      });
+    };
+
+    const onSyncRejectionReviewed = (payload: { routeId?: string }) => {
+      if (payload.routeId === id) fetchSyncRejections();
+    };
+
     socket.on('route:status', onRouteStatus);
     socket.on('route:location', onRouteLocation);
     socket.on('route:stop-status', onStopStatus);
@@ -255,6 +306,8 @@ export function RouteDetailPage() {
     socket.on('incident:created', onIncidentCreated);
     socket.on('incident:updated', onIncidentUpdated);
     socket.on('incident:message', onIncidentMessage);
+    socket.on('route:sync-rejected', onSyncRejected);
+    socket.on('route:sync-rejection-reviewed', onSyncRejectionReviewed);
 
     return () => {
       socket.off('route:status', onRouteStatus);
@@ -265,9 +318,11 @@ export function RouteDetailPage() {
       socket.off('incident:created', onIncidentCreated);
       socket.off('incident:updated', onIncidentUpdated);
       socket.off('incident:message', onIncidentMessage);
+      socket.off('route:sync-rejected', onSyncRejected);
+      socket.off('route:sync-rejection-reviewed', onSyncRejectionReviewed);
       releaseRealtimeSocket();
     };
-  }, [fetchIncidents, fetchRoute, id]);
+  }, [fetchIncidents, fetchRoute, fetchSyncRejections, id]);
 
   const handleOptimize = async () => {
     if (!id) return;
@@ -357,6 +412,37 @@ export function RouteDetailPage() {
     } finally {
       setReassigningRoute(false);
     }
+  };
+
+  const handleReviewSyncRejection = async (rejectionId: string) => {
+    if (!id) return;
+    setReviewingRejectionId(rejectionId);
+    try {
+      await routeApi.reviewSyncRejection(id, rejectionId);
+      await fetchSyncRejections();
+      setToast({ show: true, message: 'Acción marcada como revisada', variant: 'success' });
+    } catch (error) {
+      setToast({
+        show: true,
+        message: getApiErrorMessage(error, 'No se pudo marcar la acción como revisada'),
+        variant: 'error',
+      });
+    } finally {
+      setReviewingRejectionId(null);
+    }
+  };
+
+  // An old last sync means the driver may have actions not sent yet; the
+  // supervisor confirms before reassigning (RF07, HU-10 CA03, HU-36 CA04).
+  const handleReassignRouteClick = () => {
+    if (!route || !targetDriverId) return;
+    const current = Date.now();
+    setNow(current);
+    if (route.status === 'in_progress' && isSyncStale(lastSyncedAt, current)) {
+      setConfirmReassignOpen(true);
+      return;
+    }
+    void handleReassignRoute();
   };
 
   const handleReassignStop = async (stopId: string) => {
@@ -483,6 +569,17 @@ export function RouteDetailPage() {
       <Card>
         <CardHeader>
           <h2 className="font-headline-sm text-headline-sm text-on-surface">Reasignación</h2>
+          {route.status === 'in_progress' && (
+            <p
+              className={
+                isSyncStale(lastSyncedAt, now)
+                  ? 'font-body-sm text-body-sm text-error mt-1'
+                  : 'font-body-sm text-body-sm text-on-surface-variant mt-1'
+              }
+            >
+              Última sincronización del conductor: {formatSyncAge(lastSyncedAt, now)}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-end">
           <div className="flex-1">
@@ -497,7 +594,7 @@ export function RouteDetailPage() {
             />
           </div>
           <Button
-            onClick={handleReassignRoute}
+            onClick={handleReassignRouteClick}
             disabled={!targetDriverId}
             loading={reassigningRoute}
             variant="secondary"
@@ -506,6 +603,78 @@ export function RouteDetailPage() {
           </Button>
         </CardContent>
       </Card>
+
+      {syncRejections.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="font-headline-sm text-headline-sm text-on-surface">
+              Acciones no sincronizadas
+            </h2>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-1">
+              El conductor anterior las hizo sin conexión y el sistema las rechazó porque la ruta
+              o la parada cambió. {pendingSyncRejectionCount(syncRejections)} pendientes de
+              revisión. La parada no se completa sola: decide qué hacer con cada una.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y divide-outline/50">
+              {syncRejections.map((rejection) => (
+                <li
+                  key={rejection.id}
+                  className="flex flex-col gap-3 py-4 md:flex-row md:items-start md:justify-between"
+                >
+                  <div className="space-y-1">
+                    <p className="font-label-lg text-label-lg text-on-surface">
+                      {SYNC_ACTION_LABELS[rejection.actionType] ?? rejection.actionType} ·{' '}
+                      {syncRejectionStopLabel(rejection, route.id)}
+                    </p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Hora real: {formatSyncDateTime(rejection.capturedAt)} · Reportada por{' '}
+                      {rejection.driverName}
+                    </p>
+                    <p className="font-body-sm text-body-sm text-on-surface-variant">
+                      Motivo: {rejection.reason}
+                    </p>
+                    {rejection.photos.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {rejection.photos.map((photo, index) => (
+                          <a
+                            key={photo.id}
+                            href={photo.photoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Abrir foto ${index + 1} de la evidencia`}
+                          >
+                            <img
+                              src={photo.photoUrl}
+                              alt={`Evidencia ${index + 1}`}
+                              className="h-16 w-16 rounded-md object-cover border border-outline/50"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {rejection.reviewedAt ? (
+                    <Badge variant="success">Revisada</Badge>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleReviewSyncRejection(rejection.id)}
+                      loading={reviewingRejectionId === rejection.id}
+                      disabled={
+                        reviewingRejectionId !== null && reviewingRejectionId !== rejection.id
+                      }
+                    >
+                      Marcar revisada
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -704,6 +873,19 @@ export function RouteDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Modal
+        open={confirmReassignOpen}
+        onClose={() => setConfirmReassignOpen(false)}
+        title="Sincronización antigua"
+        confirmLabel="Reasignar de todos modos"
+        confirmVariant="destructive"
+        onConfirm={() => void handleReassignRoute()}
+      >
+        <p className="font-body-md text-body-md text-on-surface-variant">
+          {reassignWarningMessage(lastSyncedAt, now)}
+        </p>
+      </Modal>
 
       <Toast
         show={toast.show}

@@ -3,17 +3,21 @@ import {
   arriveAtStopHandler,
   completeStopHandler,
   createEvidenceSignatureHandler,
+  createSyncRejectionSignatureHandler,
   createRouteHandler,
   finishDriverRouteHandler,
   getDriverRouteHandler,
   getDriverTodayRouteHandler,
   getLatestRouteLocationHandler,
   getRouteHandler,
+  listRouteSyncRejectionsHandler,
   listRoutesHandler,
   optimizeRouteHandler,
   reassignRouteHandler,
   reassignStopHandler,
   recordRouteLocationsHandler,
+  reportSyncRejectionHandler,
+  reviewSyncRejectionHandler,
   startDriverRouteHandler,
 } from './routes.controller.js';
 import {
@@ -27,9 +31,13 @@ import {
   optimizeRouteSchema,
   reassignRouteSchema,
   reassignStopSchema,
+  reviewSyncRejectionSchema,
   routeLocationsSchema,
   startRouteSchema,
   stopParamsSchema,
+  syncRejectionReportSchema,
+  syncRejectionSignatureSchema,
+  syncRejectionsParamsSchema,
 } from './routes.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -39,6 +47,19 @@ const router: ExpressRouter = Router();
 router.use(authenticate);
 
 router.get('/driver/today', authorize('driver'), getDriverTodayRouteHandler);
+// Declared before the /driver/:id routes (RF07, HU-36 CA04).
+router.post(
+  '/driver/sync-rejections',
+  authorize('driver'),
+  validate(syncRejectionReportSchema),
+  reportSyncRejectionHandler
+);
+router.post(
+  '/driver/sync-rejections/evidence-signature',
+  authorize('driver'),
+  validate(syncRejectionSignatureSchema),
+  createSyncRejectionSignatureHandler
+);
 router.get(
   '/driver/:id',
   authorize('driver'),
@@ -117,6 +138,18 @@ router.post(
   authorize('company_admin', 'supervisor'),
   validate(reassignStopSchema),
   reassignStopHandler
+);
+router.get(
+  '/:id/sync-rejections',
+  authorize('company_admin', 'supervisor'),
+  validate(syncRejectionsParamsSchema),
+  listRouteSyncRejectionsHandler
+);
+router.patch(
+  '/:id/sync-rejections/:rejectionId/review',
+  authorize('company_admin', 'supervisor'),
+  validate(reviewSyncRejectionSchema),
+  reviewSyncRejectionHandler
 );
 router.get(
   '/:id',

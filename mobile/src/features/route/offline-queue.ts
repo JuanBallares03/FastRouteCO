@@ -18,6 +18,7 @@ import {
   type RejectedEntry,
 } from './offline-queue-store';
 import { classifySyncError, getSyncErrorMessage, getSyncErrorStatus } from './sync-errors';
+import { reportRejectedActions } from './sync-rejection-report';
 import type { LocationSample } from './types';
 
 export type { NewPendingAction, PendingAction } from './offline-actions';
@@ -255,6 +256,15 @@ async function runFlush(): Promise<FlushResult> {
   await flushLocations((location) => !routesWaitingStart.has(location.action.routeId));
 
   const waitingLocations = locations.filter((entry) => !doneLocations.has(entry.id)).length;
+
+  // Actions rejected after a reassignment or a closed route are reported once to
+  // the supervisor (RF07, HU-36 CA04). A failed report never fails the flush.
+  try {
+    await reportRejectedActions();
+  } catch {
+    // Retried on the next flush.
+  }
+
   return {
     synced: state.synced,
     rejected: state.rejected,

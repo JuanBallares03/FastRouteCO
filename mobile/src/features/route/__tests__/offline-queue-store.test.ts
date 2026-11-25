@@ -1,4 +1,4 @@
-import { insertEntry, readEntries } from '../offline-queue-store';
+import { insertEntry, markReported, readEntries } from '../offline-queue-store';
 
 const mockDatabase = {
   runAsync: jest.fn(),
@@ -86,5 +86,18 @@ describe('offline queue store', () => {
       5,
       'location'
     );
+  });
+
+  it('marks only a rejected row of the current driver as reported', async () => {
+    await markReported('row-4', 30);
+
+    const [sql, reportedAt, id] = mockDatabase.runAsync.mock.calls[0];
+    expect(sql).toMatch(/UPDATE offline_queue SET reported_at = \?/);
+    expect(sql).toContain("status = 'rejected'");
+    expect(sql).toContain(
+      "owner_user_id = (SELECT value FROM offline_meta WHERE key = 'current_owner')"
+    );
+    expect(reportedAt).toBe(30);
+    expect(id).toBe('row-4');
   });
 });

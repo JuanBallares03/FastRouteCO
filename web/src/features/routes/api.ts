@@ -27,4 +27,10 @@ export const routeApi = {
 
   reassignStop: (id: string, stopId: string, driverId: string) =>
     api.post(`/routes/${id}/stops/${stopId}/reassign`, { driverId }),
+
+  // Offline actions of the previous driver the server rejected (RF07, HU-36).
+  getSyncRejections: (id: string) => api.get(`/routes/${id}/sync-rejections`),
+
+  reviewSyncRejection: (id: string, rejectionId: string) =>
+    api.patch(`/routes/${id}/sync-rejections/${rejectionId}/review`),
 };

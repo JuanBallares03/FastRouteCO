@@ -7,7 +7,6 @@ import {
   UserRole,
 } from '@prisma/client';
 import { performance } from 'node:perf_hooks';
-import { v2 as cloudinary } from 'cloudinary';
 import { prisma } from '../../lib/prisma.js';
 import { parseBusinessDate, startOfBusinessDay, todayInBogota } from '../../lib/dates.js';
 import { haversineMeters } from '../../lib/geo.js';
@@ -24,9 +23,8 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  ServiceUnavailableError,
 } from '../../lib/errors.js';
-import { env } from '../../env.js';
+import { evidenceFolder, signEvidenceUpload } from './evidence-signature.js';
 import {
   applyOptimizationBilling,
   assertOptimizationAllowed,
@@ -287,8 +285,20 @@ export async function listRoutes(
     prisma.route.count({ where }),
   ]);
 
+  // Unreviewed reports of rejected driver actions, shown as a counter in the
+  // route list (RF07, HU-10 CA03).
+  const pending = await prisma.routeSyncRejection.groupBy({
+    by: ['routeId'],
+    where: { routeId: { in: items.map((item) => item.id) }, reviewedAt: null },
+    _count: { _all: true },
+  });
+  const pendingByRoute = new Map(pending.map((row) => [row.routeId, row._count._all]));
+
   return {
-    items: items.map(serializeRoute),
+    items: items.map((item) => ({
+      ...serializeRoute(item),
+      pendingSyncRejections: pendingByRoute.get(item.id) ?? 0,
+    })),
     total,
     page: filters.page,
     pageSize: filters.pageSize,
@@ -305,7 +315,15 @@ export async function getRouteById(companyId: string, routeId: string) {
     throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
   }
 
-  return serializeRoute(route);
+  // Last time a GPS point of the route reached the server (synced_at, not the
+  // device capture time). The panel warns before reassigning a route in
+  // progress when it is old (RF07, HU-10 CA03, HU-36 CA04).
+  const lastSync = await prisma.routeLocation.aggregate({
+    where: { routeId: route.id },
+    _max: { syncedAt: true },
+  });
+
+  return { ...serializeRoute(route), lastSyncedAt: lastSync._max.syncedAt };
 }
 
 export async function getLatestRouteLocation(companyId: string, routeId: string) {
@@ -747,7 +765,14 @@ export async function completeDriverStop(
   return updated;
 }
 
-export async function reassignRoute(companyId: string, routeId: string, newDriverId: string) {
+// reassignedById is stored in route_reassignments, which proves later that the
+// previous driver had the route and may report its rejected actions (RF07, HU-10 CA03).
+export async function reassignRoute(
+  companyId: string,
+  routeId: string,
+  newDriverId: string,
+  reassignedById: string
+) {
   const route = await prisma.route.findFirst({
     where: { id: routeId, companyId },
     include: { driver: true },
@@ -807,6 +832,16 @@ export async function reassignRoute(companyId: string, routeId: string, newDrive
             : newDriver.driver?.status ?? DriverStatus.available,
       },
     }),
+    prisma.routeReassignment.create({
+      data: {
+        companyId,
+        routeId: route.id,
+        targetRouteId: route.id,
+        previousDriverId: route.driverId,
+        newDriverId,
+        reassignedById,
+      },
+    }),
   ]);
 
   const updated = await getRouteById(companyId, route.id);
@@ -832,7 +867,8 @@ export async function reassignStop(
   companyId: string,
   routeId: string,
   stopId: string,
-  newDriverId: string
+  newDriverId: string,
+  reassignedById: string
 ) {
   const route = await prisma.route.findFirst({
     where: { id: routeId, companyId },
@@ -936,6 +972,18 @@ export async function reassignStop(
       });
     }
 
+    await tx.routeReassignment.create({
+      data: {
+        companyId,
+        routeId: route.id,
+        stopId: stop.id,
+        targetRouteId: target.id,
+        previousDriverId: route.driverId,
+        newDriverId,
+        reassignedById,
+      },
+    });
+
     return target;
   });
 
@@ -980,32 +1028,7 @@ export async function createEvidenceSignature(
     throw new ConflictError('La parada ya fue completada', 'STOP_ALREADY_COMPLETED');
   }
 
-  // Signing with empty credentials produces uploads Cloudinary always rejects,
-  // so the missing configuration is reported as a temporary server error (RF16).
-  const cloudName = env.CLOUDINARY_CLOUD_NAME?.trim();
-  const apiKey = env.CLOUDINARY_API_KEY?.trim();
-  const apiSecret = env.CLOUDINARY_API_SECRET?.trim();
-  if (!cloudName || !apiKey || !apiSecret) {
-    throw new ServiceUnavailableError(
-      'El almacenamiento de fotos de evidencia no está configurado',
-      'EVIDENCE_STORAGE_NOT_CONFIGURED'
-    );
-  }
-
-  const timestamp = Math.floor(Date.now() / 1000);
-  const folder = `fastrouteco/evidence/${companyId}/${routeId}/${stopId}`;
-  const signature = cloudinary.utils.api_sign_request(
-    { timestamp, folder },
-    apiSecret
-  );
-
-  return {
-    cloudName,
-    apiKey,
-    timestamp,
-    folder,
-    signature,
-  };
+  return signEvidenceUpload(evidenceFolder(companyId, routeId, stopId));
 }
 
 async function resolveStartPoint(

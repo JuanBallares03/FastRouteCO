@@ -17,6 +17,12 @@ import {
   recordRouteLocations,
   startDriverRoute,
 } from './routes.service.js';
+import {
+  createSyncRejectionSignature,
+  listRouteSyncRejections,
+  reportSyncRejection,
+  reviewSyncRejection,
+} from './sync-rejections.service.js';
 import type {
   ArriveAtStopInput,
   CompleteStopInput,
@@ -24,6 +30,8 @@ import type {
   ReassignRouteInput,
   RouteLocationsInput,
   StartRouteInput,
+  SyncRejectionReportBody,
+  SyncRejectionSignatureBody,
 } from './routes.validation.js';
 import { respondWithError } from '../../middleware/error-handler.js';
 
@@ -44,6 +52,15 @@ function requireCompanyId(req: AuthenticatedRequest, res: Response): string | nu
     return null;
   }
   return companyId;
+}
+
+function requireUserId(req: AuthenticatedRequest, res: Response): string | null {
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ message: 'No autenticado' });
+    return null;
+  }
+  return userId;
 }
 
 export async function createRouteHandler(
@@ -295,6 +312,81 @@ export async function createEvidenceSignatureHandler(
   }
 }
 
+export async function reportSyncRejectionHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const body = req.body as SyncRejectionReportBody;
+    const result = await reportSyncRejection(companyId, driverId, body);
+    res.status(result.created ? 201 : 200).json(result.rejection);
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function createSyncRejectionSignatureHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const driverId = requireDriverId(req, res);
+    if (!driverId) return;
+
+    const body = req.body as SyncRejectionSignatureBody;
+    res.json(await createSyncRejectionSignature(companyId, driverId, body.routeId, body.stopId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function listRouteSyncRejectionsHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await listRouteSyncRejections(companyId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function reviewSyncRejectionHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const { id, rejectionId } = req.params as { id: string; rejectionId: string };
+    res.json(await reviewSyncRejection(companyId, id, rejectionId, userId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
 export async function getLatestRouteLocationHandler(
   req: AuthenticatedRequest,
   res: Response,
@@ -321,9 +413,12 @@ export async function reassignRouteHandler(
     const companyId = requireCompanyId(req, res);
     if (!companyId) return;
 
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id } = req.params as { id: string };
     const body = req.body as ReassignRouteInput;
-    res.json(await reassignRoute(companyId, id, body.driverId));
+    res.json(await reassignRoute(companyId, id, body.driverId, userId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);
@@ -339,9 +434,12 @@ export async function reassignStopHandler(
     const companyId = requireCompanyId(req, res);
     if (!companyId) return;
 
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { id, stopId } = req.params as { id: string; stopId: string };
     const body = req.body as ReassignRouteInput;
-    res.json(await reassignStop(companyId, id, stopId, body.driverId));
+    res.json(await reassignStop(companyId, id, stopId, body.driverId, userId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);

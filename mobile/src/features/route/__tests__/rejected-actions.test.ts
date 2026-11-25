@@ -97,15 +97,44 @@ describe('groupRejectedActions', () => {
         title: 'Recorrido GPS (3 puntos)',
         reason: 'La ruta no está en curso',
         rejectedAt: 12,
+        reported: false,
       },
-      { key: 'f1', ids: ['f1'], title: 'Fin de ruta', reason: 'Ruta no encontrada', rejectedAt: 11 },
+      {
+        key: 'f1',
+        ids: ['f1'],
+        title: 'Fin de ruta',
+        reason: 'Ruta no encontrada',
+        rejectedAt: 11,
+        reported: false,
+      },
+    ]);
+  });
+
+  it('marks the actions already reported to the supervisor', () => {
+    const delivery = {
+      ...rejected(
+        { id: 'c1', type: 'completion', routeId: 'r1', stopId: 's1', photos: [] },
+        20
+      ),
+      reportedAt: 21,
+    };
+    const gps = {
+      ...rejected({ id: 'g1', type: 'location', routeId: 'r1', locations: [sample] }, 22),
+      reportedAt: 23,
+    };
+
+    const items = groupRejectedActions([delivery, gps], stops);
+
+    expect(items.map((item) => [item.key, item.reported])).toEqual([
+      ['c1', true],
+      ['gps-r1', false],
     ]);
   });
 });
 
 describe('rejectedSummaryMessage', () => {
   function item(title: string, reason: string): RejectedActionItem {
-    return { key: title, ids: [title], title, reason, rejectedAt: 1 };
+    return { key: title, ids: [title], title, reason, rejectedAt: 1, reported: false };
   }
 
   it('returns nothing without rejected rows', () => {

@@ -238,6 +238,28 @@ export async function updateOrder(
   };
 }
 
+// A route with reassignment history or sync rejection reports is cancelled
+// instead of deleted, so the previous driver can still report the evidence and
+// the supervisor keeps the reports (RF07, HU-10 CA03, HU-36 CA04).
+async function removeEmptyRoute(tx: Prisma.TransactionClient, routeId: string) {
+  const [reassignments, rejections] = await Promise.all([
+    tx.routeReassignment.count({
+      where: { OR: [{ routeId }, { targetRouteId: routeId }] },
+    }),
+    tx.routeSyncRejection.count({ where: { routeId } }),
+  ]);
+
+  if (reassignments > 0 || rejections > 0) {
+    await tx.route.update({
+      where: { id: routeId },
+      data: { status: RouteStatus.cancelled },
+    });
+    return;
+  }
+
+  await tx.route.delete({ where: { id: routeId } });
+}
+
 export async function cancelOrder(companyId: string, orderId: string) {
   const order = await prisma.order.findFirst({
     where: { id: orderId, companyId },
@@ -280,7 +302,7 @@ export async function cancelOrder(companyId: string, orderId: string) {
       }
 
       if (remaining.length === 0) {
-        await tx.route.delete({ where: { id: stop.routeId } });
+        await removeEmptyRoute(tx, stop.routeId);
       }
     }
 

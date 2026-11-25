@@ -25,7 +25,7 @@ import {
 } from '../../../lib/routing.js';
 import { todayInBogota } from '../../../lib/dates.js';
 import { env } from '../../../env.js';
-import { emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../../lib/realtime.js';
+import { emitToCompany, emitToUser, DRIVER_ROUTE_UPDATED_EVENT } from '../../../lib/realtime.js';
 
 vi.mock('../../../lib/realtime.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../lib/realtime.js')>();
@@ -81,6 +81,12 @@ async function cleanup() {
   await prisma.incident.deleteMany({
     where: { route: { companyId: { in: companyIds } } },
   });
+  // Routes with history are protected by ON DELETE RESTRICT, so their history goes first.
+  await prisma.routeSyncRejectionPhoto.deleteMany({
+    where: { rejection: { companyId: { in: companyIds } } },
+  });
+  await prisma.routeSyncRejection.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.routeReassignment.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -241,6 +247,12 @@ beforeEach(async () => {
   await prisma.incident.deleteMany({
     where: { route: { companyId: { in: companyIds } } },
   });
+  // Routes with history are protected by ON DELETE RESTRICT, so their history goes first.
+  await prisma.routeSyncRejectionPhoto.deleteMany({
+    where: { rejection: { companyId: { in: companyIds } } },
+  });
+  await prisma.routeSyncRejection.deleteMany({ where: { companyId: { in: companyIds } } });
+  await prisma.routeReassignment.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.routeStop.deleteMany({ where: { route: { companyId: { in: companyIds } } } });
   await prisma.route.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.order.deleteMany({ where: { companyId: { in: companyIds } } });
@@ -1288,6 +1300,109 @@ describe('Route reassignment', () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('ROUTE_STOP_LIMIT_EXCEEDED');
   });
+
+  it('records who reassigned a whole route and from which driver', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const history = await prisma.routeReassignment.findMany({ where: { routeId: route.id } });
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      companyId: COMPANY_ID,
+      stopId: null,
+      targetRouteId: route.id,
+      previousDriverId: DRIVER_A_ID,
+      newDriverId: DRIVER_B_ID,
+      reassignedById: ADMIN_ID,
+    });
+  });
+
+  it('records the source and target routes of a reassigned stop', async () => {
+    const orderA = await createOrder();
+    const orderB = await createOrder();
+    const routeA = await createDriverRoute(DRIVER_A_ID, [orderA.id, orderB.id]);
+    const stopId = routeA.stops[0].id;
+
+    const res = await request(app)
+      .post(`/api/v1/routes/${routeA.id}/stops/${stopId}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const history = await prisma.routeReassignment.findMany({ where: { stopId } });
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      routeId: routeA.id,
+      targetRouteId: res.body.id,
+      previousDriverId: DRIVER_A_ID,
+      newDriverId: DRIVER_B_ID,
+      reassignedById: ADMIN_ID,
+    });
+    expect(history[0].targetRouteId).not.toBe(routeA.id);
+  });
+
+  it('does not record a reassignment to the same driver', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_A_ID })
+      .expect(200);
+
+    expect(await prisma.routeReassignment.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('cancels instead of deleting an emptied route with reassignment history', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    const kept = await prisma.route.findUnique({ where: { id: route.id } });
+    expect(kept?.status).toBe(RouteStatus.cancelled);
+    expect(await prisma.routeReassignment.count({ where: { routeId: route.id } })).toBe(1);
+  });
+
+  it('still deletes an emptied route without history', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    expect(await prisma.route.findUnique({ where: { id: route.id } })).toBeNull();
+  });
+
+  it('refuses at the database level to delete a route with history', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    await prisma.routeStop.deleteMany({ where: { routeId: route.id } });
+    await expect(prisma.route.delete({ where: { id: route.id } })).rejects.toThrow();
+  });
 });
 
 describe('Driver route notifications', () => {
@@ -1520,3 +1635,443 @@ describe('Incidents', () => {
   });
 });
 
+describe('Sync rejection reports', () => {
+  const OTHER_DRIVER_ID = crypto.randomUUID();
+  let neverAssignedToken: string;
+  let otherCompanyDriverToken: string;
+
+  beforeAll(async () => {
+    const neverAssigned = await prisma.user.findUniqueOrThrow({
+      where: { id: UNAVAILABLE_DRIVER_ID },
+    });
+    neverAssignedToken = (await createTokenPair(neverAssigned)).accessToken;
+
+    const otherDriver = await prisma.user.create({
+      data: {
+        id: OTHER_DRIVER_ID,
+        companyId: OTHER_COMPANY_ID,
+        role: UserRole.driver,
+        fullName: 'Other Company Driver',
+        email: `routes-other-driver-${OTHER_DRIVER_ID}@test.com`,
+        passwordHash: await hashPassword(TEST_PASSWORD),
+        isActive: true,
+        driver: { create: { status: DriverStatus.available } },
+      },
+    });
+    otherCompanyDriverToken = (await createTokenPair(otherDriver)).accessToken;
+  });
+
+  async function createInProgressRoute(
+    driverId: string,
+    stopCount = 2,
+    status: RouteStatus = RouteStatus.in_progress
+  ) {
+    const orders = await Promise.all(
+      Array.from({ length: stopCount }, () =>
+        createOrder(COMPANY_ID, { status: OrderStatus.assigned })
+      )
+    );
+    return prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId,
+        routeDate: new Date(`${todayInBogota()}T00:00:00.000Z`),
+        status,
+        startedAt: status === RouteStatus.in_progress ? new Date() : null,
+        stops: {
+          create: orders.map((order, index) => ({ orderId: order.id, sequence: index + 1 })),
+        },
+      },
+      include: { stops: { orderBy: { sequence: 'asc' } } },
+    });
+  }
+
+  function pendingPhotoUrl(routeId: string, stopId: string) {
+    const folder = `fastrouteco/evidence/${COMPANY_ID}/${routeId}/${stopId}/pending`;
+    return `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/v1/${folder}/photo.jpg`;
+  }
+
+  function completionReport(
+    routeId: string,
+    stopId: string,
+    overrides: Record<string, unknown> = {}
+  ) {
+    return {
+      clientActionId: crypto.randomUUID(),
+      routeId,
+      stopId,
+      actionType: 'completion',
+      capturedAt: new Date().toISOString(),
+      reason: 'Ruta no encontrada',
+      errorCode: 'ROUTE_NOT_FOUND',
+      photos: [
+        { photoUrl: pendingPhotoUrl(routeId, stopId), capturedAt: new Date().toISOString() },
+      ],
+      ...overrides,
+    };
+  }
+
+  function report(token: string, body: unknown) {
+    return request(app)
+      .post('/api/v1/routes/driver/sync-rejections')
+      .set(authHeader(token))
+      .send(body as object);
+  }
+
+  function sign(token: string, routeId: string, stopId: string) {
+    return request(app)
+      .post('/api/v1/routes/driver/sync-rejections/evidence-signature')
+      .set(authHeader(token))
+      .send({ routeId, stopId });
+  }
+
+  async function reassignRouteTo(routeId: string, driverId: string) {
+    await request(app)
+      .patch(`/api/v1/routes/${routeId}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId })
+      .expect(200);
+  }
+
+  it('accepts the report and signs pending evidence for the previous driver of a reassigned route', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+    await reassignRouteTo(route.id, DRIVER_B_ID);
+    const stopId = route.stops[0].id;
+
+    const signature = await sign(driverAToken, route.id, stopId);
+    expect(signature.status).toBe(200);
+    expect(signature.body.folder).toBe(
+      `fastrouteco/evidence/${COMPANY_ID}/${route.id}/${stopId}/pending`
+    );
+
+    const res = await report(driverAToken, completionReport(route.id, stopId));
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({
+      routeId: route.id,
+      stopId,
+      driverId: DRIVER_A_ID,
+      actionType: 'completion',
+      errorCode: 'ROUTE_NOT_FOUND',
+      reviewedAt: null,
+    });
+    expect(res.body.photos).toHaveLength(1);
+    expect(vi.mocked(emitToCompany)).toHaveBeenCalledWith(COMPANY_ID, 'route:sync-rejected', {
+      routeId: route.id,
+      rejectionId: res.body.id,
+    });
+  });
+
+  it('returns the stored report when the same action is reported again', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+    await reassignRouteTo(route.id, DRIVER_B_ID);
+    const body = completionReport(route.id, route.stops[0].id);
+
+    const first = await report(driverAToken, body);
+    const second = await report(driverAToken, body);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(200);
+    expect(second.body.id).toBe(first.body.id);
+    expect(await prisma.routeSyncRejection.count({ where: { routeId: route.id } })).toBe(1);
+  });
+
+  it('answers 404 to a driver of the same company who never had the route', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+    await reassignRouteTo(route.id, DRIVER_B_ID);
+    const stopId = route.stops[0].id;
+
+    const reportRes = await report(neverAssignedToken, completionReport(route.id, stopId));
+    const signRes = await sign(neverAssignedToken, route.id, stopId);
+
+    expect(reportRes.status).toBe(404);
+    expect(reportRes.body.code).toBe('ROUTE_NOT_FOUND');
+    expect(signRes.status).toBe(404);
+    expect(signRes.body.code).toBe('ROUTE_NOT_FOUND');
+    expect(signRes.body.signature).toBeUndefined();
+    expect(await prisma.routeSyncRejection.count({ where: { routeId: route.id } })).toBe(0);
+  });
+
+  it('answers 404 to a driver of another company', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+    await reassignRouteTo(route.id, DRIVER_B_ID);
+    const stopId = route.stops[0].id;
+
+    const reportRes = await report(otherCompanyDriverToken, completionReport(route.id, stopId));
+    const signRes = await sign(otherCompanyDriverToken, route.id, stopId);
+
+    expect(reportRes.status).toBe(404);
+    expect(signRes.status).toBe(404);
+  });
+
+  it('accepts a reassigned stop only for that stop', async () => {
+    const routeA = await createInProgressRoute(DRIVER_A_ID, 2);
+    // Not in progress: reassignStop refuses a driver who already has another route in progress.
+    const routeB = await createInProgressRoute(DRIVER_B_ID, 1, RouteStatus.optimized);
+    const movedStopId = routeA.stops[0].id;
+    const foreignStopId = routeB.stops[0].id;
+    await request(app)
+      .post(`/api/v1/routes/${routeA.id}/stops/${movedStopId}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const accepted = await report(
+      driverAToken,
+      completionReport(routeA.id, movedStopId, { errorCode: 'STOP_NOT_FOUND' })
+    );
+    expect(accepted.status).toBe(201);
+    expect((await sign(driverAToken, routeA.id, movedStopId)).status).toBe(200);
+
+    // A stop of the new driver's route that was never this driver's.
+    const foreignReport = await report(driverAToken, completionReport(routeA.id, foreignStopId));
+    const foreignSign = await sign(driverAToken, routeA.id, foreignStopId);
+    expect(foreignReport.status).toBe(404);
+    expect(foreignSign.status).toBe(404);
+  });
+
+  it('does not treat a stop reassignment whose stop was deleted as a whole-route reassignment', async () => {
+    const routeA = await createInProgressRoute(DRIVER_A_ID, 2);
+    const movedStop = routeA.stops[0];
+    await request(app)
+      .post(`/api/v1/routes/${routeA.id}/stops/${movedStop.id}/reassign`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+    await request(app)
+      .post(`/api/v1/orders/${movedStop.orderId}/cancel`)
+      .set(authHeader(adminToken))
+      .expect(200);
+    const history = await prisma.routeReassignment.findFirstOrThrow({
+      where: { routeId: routeA.id },
+    });
+    expect(history.stopId).toBeNull();
+    expect(history.targetRouteId).not.toBe(routeA.id);
+
+    // Route A changes hands without a history row, as reassignments did before this table.
+    await prisma.route.update({ where: { id: routeA.id }, data: { driverId: DRIVER_B_ID } });
+
+    const res = await report(
+      driverAToken,
+      completionReport(routeA.id, routeA.stops[1].id, { photos: [] })
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('accepts a report on the own closed route and refuses it while the route is in progress', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+    const body = completionReport(route.id, route.stops[0].id, {
+      errorCode: 'ROUTE_NOT_IN_PROGRESS',
+    });
+
+    const inProgress = await report(driverAToken, body);
+    expect(inProgress.status).toBe(409);
+    expect(inProgress.body.code).toBe('SYNC_REJECTION_NOT_APPLICABLE');
+
+    await prisma.route.update({
+      where: { id: route.id },
+      data: { status: RouteStatus.completed, endedAt: new Date() },
+    });
+    expect((await report(driverAToken, body)).status).toBe(201);
+  });
+
+  it('rejects photos that were not uploaded with the report signature', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+    await reassignRouteTo(route.id, DRIVER_B_ID);
+    const stopId = route.stops[0].id;
+
+    const res = await report(
+      driverAToken,
+      completionReport(route.id, stopId, {
+        photos: [{ photoUrl: 'https://example.com/fastrouteco/evidence/photo.jpg' }],
+      })
+    );
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('INVALID_EVIDENCE_URL');
+  });
+
+  it('requires the stop for arrivals and completions', async () => {
+    const route = await createInProgressRoute(DRIVER_A_ID);
+
+    const res = await report(driverAToken, {
+      clientActionId: crypto.randomUUID(),
+      routeId: route.id,
+      actionType: 'arrival',
+      capturedAt: new Date().toISOString(),
+      reason: 'Ruta no encontrada',
+    });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('Sync rejection review', () => {
+  async function reportedRoute() {
+    const order = await createOrder(COMPANY_ID, { status: OrderStatus.assigned });
+    const route = await prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId: DRIVER_A_ID,
+        routeDate: new Date(`${todayInBogota()}T00:00:00.000Z`),
+        status: RouteStatus.in_progress,
+        startedAt: new Date(),
+        stops: { create: [{ orderId: order.id, sequence: 1 }] },
+      },
+      include: { stops: true },
+    });
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const stopId = route.stops[0].id;
+    const folder = `fastrouteco/evidence/${COMPANY_ID}/${route.id}/${stopId}/pending`;
+    const reported = await request(app)
+      .post('/api/v1/routes/driver/sync-rejections')
+      .set(authHeader(driverAToken))
+      .send({
+        clientActionId: crypto.randomUUID(),
+        routeId: route.id,
+        stopId,
+        actionType: 'completion',
+        capturedAt: '2026-11-24T15:30:00.000Z',
+        reason: 'Ruta no encontrada',
+        errorCode: 'ROUTE_NOT_FOUND',
+        photos: [
+          {
+            photoUrl: `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/v1/${folder}/a.jpg`,
+          },
+        ],
+      })
+      .expect(201);
+
+    return { route, stopId, rejectionId: reported.body.id as string };
+  }
+
+  it('lists the reports of a route with the reporting driver, stop and photos', async () => {
+    const { route, stopId, rejectionId } = await reportedRoute();
+
+    const res = await request(app)
+      .get(`/api/v1/routes/${route.id}/sync-rejections`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      id: rejectionId,
+      actionType: 'completion',
+      capturedAt: '2026-11-24T15:30:00.000Z',
+      reason: 'Ruta no encontrada',
+      driverName: 'Driver A',
+      stop: { id: stopId, sequence: 1, routeId: route.id },
+      reviewedAt: null,
+    });
+    expect(res.body[0].photos).toHaveLength(1);
+  });
+
+  it('counts unreviewed reports in the route list and marks a report as reviewed', async () => {
+    const { route, rejectionId } = await reportedRoute();
+
+    const before = await request(app)
+      .get('/api/v1/routes')
+      .query({ date: todayInBogota() })
+      .set(authHeader(adminToken))
+      .expect(200);
+    const listed = before.body.items.find((item: { id: string }) => item.id === route.id);
+    expect(listed.pendingSyncRejections).toBe(1);
+
+    const reviewed = await request(app)
+      .patch(`/api/v1/routes/${route.id}/sync-rejections/${rejectionId}/review`)
+      .set(authHeader(adminToken));
+    expect(reviewed.status).toBe(200);
+    expect(reviewed.body.reviewedAt).not.toBeNull();
+    expect(vi.mocked(emitToCompany)).toHaveBeenCalledWith(
+      COMPANY_ID,
+      'route:sync-rejection-reviewed',
+      { routeId: route.id, rejectionId }
+    );
+
+    const stored = await prisma.routeSyncRejection.findUniqueOrThrow({ where: { id: rejectionId } });
+    expect(stored.reviewedById).toBe(ADMIN_ID);
+
+    const after = await request(app)
+      .get('/api/v1/routes')
+      .query({ date: todayInBogota() })
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(
+      after.body.items.find((item: { id: string }) => item.id === route.id).pendingSyncRejections
+    ).toBe(0);
+  });
+
+  it('hides the reports from other companies and from drivers', async () => {
+    const { route, rejectionId } = await reportedRoute();
+
+    const otherCompany = await request(app)
+      .get(`/api/v1/routes/${route.id}/sync-rejections`)
+      .set(authHeader(otherAdminToken));
+    const otherReview = await request(app)
+      .patch(`/api/v1/routes/${route.id}/sync-rejections/${rejectionId}/review`)
+      .set(authHeader(otherAdminToken));
+    const driver = await request(app)
+      .get(`/api/v1/routes/${route.id}/sync-rejections`)
+      .set(authHeader(driverAToken));
+
+    expect(otherCompany.status).toBe(404);
+    expect(otherReview.status).toBe(404);
+    expect(driver.status).toBe(403);
+  });
+});
+
+describe('Route last sync', () => {
+  async function createRoute() {
+    return prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId: DRIVER_A_ID,
+        routeDate: new Date(`${todayInBogota()}T00:00:00.000Z`),
+        status: RouteStatus.in_progress,
+        startedAt: new Date(),
+      },
+    });
+  }
+
+  it('returns null when the route has no GPS points', async () => {
+    const route = await createRoute();
+
+    const res = await request(app).get(`/api/v1/routes/${route.id}`).set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastSyncedAt).toBeNull();
+  });
+
+  it('returns when the last point reached the server, not when it was captured', async () => {
+    const route = await createRoute();
+    // An offline point captured long ago but received recently is the latest sync.
+    await prisma.routeLocation.createMany({
+      data: [
+        {
+          routeId: route.id,
+          latitude: 4.4389,
+          longitude: -75.2322,
+          capturedAt: new Date('2026-11-24T15:00:00.000Z'),
+          syncedAt: new Date('2026-11-24T15:00:05.000Z'),
+        },
+        {
+          routeId: route.id,
+          latitude: 4.439,
+          longitude: -75.2323,
+          capturedAt: new Date('2026-11-24T14:00:00.000Z'),
+          syncedAt: new Date('2026-11-24T16:10:00.000Z'),
+          isOffline: true,
+        },
+      ],
+    });
+
+    const res = await request(app).get(`/api/v1/routes/${route.id}`).set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastSyncedAt).toBe('2026-11-24T16:10:00.000Z');
+  });
+});

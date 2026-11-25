@@ -160,6 +160,60 @@ export const reassignStopSchema = z.object({
   }),
 });
 
+// RF07, HU-36 CA04: report of an offline action the server rejected. Arrivals and
+// completions belong to a stop, and only completions carry evidence photos.
+export const syncRejectionReportSchema = z.object({
+  body: z
+    .object({
+      clientActionId: z.string().trim().min(1).max(64),
+      routeId: z.string().uuid({ message: 'ID de ruta inválido' }),
+      stopId: z.string().uuid({ message: 'ID de parada inválido' }).optional(),
+      actionType: z.enum(['start', 'arrival', 'completion', 'finish']),
+      capturedAt: z.coerce.date(),
+      reason: z.string().trim().min(1).max(500),
+      errorCode: z.enum(['ROUTE_NOT_FOUND', 'ROUTE_NOT_IN_PROGRESS', 'STOP_NOT_FOUND']).optional(),
+      photos: z
+        .array(
+          z.object({
+            photoUrl: z.string().url({ message: 'URL de evidencia inválida' }),
+            capturedAt: z.coerce.date().optional(),
+          })
+        )
+        .max(5, { message: 'Puedes adjuntar hasta 5 fotos por parada' })
+        .default([]),
+    })
+    .refine(
+      (body) => !['arrival', 'completion'].includes(body.actionType) || body.stopId,
+      { message: 'La acción debe indicar la parada', path: ['stopId'] }
+    )
+    .refine((body) => body.actionType === 'completion' || body.photos.length === 0, {
+      message: 'Solo una entrega o recogida lleva fotos',
+      path: ['photos'],
+    }),
+});
+
+export const syncRejectionSignatureSchema = z.object({
+  body: z.object({
+    routeId: z.string().uuid({ message: 'ID de ruta inválido' }),
+    stopId: z.string().uuid({ message: 'ID de parada inválido' }),
+  }),
+});
+
+export const syncRejectionsParamsSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'ID de ruta inválido' }),
+  }),
+});
+
+export const reviewSyncRejectionSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'ID de ruta inválido' }),
+    rejectionId: z.string().uuid({ message: 'ID de reporte inválido' }),
+  }),
+});
+
+export type SyncRejectionReportBody = z.infer<typeof syncRejectionReportSchema>['body'];
+export type SyncRejectionSignatureBody = z.infer<typeof syncRejectionSignatureSchema>['body'];
 export type StartRouteInput = z.infer<typeof startRouteSchema>['body'];
 export type RouteLocationsInput = z.infer<typeof routeLocationsSchema>['body'];
 export type ArriveAtStopInput = z.infer<typeof arriveAtStopSchema>['body'];
