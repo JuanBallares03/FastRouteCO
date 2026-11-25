@@ -199,6 +199,19 @@ export const syncRejectionSignatureSchema = z.object({
   }),
 });
 
+export const syncRejectionsParamsSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'ID de ruta inválido' }),
+  }),
+});
+
+export const reviewSyncRejectionSchema = z.object({
+  params: z.object({
+    id: z.string().uuid({ message: 'ID de ruta inválido' }),
+    rejectionId: z.string().uuid({ message: 'ID de reporte inválido' }),
+  }),
+});
+
 export type SyncRejectionReportBody = z.infer<typeof syncRejectionReportSchema>['body'];
 export type SyncRejectionSignatureBody = z.infer<typeof syncRejectionSignatureSchema>['body'];
 export type StartRouteInput = z.infer<typeof startRouteSchema>['body'];

@@ -136,6 +136,71 @@ export function serializeSyncRejection(rejection: RejectionWithPhotos) {
   };
 }
 
+const supervisorInclude = {
+  ...rejectionInclude,
+  driver: { select: { userId: true, user: { select: { fullName: true } } } },
+  stop: { select: { id: true, sequence: true, routeId: true } },
+} satisfies Prisma.RouteSyncRejectionInclude;
+
+type SupervisorRejection = Prisma.RouteSyncRejectionGetPayload<{
+  include: typeof supervisorInclude;
+}>;
+
+function serializeForSupervisor(rejection: SupervisorRejection) {
+  return {
+    ...serializeSyncRejection(rejection),
+    driverName: rejection.driver.user.fullName,
+    // The stop may have moved to another route after a stop reassignment.
+    stop: rejection.stop,
+  };
+}
+
+// Reports of a route of the company, oldest action first (RF07, HU-10 CA03).
+export async function listRouteSyncRejections(companyId: string, routeId: string) {
+  const route = await prisma.route.findFirst({
+    where: { id: routeId, companyId },
+    select: { id: true },
+  });
+  if (!route) throw routeNotFound();
+
+  const rejections = await prisma.routeSyncRejection.findMany({
+    where: { companyId, routeId },
+    include: supervisorInclude,
+    orderBy: [{ capturedAt: 'asc' }, { reportedAt: 'asc' }],
+  });
+  return rejections.map(serializeForSupervisor);
+}
+
+export async function reviewSyncRejection(
+  companyId: string,
+  routeId: string,
+  rejectionId: string,
+  reviewedById: string
+) {
+  const rejection = await prisma.routeSyncRejection.findFirst({
+    where: { id: rejectionId, routeId, companyId },
+    include: supervisorInclude,
+  });
+  if (!rejection) {
+    throw new NotFoundError('Reporte no encontrado', 'SYNC_REJECTION_NOT_FOUND');
+  }
+  if (rejection.reviewedAt) {
+    return serializeForSupervisor(rejection);
+  }
+
+  const updated = await prisma.routeSyncRejection.update({
+    where: { id: rejection.id },
+    data: { reviewedAt: new Date(), reviewedById },
+    include: supervisorInclude,
+  });
+
+  emitToCompany(companyId, 'route:sync-rejection-reviewed', {
+    routeId,
+    rejectionId: updated.id,
+  });
+  return serializeForSupervisor(updated);
+}
+
 async function findReported(driverId: string, clientActionId: string) {
   return prisma.routeSyncRejection.findUnique({
     where: { driverId_clientActionId: { driverId, clientActionId } },

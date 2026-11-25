@@ -1904,3 +1904,122 @@ describe('Sync rejection reports', () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe('Sync rejection review', () => {
+  async function reportedRoute() {
+    const order = await createOrder(COMPANY_ID, { status: OrderStatus.assigned });
+    const route = await prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId: DRIVER_A_ID,
+        routeDate: new Date(`${todayInBogota()}T00:00:00.000Z`),
+        status: RouteStatus.in_progress,
+        startedAt: new Date(),
+        stops: { create: [{ orderId: order.id, sequence: 1 }] },
+      },
+      include: { stops: true },
+    });
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    const stopId = route.stops[0].id;
+    const folder = `fastrouteco/evidence/${COMPANY_ID}/${route.id}/${stopId}/pending`;
+    const reported = await request(app)
+      .post('/api/v1/routes/driver/sync-rejections')
+      .set(authHeader(driverAToken))
+      .send({
+        clientActionId: crypto.randomUUID(),
+        routeId: route.id,
+        stopId,
+        actionType: 'completion',
+        capturedAt: '2026-11-24T15:30:00.000Z',
+        reason: 'Ruta no encontrada',
+        errorCode: 'ROUTE_NOT_FOUND',
+        photos: [
+          {
+            photoUrl: `https://res.cloudinary.com/${env.CLOUDINARY_CLOUD_NAME}/image/upload/v1/${folder}/a.jpg`,
+          },
+        ],
+      })
+      .expect(201);
+
+    return { route, stopId, rejectionId: reported.body.id as string };
+  }
+
+  it('lists the reports of a route with the reporting driver, stop and photos', async () => {
+    const { route, stopId, rejectionId } = await reportedRoute();
+
+    const res = await request(app)
+      .get(`/api/v1/routes/${route.id}/sync-rejections`)
+      .set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      id: rejectionId,
+      actionType: 'completion',
+      capturedAt: '2026-11-24T15:30:00.000Z',
+      reason: 'Ruta no encontrada',
+      driverName: 'Driver A',
+      stop: { id: stopId, sequence: 1, routeId: route.id },
+      reviewedAt: null,
+    });
+    expect(res.body[0].photos).toHaveLength(1);
+  });
+
+  it('counts unreviewed reports in the route list and marks a report as reviewed', async () => {
+    const { route, rejectionId } = await reportedRoute();
+
+    const before = await request(app)
+      .get('/api/v1/routes')
+      .query({ date: todayInBogota() })
+      .set(authHeader(adminToken))
+      .expect(200);
+    const listed = before.body.items.find((item: { id: string }) => item.id === route.id);
+    expect(listed.pendingSyncRejections).toBe(1);
+
+    const reviewed = await request(app)
+      .patch(`/api/v1/routes/${route.id}/sync-rejections/${rejectionId}/review`)
+      .set(authHeader(adminToken));
+    expect(reviewed.status).toBe(200);
+    expect(reviewed.body.reviewedAt).not.toBeNull();
+    expect(vi.mocked(emitToCompany)).toHaveBeenCalledWith(
+      COMPANY_ID,
+      'route:sync-rejection-reviewed',
+      { routeId: route.id, rejectionId }
+    );
+
+    const stored = await prisma.routeSyncRejection.findUniqueOrThrow({ where: { id: rejectionId } });
+    expect(stored.reviewedById).toBe(ADMIN_ID);
+
+    const after = await request(app)
+      .get('/api/v1/routes')
+      .query({ date: todayInBogota() })
+      .set(authHeader(adminToken))
+      .expect(200);
+    expect(
+      after.body.items.find((item: { id: string }) => item.id === route.id).pendingSyncRejections
+    ).toBe(0);
+  });
+
+  it('hides the reports from other companies and from drivers', async () => {
+    const { route, rejectionId } = await reportedRoute();
+
+    const otherCompany = await request(app)
+      .get(`/api/v1/routes/${route.id}/sync-rejections`)
+      .set(authHeader(otherAdminToken));
+    const otherReview = await request(app)
+      .patch(`/api/v1/routes/${route.id}/sync-rejections/${rejectionId}/review`)
+      .set(authHeader(otherAdminToken));
+    const driver = await request(app)
+      .get(`/api/v1/routes/${route.id}/sync-rejections`)
+      .set(authHeader(driverAToken));
+
+    expect(otherCompany.status).toBe(404);
+    expect(otherReview.status).toBe(404);
+    expect(driver.status).toBe(403);
+  });
+});

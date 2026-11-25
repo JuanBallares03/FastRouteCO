@@ -285,8 +285,20 @@ export async function listRoutes(
     prisma.route.count({ where }),
   ]);
 
+  // Unreviewed reports of rejected driver actions, shown as a counter in the
+  // route list (RF07, HU-10 CA03).
+  const pending = await prisma.routeSyncRejection.groupBy({
+    by: ['routeId'],
+    where: { routeId: { in: items.map((item) => item.id) }, reviewedAt: null },
+    _count: { _all: true },
+  });
+  const pendingByRoute = new Map(pending.map((row) => [row.routeId, row._count._all]));
+
   return {
-    items: items.map(serializeRoute),
+    items: items.map((item) => ({
+      ...serializeRoute(item),
+      pendingSyncRejections: pendingByRoute.get(item.id) ?? 0,
+    })),
     total,
     page: filters.page,
     pageSize: filters.pageSize,

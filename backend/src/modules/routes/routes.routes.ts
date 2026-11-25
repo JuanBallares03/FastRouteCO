@@ -10,12 +10,14 @@ import {
   getDriverTodayRouteHandler,
   getLatestRouteLocationHandler,
   getRouteHandler,
+  listRouteSyncRejectionsHandler,
   listRoutesHandler,
   optimizeRouteHandler,
   reassignRouteHandler,
   reassignStopHandler,
   recordRouteLocationsHandler,
   reportSyncRejectionHandler,
+  reviewSyncRejectionHandler,
   startDriverRouteHandler,
 } from './routes.controller.js';
 import {
@@ -29,11 +31,13 @@ import {
   optimizeRouteSchema,
   reassignRouteSchema,
   reassignStopSchema,
+  reviewSyncRejectionSchema,
   routeLocationsSchema,
   startRouteSchema,
   stopParamsSchema,
   syncRejectionReportSchema,
   syncRejectionSignatureSchema,
+  syncRejectionsParamsSchema,
 } from './routes.validation.js';
 import { authenticate, authorize } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -134,6 +138,18 @@ router.post(
   authorize('company_admin', 'supervisor'),
   validate(reassignStopSchema),
   reassignStopHandler
+);
+router.get(
+  '/:id/sync-rejections',
+  authorize('company_admin', 'supervisor'),
+  validate(syncRejectionsParamsSchema),
+  listRouteSyncRejectionsHandler
+);
+router.patch(
+  '/:id/sync-rejections/:rejectionId/review',
+  authorize('company_admin', 'supervisor'),
+  validate(reviewSyncRejectionSchema),
+  reviewSyncRejectionHandler
 );
 router.get(
   '/:id',

@@ -17,7 +17,12 @@ import {
   recordRouteLocations,
   startDriverRoute,
 } from './routes.service.js';
-import { createSyncRejectionSignature, reportSyncRejection } from './sync-rejections.service.js';
+import {
+  createSyncRejectionSignature,
+  listRouteSyncRejections,
+  reportSyncRejection,
+  reviewSyncRejection,
+} from './sync-rejections.service.js';
 import type {
   ArriveAtStopInput,
   CompleteStopInput,
@@ -340,6 +345,42 @@ export async function createSyncRejectionSignatureHandler(
 
     const body = req.body as SyncRejectionSignatureBody;
     res.json(await createSyncRejectionSignature(companyId, driverId, body.routeId, body.stopId));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function listRouteSyncRejectionsHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+
+    const { id } = req.params as { id: string };
+    res.json(await listRouteSyncRejections(companyId, id));
+  } catch (error) {
+    if (respondWithError(error, res)) return;
+    next(error);
+  }
+}
+
+export async function reviewSyncRejectionHandler(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const companyId = requireCompanyId(req, res);
+    if (!companyId) return;
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
+    const { id, rejectionId } = req.params as { id: string; rejectionId: string };
+    res.json(await reviewSyncRejection(companyId, id, rejectionId, userId));
   } catch (error) {
     if (respondWithError(error, res)) return;
     next(error);
