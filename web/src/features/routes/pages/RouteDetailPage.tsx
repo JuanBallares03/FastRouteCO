@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Toast } from '@/components/ui/Modal';
+import { Modal, Toast } from '@/components/ui/Modal';
 import { RouteMap, type RouteMapStop } from '@/components/map/RouteMap';
 import { companyApi } from '@/features/company/api';
 import { incidentApi, type IncidentPayload } from '@/features/incidents/api';
@@ -37,6 +37,7 @@ import {
   syncRejectionStopLabel,
   type SyncRejection,
 } from '@/lib/sync-rejections';
+import { formatSyncAge, isSyncStale, reassignWarningMessage } from '@/lib/sync-status';
 
 interface RouteOrder {
   id: string;
@@ -73,6 +74,8 @@ interface RouteDetail {
     user?: { fullName?: string | null; phone?: string | null } | null;
   } | null;
   stops: RouteStop[];
+  /** When a GPS point of the route last reached the server (RF07, HU-36). */
+  lastSyncedAt?: string | null;
   optimizations?: Array<{
     totalDistanceM: number | null;
     estimatedDurationS: number | null;
@@ -107,6 +110,10 @@ export function RouteDetailPage() {
   const [driverLocation, setDriverLocation] = useState<TrackedLocation | null>(null);
   const [syncRejections, setSyncRejections] = useState<SyncRejection[]>([]);
   const [reviewingRejectionId, setReviewingRejectionId] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [confirmReassignOpen, setConfirmReassignOpen] = useState(false);
+  // Refreshed every 30 s so "hace X min" stays current.
+  const [now, setNow] = useState(() => Date.now());
   const [toast, setToast] = useState<{
     show: boolean;
     message: string;
@@ -118,6 +125,7 @@ export function RouteDetailPage() {
     try {
       const response = await routeApi.getRoute(id);
       setRoute(response.data);
+      setLastSyncedAt((response.data as RouteDetail).lastSyncedAt ?? null);
     } catch {
       setToast({ show: true, message: 'No se pudo cargar la ruta', variant: 'error' });
     } finally {
@@ -177,6 +185,11 @@ export function RouteDetailPage() {
   }, [fetchDriverLocation, fetchIncidents, fetchRoute, fetchSyncRejections]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (!selectedIncidentId && incidents.length > 0) {
       setSelectedIncidentId(incidents[0].id);
     }
@@ -210,6 +223,10 @@ export function RouteDetailPage() {
       locations?: TrackedLocation[];
     }) => {
       if (payload.routeId !== id) return;
+      // A batch reaching the server is a sync, even with old offline points.
+      const receivedAt = Date.now();
+      setLastSyncedAt(new Date(receivedAt).toISOString());
+      setNow(receivedAt);
       const incoming = latestFromBatch(payload.locations);
       if (incoming) {
         setDriverLocation((current) =>
@@ -415,6 +432,19 @@ export function RouteDetailPage() {
     }
   };
 
+  // An old last sync means the driver may have actions not sent yet; the
+  // supervisor confirms before reassigning (RF07, HU-10 CA03, HU-36 CA04).
+  const handleReassignRouteClick = () => {
+    if (!route || !targetDriverId) return;
+    const current = Date.now();
+    setNow(current);
+    if (route.status === 'in_progress' && isSyncStale(lastSyncedAt, current)) {
+      setConfirmReassignOpen(true);
+      return;
+    }
+    void handleReassignRoute();
+  };
+
   const handleReassignStop = async (stopId: string) => {
     if (!id || !targetDriverId) return;
     setReassigningStopId(stopId);
@@ -539,6 +569,17 @@ export function RouteDetailPage() {
       <Card>
         <CardHeader>
           <h2 className="font-headline-sm text-headline-sm text-on-surface">Reasignación</h2>
+          {route.status === 'in_progress' && (
+            <p
+              className={
+                isSyncStale(lastSyncedAt, now)
+                  ? 'font-body-sm text-body-sm text-error mt-1'
+                  : 'font-body-sm text-body-sm text-on-surface-variant mt-1'
+              }
+            >
+              Última sincronización del conductor: {formatSyncAge(lastSyncedAt, now)}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-end">
           <div className="flex-1">
@@ -553,7 +594,7 @@ export function RouteDetailPage() {
             />
           </div>
           <Button
-            onClick={handleReassignRoute}
+            onClick={handleReassignRouteClick}
             disabled={!targetDriverId}
             loading={reassigningRoute}
             variant="secondary"
@@ -832,6 +873,19 @@ export function RouteDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Modal
+        open={confirmReassignOpen}
+        onClose={() => setConfirmReassignOpen(false)}
+        title="Sincronización antigua"
+        confirmLabel="Reasignar de todos modos"
+        confirmVariant="destructive"
+        onConfirm={() => void handleReassignRoute()}
+      >
+        <p className="font-body-md text-body-md text-on-surface-variant">
+          {reassignWarningMessage(lastSyncedAt, now)}
+        </p>
+      </Modal>
 
       <Toast
         show={toast.show}
