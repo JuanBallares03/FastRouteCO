@@ -86,6 +86,13 @@ CREATE TYPE "incident_status" AS ENUM (
   'resolved'
 );
 
+CREATE TYPE "sync_action_type" AS ENUM (
+  'start',
+  'arrival',
+  'completion',
+  'finish'
+);
+
 CREATE TYPE "support_status" AS ENUM (
   'open',
   'answered',
@@ -358,6 +365,41 @@ CREATE TABLE "incident_messages" (
   "read_at" timestamp
 );
 
+CREATE TABLE "route_reassignments" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "route_id" uuid NOT NULL,
+  "stop_id" uuid,
+  "target_route_id" uuid NOT NULL,
+  "previous_driver_id" uuid NOT NULL,
+  "new_driver_id" uuid NOT NULL,
+  "reassigned_by" uuid NOT NULL,
+  "reassigned_at" timestamp NOT NULL DEFAULT (now())
+);
+
+CREATE TABLE "route_sync_rejections" (
+  "id" uuid PRIMARY KEY,
+  "company_id" uuid NOT NULL,
+  "route_id" uuid NOT NULL,
+  "stop_id" uuid,
+  "driver_id" uuid NOT NULL,
+  "client_action_id" varchar(64) NOT NULL,
+  "action_type" sync_action_type NOT NULL,
+  "captured_at" timestamp NOT NULL,
+  "reason" varchar(500) NOT NULL,
+  "error_code" varchar(50),
+  "reported_at" timestamp NOT NULL DEFAULT (now()),
+  "reviewed_at" timestamp,
+  "reviewed_by" uuid
+);
+
+CREATE TABLE "route_sync_rejection_photos" (
+  "id" uuid PRIMARY KEY,
+  "rejection_id" uuid NOT NULL,
+  "photo_url" varchar(500) NOT NULL,
+  "captured_at" timestamp
+);
+
 CREATE TABLE "support_requests" (
   "id" uuid PRIMARY KEY,
   "company_id" uuid NOT NULL,
@@ -436,6 +478,16 @@ CREATE INDEX ON "user_invitations" ("user_id");
 CREATE UNIQUE INDEX ON "route_stops" ("route_id", "sequence");
 
 CREATE INDEX ON "route_locations" ("route_id", "captured_at");
+
+CREATE INDEX ON "route_reassignments" ("route_id", "previous_driver_id");
+
+CREATE INDEX ON "route_reassignments" ("stop_id", "previous_driver_id");
+
+CREATE UNIQUE INDEX ON "route_sync_rejections" ("driver_id", "client_action_id");
+
+CREATE INDEX ON "route_sync_rejections" ("route_id");
+
+CREATE INDEX ON "route_sync_rejection_photos" ("rejection_id");
 
 COMMENT ON COLUMN "companies"."tax_id" IS 'Colombian NIT';
 
@@ -631,6 +683,30 @@ COMMENT ON TABLE "incident_messages" IS 'HU-11: driver-supervisor communication'
 
 COMMENT ON COLUMN "incident_messages"."sender_id" IS 'Driver or supervisor';
 
+COMMENT ON TABLE "route_reassignments" IS 'RF07, HU-10 CA03: history of route and stop reassignments. Proves which driver had a route before it was reassigned';
+
+COMMENT ON COLUMN "route_reassignments"."route_id" IS 'Route the previous driver lost. For a stop reassignment, the source route';
+
+COMMENT ON COLUMN "route_reassignments"."stop_id" IS 'NULL when the whole route was reassigned; the moved stop otherwise';
+
+COMMENT ON COLUMN "route_reassignments"."target_route_id" IS 'Same as route_id for a whole route; the destination route for a stop';
+
+COMMENT ON COLUMN "route_reassignments"."reassigned_by" IS 'Supervisor or company admin who reassigned';
+
+COMMENT ON TABLE "route_sync_rejections" IS 'RF07, HU-10 CA03, HU-36 CA04 and CA05: offline driver actions the server rejected because the route or stop was reassigned or closed, reported once for the supervisor to review';
+
+COMMENT ON COLUMN "route_sync_rejections"."driver_id" IS 'Driver who did the action and reported it';
+
+COMMENT ON COLUMN "route_sync_rejections"."client_action_id" IS 'Queue row id on the phone; makes a retried report idempotent';
+
+COMMENT ON COLUMN "route_sync_rejections"."captured_at" IS 'Actual time the action was done on the device';
+
+COMMENT ON COLUMN "route_sync_rejections"."error_code" IS 'Server code that rejected the action (ROUTE_NOT_FOUND, ROUTE_NOT_IN_PROGRESS, STOP_NOT_FOUND)';
+
+COMMENT ON COLUMN "route_sync_rejections"."reviewed_at" IS 'NULL = pending supervisor review';
+
+COMMENT ON TABLE "route_sync_rejection_photos" IS 'RF16, HU-36: evidence photos of a rejected delivery or pickup, pending review. The stop is not completed automatically';
+
 COMMENT ON TABLE "support_requests" IS 'HU-03 / HU-34: technical support';
 
 COMMENT ON COLUMN "support_requests"."response" IS 'HU-03: platform admin response';
@@ -740,6 +816,32 @@ ALTER TABLE "incidents" ADD FOREIGN KEY ("stop_id") REFERENCES "route_stops" ("i
 ALTER TABLE "incident_messages" ADD FOREIGN KEY ("incident_id") REFERENCES "incidents" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "incident_messages" ADD FOREIGN KEY ("sender_id") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("stop_id") REFERENCES "route_stops" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("target_route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("previous_driver_id") REFERENCES "drivers" ("user_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("new_driver_id") REFERENCES "drivers" ("user_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_reassignments" ADD FOREIGN KEY ("reassigned_by") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_sync_rejections" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_sync_rejections" ADD FOREIGN KEY ("route_id") REFERENCES "routes" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_sync_rejections" ADD FOREIGN KEY ("stop_id") REFERENCES "route_stops" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_sync_rejections" ADD FOREIGN KEY ("driver_id") REFERENCES "drivers" ("user_id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_sync_rejections" ADD FOREIGN KEY ("reviewed_by") REFERENCES "users" ("id") DEFERRABLE INITIALLY IMMEDIATE;
+
+ALTER TABLE "route_sync_rejection_photos" ADD FOREIGN KEY ("rejection_id") REFERENCES "route_sync_rejections" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
 ALTER TABLE "support_requests" ADD FOREIGN KEY ("company_id") REFERENCES "companies" ("id") DEFERRABLE INITIALLY IMMEDIATE;
 
