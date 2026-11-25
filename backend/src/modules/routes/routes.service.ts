@@ -315,7 +315,15 @@ export async function getRouteById(companyId: string, routeId: string) {
     throw new NotFoundError('Ruta no encontrada', 'ROUTE_NOT_FOUND');
   }
 
-  return serializeRoute(route);
+  // Last time a GPS point of the route reached the server (synced_at, not the
+  // device capture time). The panel warns before reassigning a route in
+  // progress when it is old (RF07, HU-10 CA03, HU-36 CA04).
+  const lastSync = await prisma.routeLocation.aggregate({
+    where: { routeId: route.id },
+    _max: { syncedAt: true },
+  });
+
+  return { ...serializeRoute(route), lastSyncedAt: lastSync._max.syncedAt };
 }
 
 export async function getLatestRouteLocation(companyId: string, routeId: string) {

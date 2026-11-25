@@ -2023,3 +2023,55 @@ describe('Sync rejection review', () => {
     expect(driver.status).toBe(403);
   });
 });
+
+describe('Route last sync', () => {
+  async function createRoute() {
+    return prisma.route.create({
+      data: {
+        companyId: COMPANY_ID,
+        driverId: DRIVER_A_ID,
+        routeDate: new Date(`${todayInBogota()}T00:00:00.000Z`),
+        status: RouteStatus.in_progress,
+        startedAt: new Date(),
+      },
+    });
+  }
+
+  it('returns null when the route has no GPS points', async () => {
+    const route = await createRoute();
+
+    const res = await request(app).get(`/api/v1/routes/${route.id}`).set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastSyncedAt).toBeNull();
+  });
+
+  it('returns when the last point reached the server, not when it was captured', async () => {
+    const route = await createRoute();
+    // An offline point captured long ago but received recently is the latest sync.
+    await prisma.routeLocation.createMany({
+      data: [
+        {
+          routeId: route.id,
+          latitude: 4.4389,
+          longitude: -75.2322,
+          capturedAt: new Date('2026-11-24T15:00:00.000Z'),
+          syncedAt: new Date('2026-11-24T15:00:05.000Z'),
+        },
+        {
+          routeId: route.id,
+          latitude: 4.439,
+          longitude: -75.2323,
+          capturedAt: new Date('2026-11-24T14:00:00.000Z'),
+          syncedAt: new Date('2026-11-24T16:10:00.000Z'),
+          isOffline: true,
+        },
+      ],
+    });
+
+    const res = await request(app).get(`/api/v1/routes/${route.id}`).set(authHeader(adminToken));
+
+    expect(res.status).toBe(200);
+    expect(res.body.lastSyncedAt).toBe('2026-11-24T16:10:00.000Z');
+  });
+});
