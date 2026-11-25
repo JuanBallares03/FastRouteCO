@@ -1360,6 +1360,37 @@ describe('Route reassignment', () => {
     expect(await prisma.routeReassignment.count({ where: { routeId: route.id } })).toBe(0);
   });
 
+  it('cancels instead of deleting an emptied route with reassignment history', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+    await request(app)
+      .patch(`/api/v1/routes/${route.id}/driver`)
+      .set(authHeader(adminToken))
+      .send({ driverId: DRIVER_B_ID })
+      .expect(200);
+
+    await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    const kept = await prisma.route.findUnique({ where: { id: route.id } });
+    expect(kept?.status).toBe(RouteStatus.cancelled);
+    expect(await prisma.routeReassignment.count({ where: { routeId: route.id } })).toBe(1);
+  });
+
+  it('still deletes an emptied route without history', async () => {
+    const order = await createOrder();
+    const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
+
+    await request(app)
+      .post(`/api/v1/orders/${order.id}/cancel`)
+      .set(authHeader(adminToken))
+      .expect(200);
+
+    expect(await prisma.route.findUnique({ where: { id: route.id } })).toBeNull();
+  });
+
   it('refuses at the database level to delete a route with history', async () => {
     const order = await createOrder();
     const route = await createDriverRoute(DRIVER_A_ID, [order.id]);
