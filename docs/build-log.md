@@ -263,7 +263,7 @@ Pending:
 
 Decided on 2026-11-22 after the manual test of the driver route refresh. Each one will be built in its own branch.
 
-Reassigning an in-progress route (RF07, HU-10 CA03, HU-36 CA04 and CA05):
+Reassigning an in-progress route (RF07, HU-10 CA03, HU-36 CA04 and CA05), built in "Reassignment pending actions" below:
 - Reassigning a route that is already in progress stays allowed, as RF07 and HU-10 CA03 require.
 - The mobile app must not discard the previous driver's offline actions when the server rejects them because the route was reassigned. It keeps them as rejected and creates a notice or incident for the supervisor, so no delivery evidence is lost silently.
 - The web panel warns before reassigning an in-progress route when the driver's last sync is old.
@@ -271,6 +271,39 @@ Reassigning an in-progress route (RF07, HU-10 CA03, HU-36 CA04 and CA05):
 Undelivered orders and overdue routes (RF07, HU-10, HU-36):
 - Handling is manual. The panel marks overdue routes (past date and not completed or cancelled), and the supervisor decides for each order whether to reassign it, cancel it or return it to pending.
 - Routes from past days are excluded from the `pendingStops` count used to suggest the most suitable driver.
+
+## Reassignment pending actions
+
+Built on 2026-11-24 for issue #26 (RF07, HU-10 CA03, HU-36 CA04 and CA05).
+
+As built:
+- Data model:
+  - `route_reassignments` stores every route and stop reassignment with the previous and new driver, the target route and who reassigned it.
+  - `route_sync_rejections` and `route_sync_rejection_photos` store the reports (`b695e79`, migration `20261125010959_add_route_sync_rejections`).
+  - Foreign keys to `routes` are `ON DELETE RESTRICT`. `cancelOrder` cancels, instead of deleting, an emptied route that has history or reports (`4dbaa80`, `64f003f`, `becfff4`).
+- `POST /routes/driver/sync-rejections` and `POST /routes/driver/sync-rejections/evidence-signature` accept a report only when the driver had the route:
+  1. their own route, already closed;
+  2. a whole-route reassignment away from them (`stop_id IS NULL` and `target_route_id = route_id`);
+  3. a reassignment of that stop.
+  Any other driver gets 404 `ROUTE_NOT_FOUND`; their own route still in progress gets 409 `SYNC_REJECTION_NOT_APPLICABLE`. Reports are idempotent per driver and queue row id. Photos go to the stop folder `.../pending` and must come from it (`c1bc7b4`).
+- `GET /routes/:id/sync-rejections`, `PATCH /routes/:id/sync-rejections/:rejectionId/review`, `pendingSyncRejections` in `GET /routes`, and the events `route:sync-rejected` and `route:sync-rejection-reviewed` (`dbabc73`).
+- `GET /routes/:id` returns `lastSyncedAt`, the latest `route_locations.synced_at`: the server receive time, not the capture time (`8587015`).
+- Mobile reporting (`c1e90fa`):
+  - After each flush with a session, the app reports actions rejected with `ROUTE_NOT_FOUND`, `ROUTE_NOT_IN_PROGRESS` or `STOP_NOT_FOUND`, uploads the photos of a rejected delivery as pending evidence and sets `offline_queue.reported_at`.
+  - The rows and photos stay on the phone, and the detail shows "Informado al supervisor".
+  - A refused report is not retried until the app restarts.
+- Panel:
+  - "Acciones no sincronizadas" on the route detail with "Marcar revisada", and a badge in the route list (`5e4fd5b`).
+  - "Última sincronización del conductor", and a confirmation before reassigning a route in progress whose last sync is older than 5 minutes or missing (`0cc089f`).
+
+Decisions:
+- The stale-sync threshold is 5 minutes (about 60 missed GPS samples), a constant in `web/src/lib/sync-status.ts`.
+- A report never completes the stop: the supervisor decides by hand.
+
+Pending:
+- Reassignments made before migration `20261125010959_add_route_sync_rejections` have no history, so reports about them are refused.
+- A report about a stop deleted by `cancelOrder` is refused, because the stop no longer exists.
+- `reassignStop` refuses to move a stop to a driver who already has another route in progress (`DRIVER_HAS_ACTIVE_ROUTE`); unchanged.
 
 ## Pull request workflow
 
