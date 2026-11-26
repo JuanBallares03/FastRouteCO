@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    mem_limit: 512m
     environment:
       POSTGRES_DB: fastrouteco
       POSTGRES_USER: postgres
@@ -13,6 +14,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    mem_limit: 256m
     ports: ["6379:6379"]
     volumes: ["redisdata:/data"]
     healthcheck:
@@ -21,9 +23,17 @@ services:
 
   neo4j:
     image: neo4j:5-community
+    # Sized for a 4 GB WSL 2 VM. The Ibagué road network (88,931 intersections,
+    # 175,910 segments) is a store well under 100 MB, so a 256 MB page cache
+    # holds it entirely. Heap initial = max avoids full GC pauses.
+    mem_limit: 1280m
     environment:
       NEO4J_AUTH: "neo4j/password"
       NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+      NEO4J_dbms_memory_transaction_total_max: 256m
     ports: ["7474:7474", "7687:7687"]
     volumes: ["neo4jdata:/data", "neo4jlogs:/logs"]
     healthcheck:
@@ -33,20 +43,21 @@ services:
   nominatim:
     image: mediagis/nominatim:5.3
     profiles: ["geocoding"]
+    mem_limit: 2g
     environment:
       PBF_PATH: /nominatim/data/tolima.osm.pbf
       IMPORT_STYLE: full
-      THREADS: 4
-      POSTGRES_SHARED_BUFFERS: 512MB
-      POSTGRES_MAINTENANCE_WORK_MEM: 1GB
-      POSTGRES_WORK_MEM: 32MB
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      THREADS: 2
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_MAINTENANCE_WORK_MEM: 512MB
+      POSTGRES_WORK_MEM: 16MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 512MB
       NOMINATIM_PASSWORD: nominatim
     ports: ["8080:8080"]
     volumes:
       - ./osm-data:/nominatim/data
       - nominatimdata:/var/lib/postgresql/16/main
-    shm_size: 1g
+    shm_size: 512m
 
 volumes:
   pgdata:
