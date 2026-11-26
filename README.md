@@ -419,6 +419,52 @@ pnpm db:studio
 - JWT secrets and API keys must be set in each app's `.env` file (copied from `.env.example`).
 - Mobile development build requires Android Studio; Expo Go is not supported due to native modules.
 
+### Windows: Docker Desktop memory (WSL 2)
+
+On a 12 GB PC, limit the Docker Desktop WSL 2 VM to 4 GB so Windows, the dev
+servers and Android Studio keep enough RAM. Create or edit
+`%UserProfile%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=4GB
+swap=4GB
+```
+
+```powershell
+# PowerShell
+notepad $env:USERPROFILE\.wslconfig
+wsl --shutdown
+```
+
+```bash
+# Git Bash
+notepad "$USERPROFILE/.wslconfig"
+wsl --shutdown
+```
+
+Then start Docker Desktop again. `docker-compose.yml` caps each container so
+the local stack fits in that VM. The backend, web panel and Expo run on
+Windows, outside the VM.
+
+| Service | Expected RAM | Limits |
+|---|---:|---|
+| WSL kernel + Docker Engine | 300-500 MB | outside container limits |
+| PostgreSQL | 100-250 MB | `mem_limit=512m` |
+| Redis | 10-50 MB | `mem_limit=256m` |
+| Neo4j + APOC | 0.9-1.1 GB | `mem_limit=1280m`; heap 512 MB (initial = max), page cache 256 MB, transaction max 256 MB |
+| Nominatim (`geocoding` profile) | 400-800 MB at runtime | `mem_limit=2g`; `shared_buffers=256MB`, `maintenance_work_mem=512MB`, 2 import threads |
+| **Total** | **1.4-1.9 GB without Nominatim, 1.8-2.7 GB with it** | **4 GB of container ceilings** |
+
+The Ibagué road network (88,931 intersections, 175,910 segments) needs well
+under 100 MB of store, so the 256 MB page cache keeps the whole graph in
+memory. The `mem_limit` values are ceilings, not reservations. The initial
+Nominatim import is the memory peak; run it with Neo4j stopped
+(`docker compose stop neo4j`) and start Neo4j again when it finishes.
+
+A container that exits with code 137 was killed for running out of memory.
+Check usage with `docker stats --no-stream`.
+
 ### Windows: Android build requirements
 
 On Windows, the Android SDK's bundled `ninja.exe` (version 1.10) does not support long paths, which causes native compilation to fail. To fix this:

@@ -317,3 +317,17 @@ Required status checks:
 - Required checks once stayed in "Expected" on pull requests not targeting `main` because CI and Secret Scanning had a `pull_request` base-branch filter; it was removed in `20244f0`. No workflow has `paths` filters, so every pull request, including docs-only ones, reports all checks.
 - Rule: never add `paths`, `paths-ignore` or base-branch filters to the `pull_request` trigger of a workflow that produces a required check. A skipped workflow never reports a status and blocks the merge. If a job must skip work, it has to run and decide inside its steps.
 - Required checks on `main`: `test`, `web`, `mobile`, `audit` (CI), `Analyze JavaScript/TypeScript` (CodeQL), `gitleaks` (Secret Scanning) and `dependency-review`, all with source GitHub Actions. Renaming a job changes its check name, so the branch protection must be updated in the same change.
+
+## Local Docker memory limits
+
+Added on 2026-11-25. Development tooling only; no HU/RF change. `docker-compose.prod.yml` is unchanged.
+
+As built:
+- Neo4j exited with code 137 (out of memory) under Docker Desktop limited to 4 GB by `.wslconfig`, because heap and page cache were sized by Neo4j's startup heuristics.
+- `docker-compose.yml` sets `mem_limit` on every service: PostgreSQL 512m, Redis 256m, Neo4j 1280m, Nominatim 2g (`8554184`).
+- Neo4j: heap 512m (initial = max, as the Neo4j 5 memory guide recommends), page cache 256m, transaction total max 256m. The Ibagué road network (88,931 intersections, 175,910 segments) needs well under 100 MB of store. Measured idle usage after start: about 880 MiB of 1.25 GiB.
+- Nominatim: `THREADS` 2, `shared_buffers` 256MB, `maintenance_work_mem` 512MB, `work_mem` 16MB, `effective_cache_size` 512MB, `shm_size` 512m.
+- README "Windows: Docker Desktop memory (WSL 2)" documents `.wslconfig` (`memory=4GB`, `swap=4GB`) and the memory budget (`83404e0`).
+
+Pending:
+- The Nominatim import has not been rerun with the lower settings; run it with Neo4j stopped.
